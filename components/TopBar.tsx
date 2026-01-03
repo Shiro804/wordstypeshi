@@ -14,8 +14,6 @@ type Props = {
   onOpenStats: () => void;
   onOpenLeaderboard: () => void;
   onOpenSettings: () => void;
-  onToggleTheme: () => void;
-  theme: "dark" | "light";
   timerText?: string;
   hintSlot?: React.ReactNode;
   actionsSlot?: React.ReactNode;
@@ -172,8 +170,6 @@ export default function TopBar({
   onOpenStats,
   onOpenLeaderboard,
   onOpenSettings,
-  onToggleTheme,
-  theme,
   timerText,
   hintSlot,
   actionsSlot,
@@ -190,10 +186,6 @@ export default function TopBar({
       <div className="flex items-center gap-2">
         {hintSlot}
         {actionsSlot}
-
-        <IconButton onClick={onToggleTheme} title={theme === "dark" ? "Light mode" : "Dark mode"}>
-          {theme === "dark" ? <SunIcon /> : <MoonIcon />}
-        </IconButton>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

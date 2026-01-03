@@ -24,7 +24,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={manrope.variable}>
+    <html lang="en" className={`${manrope.variable} dark`}>
       <head>
         {/* iOS home screen (Safari → Add to Home Screen) */}
         <meta name="apple-mobile-web-app-capable" content="yes" />

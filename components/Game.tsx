@@ -13,7 +13,6 @@ import Modal from "@/components/Modal";
 import TopBar from "@/components/TopBar";
 import Settings from "@/components/Settings";
 import Leaderboard from "@/components/Leaderboard";
-import { applyTheme, loadTheme, saveTheme, type Theme } from "@/lib/theme";
 import Hint, { type HintResult } from "@/components/Hint";
 import {
   applyGameResult,
@@ -145,16 +144,12 @@ export default function Game() {
 
   const [hintUsed, setHintUsed] = useState(false);
 
-  const [theme, setTheme] = useState<Theme>(() => "dark");
-
   // timer
   const [startedAtMs, setStartedAtMs] = useState<number | null>(null);
   const [endedAtMs, setEndedAtMs] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
-    setTheme(loadTheme());
-
     // Auth + remote stats + active session
     getCurrentUserId().then(async (uid) => {
       setUserId(uid);
@@ -192,11 +187,6 @@ export default function Game() {
       });
     }
   }, [difficulty, userId]);
-
-  useEffect(() => {
-    applyTheme(theme);
-    saveTheme(theme);
-  }, [theme]);
 
   useEffect(() => {
     if (!solutions.length) return;
@@ -557,22 +547,30 @@ export default function Game() {
         }
       }}
     >
-      <div className="relative flex h-dvh w-full flex-col overflow-hidden bg-[color:var(--bg)] text-[color:var(--fg)] safe-top safe-bottom">
-        {/* subtle background */}
-        <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-          <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl" />
-          <div className="absolute -right-24 -bottom-24 h-72 w-72 rounded-full bg-yellow-500/15 blur-3xl" />
+      <div className="relative flex h-dvh w-full flex-col overflow-hidden bg-transparent text-[color:var(--fg)] safe-top safe-bottom">
+        {/* background image placeholder:
+            Put your image into `public/game-bg.jpg` to replace it.
+            Uses CSS background so missing file falls back gracefully. */}
+        <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{
+              backgroundColor: "#09090b",
+              backgroundImage:
+                "radial-gradient(1200px 700px at 20% 10%, rgba(255,255,255,0.08), transparent 55%), radial-gradient(900px 600px at 80% 20%, rgba(16,185,129,0.10), transparent 60%), url(/game-bg.jpg)",
+            }}
+          />
+          {/* Dim overlay so the UI stays readable */}
+          <div className="absolute inset-0 bg-black/35" />
         </div>
 
-        <div className="shrink-0" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+        <div className="relative z-10 shrink-0" style={{ paddingTop: "env(safe-area-inset-top)" }}>
           <TopBar
             onNew={requestReset}
             onShare={share}
             onOpenLeaderboard={() => setLeaderboardOpen(true)}
             onOpenSettings={() => setSettingsOpen(true)}
             onOpenStats={() => setStatsOpen(true)}
-            theme={theme}
-            onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
             timerText={formatDuration(Math.round(durationSec))}
             hintSlot={
               !gameOver.done ? (
@@ -606,7 +604,7 @@ export default function Game() {
         </div>
 
         <div
-          className="mx-auto flex w-full max-w-[560px] flex-1 min-h-0 flex-col px-4 py-2"
+          className="relative z-10 mx-auto flex w-full max-w-[560px] flex-1 min-h-0 flex-col px-4 py-2"
           style={{ paddingBottom: `calc(${keyboardHeight}px + 12px + max(0.5rem, env(safe-area-inset-bottom)))` }}
         >
           {/* toast slot (fixed height to prevent layout shift) */}
@@ -661,7 +659,7 @@ export default function Game() {
             className="fixed bottom-0 left-0 right-0 z-20 border-t border-[color:var(--border)] bg-[color:var(--bg)]/92 backdrop-blur"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
           >
-            <div className="mx-auto w-full max-w-[560px] px-4 py-3">
+            <div className="mx-auto w-full max-w-[560px] px-4 py-3.5">
               {gameOver.done ? (
                 <div className="pb-3">
                   <div className="flex items-center justify-center gap-3">
