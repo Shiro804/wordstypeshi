@@ -506,8 +506,8 @@ export default function Game() {
         </div>
 
         <div
-          className="mx-auto flex h-full w-full max-w-[560px] flex-col px-4 py-3"
-          style={{ paddingBottom: `calc(${keyboardHeight}px + max(0.75rem, env(safe-area-inset-bottom)))` }}
+          className="mx-auto flex h-full w-full max-w-[560px] flex-col px-4 py-2"
+          style={{ paddingBottom: `calc(${keyboardHeight}px + max(0.5rem, env(safe-area-inset-bottom)))` }}
         >
           {/* top status row (fixed height to prevent layout shift) */}
           <div className="flex h-10 items-center justify-between gap-2">
@@ -531,11 +531,11 @@ export default function Game() {
           </div>
 
           {/* toast slot (fixed height to prevent layout shift) */}
-          <div className="h-7 pt-2 text-center text-sm text-[color:var(--muted)]">{toast}</div>
+          <div className="h-6 pt-1 text-center text-xs text-[color:var(--muted)]">{toast}</div>
 
           {/* center area */}
           <div className="flex flex-1 flex-col items-center justify-center">
-            <div className="h-12">
+            <div className="h-8">
               {gameOver.won ? (
                 <div className="text-center text-3xl font-extrabold tracking-[0.18em] text-emerald-300 drop-shadow">
                   YOU WON
@@ -558,7 +558,7 @@ export default function Game() {
               </div>
             )}
 
-            <div className="h-16" />
+            <div className="h-8" />
           </div>
 
           {/* keyboard: fixed to bottom (iOS-friendly) */}

@@ -18,7 +18,7 @@ type Props = {
 
 export default function Grid({ rows, activeRowIndex, shakeRowNonce, onDeleteChar }: Props) {
   return (
-    <div className="grid gap-3 py-3">
+    <div className="grid gap-2 sm:gap-3 py-2 sm:py-3">
       {rows.map((r, ri) => {
         const isActive = ri === activeRowIndex;
         // key includes nonce so the shake animation restarts
@@ -28,7 +28,7 @@ export default function Grid({ rows, activeRowIndex, shakeRowNonce, onDeleteChar
           <div
             key={rowKey}
             className={
-              "grid grid-cols-5 gap-4" +
+              "grid grid-cols-5 gap-2 sm:gap-4" +
               (isActive && shakeRowNonce ? " animate-row-shake" : "")
             }
           >
