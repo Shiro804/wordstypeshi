@@ -61,7 +61,7 @@ export function LoginForm({
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder="yasmin@istsoschön.com"
                   autoCapitalize="none"
                   autoCorrect="off"
                   required
