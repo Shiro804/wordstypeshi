@@ -42,6 +42,8 @@ export default function Grid({ rows, activeRowIndex, shakeRowNonce, onDeleteChar
               const base =
                 "tile flex aspect-square w-[clamp(46px,8dvh,56px)] items-center justify-center rounded-xl border text-[clamp(1.25rem,3.6dvh,1.55rem)] font-extrabold uppercase select-none";
 
+              const isActiveRow = ri === activeRowIndex && r.marks == null;
+
               const stateCls =
                 mark === "correct"
                   ? " tile-correct"
@@ -50,11 +52,17 @@ export default function Grid({ rows, activeRowIndex, shakeRowNonce, onDeleteChar
                     : mark === "absent"
                       ? " tile-absent"
                       : hasLetter
-                        ? " tile-filled"
-                        : " tile-empty";
+                        ? isActiveRow
+                          ? " tile-filled tile-active"
+                          : " tile-filled"
+                        : isActiveRow
+                          ? " tile-empty tile-active"
+                          : " tile-empty";
 
               const animCls = r.revealed && mark ? " animate-tile-flip" : hasLetter && !mark ? " animate-tile-pop" : "";
 
+              // After a row is committed we keep it slightly dimmed for separation.
+              // The active row stays fully opaque and is highlighted via `.tile-active`.
               const rowDimCls = r.marks ? " opacity-90" : "";
 
               return (

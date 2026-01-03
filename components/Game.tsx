@@ -79,23 +79,50 @@ export default function Game() {
     getCurrentUserId().then((uid) => setUserId(uid));
   }, []);
 
-  // Restore active session once after login (do not override manual difficulty changes).
+  const answerLockedRef = useRef(false);
+
+  // Once a game has started, the answer must never change.
+  // This prevents any "marks changed mid game" issues.
+  useEffect(() => {
+    const committedCountNow = rows.filter((r) => r.marks).length;
+    if (startedAtMs || committedCountNow > 0) {
+      answerLockedRef.current = true;
+    }
+  }, [startedAtMs, rows]);
+
+  // Restore active session once after login.
+  // IMPORTANT: never override a game that already started locally.
   useEffect(() => {
     if (!userId) return;
     if (didInitSessionRef.current) return;
+
+    const hasLocalProgress =
+      Boolean(answer) ||
+      Boolean(startedAtMs) ||
+      current.length > 0 ||
+      rows.some((r) => (r.guess && r.guess.trim().length > 0) || r.marks);
+
+    if (hasLocalProgress) {
+      didInitSessionRef.current = true;
+      return;
+    }
+
     didInitSessionRef.current = true;
 
     (async () => {
       const active = await fetchActiveSession(userId);
-      if (active) {
-        setSessionId(active.id);
-        setDifficulty(active.difficulty);
-        setAnswer(active.answer);
-        setStartedAtMs(Date.parse(active.started_at));
-        setEndedAtMs(null);
-      }
+      if (!active) return;
+
+      // Hard lock: even if something tries to restore later, never replace the answer mid-game.
+      if (answerLockedRef.current) return;
+
+      setSessionId(active.id);
+      setDifficulty(active.difficulty);
+      setAnswer(active.answer);
+      setStartedAtMs(Date.parse(active.started_at));
+      setEndedAtMs(null);
     })();
-  }, [userId]);
+  }, [userId, answer, startedAtMs, current, rows]);
 
   // Load word lists whenever difficulty changes.
   useEffect(() => {
@@ -245,6 +272,7 @@ export default function Game() {
   }, [rows]);
 
   async function startNewGameInternal() {
+    answerLockedRef.current = false;
     saveGameState(null);
 
     if (!solutions.length) return;
