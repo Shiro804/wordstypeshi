@@ -45,12 +45,11 @@ export default function Hint({ answerLength, revealedMarks, disabled, onHint }: 
         if (bestGreen) onHint({ type: "reveal", index: bestGreen.index, letter: bestGreen.letter });
         else onHint({ type: "letters", letters: abs.slice(0, 10) });
       }}
-      className="inline-flex items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-medium text-[color:var(--fg)] shadow-sm backdrop-blur transition hover:bg-[color:var(--surface2)] disabled:cursor-not-allowed disabled:opacity-50"
+      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-sm font-bold text-[color:var(--fg)] shadow-sm backdrop-blur transition hover:bg-[color:var(--surface2)] disabled:cursor-not-allowed disabled:opacity-50"
       aria-label="Hint"
       title={bestGreen ? "Show a confirmed letter position" : "Show some letters to avoid"}
     >
-      <span className="text-base">?</span>
-      <span className="hidden sm:inline">Hint</span>
+      ?
     </button>
   );
 }

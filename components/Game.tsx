@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Clock3, RotateCcw, Sparkles } from "lucide-react";
+import { RotateCcw, Sparkles } from "lucide-react";
 import { Mark, marksToEmoji, pickRandom, scoreGuess } from "@/lib/game";
 import { loadWordLists } from "@/lib/words";
 import type { Difficulty } from "@/lib/difficulty";
@@ -30,6 +30,8 @@ const MAX_TRIES = 6;
 
 export default function Game() {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const keyboardRef = useRef<HTMLDivElement | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const [difficulty, setDifficulty] = useState<Difficulty>(() => loadDifficulty());
 
@@ -60,15 +62,14 @@ export default function Game() {
 
   const [hintUsed, setHintUsed] = useState(false);
 
+  const theme = "dark" as const;
+
   // timer
   const [startedAtMs, setStartedAtMs] = useState<number | null>(null);
   const [endedAtMs, setEndedAtMs] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
-  const theme = "dark" as const;
-
   useEffect(() => {
-    applyTheme();
 
     // Auth + remote stats + active session
     getCurrentUserId().then(async (uid) => {
@@ -153,6 +154,22 @@ export default function Game() {
     saveDifficulty(difficulty);
   }, [difficulty]);
 
+  useLayoutEffect(() => {
+    const measure = () => {
+      const h = keyboardRef.current?.offsetHeight ?? 0;
+      setKeyboardHeight(h);
+    };
+
+    measure();
+    window.addEventListener("resize", measure);
+    window.visualViewport?.addEventListener("resize", measure);
+
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.visualViewport?.removeEventListener("resize", measure);
+    };
+  }, []);
+
   function showToast(msg: string) {
     setToast(msg);
     window.setTimeout(() => setToast(""), 1400);
@@ -211,14 +228,31 @@ export default function Game() {
 
     const availableWords = solutions.filter((word) => !playedWords.has(word.toUpperCase()));
 
+    let a: string;
     if (availableWords.length === 0) {
       showToast("You've played all words! Starting fresh...");
       setPlayedWords(new Set());
-      var a = pickRandom(solutions);
+      a = pickRandom(solutions);
     } else {
-      var a = pickRandom(availableWords);
+      a = pickRandom(availableWords);
     }
 
+    // Reset everything FIRST, then set answer LAST (prevents flash of new word)
+    setRows(
+      Array.from({ length: MAX_TRIES }, () => ({
+        guess: "",
+        marks: null,
+        revealed: false,
+      })),
+    );
+    setCurrent("");
+    setToast("");
+    setHintUsed(false);
+    setStartedAtMs(null);
+    setEndedAtMs(null);
+
+    // Answer LAST - grid is already cleared
+    setAnswer(a);
 
     if (userId) {
       const s = await createOrReuseActiveSession({
@@ -232,19 +266,6 @@ export default function Game() {
       setSessionId(null);
     }
 
-    setRows(
-      Array.from({ length: MAX_TRIES }, () => ({
-        guess: "",
-        marks: null,
-        revealed: false,
-      })),
-    );
-    setCurrent("");
-    setToast("");
-    setHintUsed(false);
-    setStartedAtMs(null);
-    setEndedAtMs(null);
-    setAnswer(a);
     window.setTimeout(() => containerRef.current?.focus(), 0);
   }
 
@@ -279,6 +300,7 @@ export default function Game() {
     if (gameOver.done) return;
 
     if (!/^[A-Z]$/.test(k)) return;
+
     if (keyMarks[k] === "absent") return;
 
     setCurrent((s) => {
@@ -374,11 +396,23 @@ export default function Game() {
   }
 
   const ghost = current.padEnd(5, " ");
-  const viewRows: GridRow[] = rows.map((r, i) => {
-    if (r.marks) return r;
-    if (i === activeRowIndex) return { guess: ghost, marks: null, revealed: false };
-    return { guess: "     ", marks: null, revealed: false };
-  });
+
+  // Show empty grid if no answer yet (prevents flash of new word)
+  const viewRows: GridRow[] = useMemo(() => {
+    if (!answer) {
+      return Array.from({ length: MAX_TRIES }, () => ({
+        guess: "     ",
+        marks: null,
+        revealed: false,
+      }));
+    }
+
+    return rows.map((r, i) => {
+      if (r.marks) return r;
+      if (i === activeRowIndex) return { guess: ghost, marks: null, revealed: false };
+      return { guess: "     ", marks: null, revealed: false };
+    });
+  }, [answer, rows, activeRowIndex, ghost]);
 
   const committedRows = useMemo(
     () => rows.filter((r) => r.marks).map((r) => ({ guess: r.guess, marks: r.marks! })),
@@ -419,132 +453,96 @@ export default function Game() {
         }
       }}
     >
-      {/* 
-        BULLETPROOF LAYOUT STRATEGY:
-        
-        1. Verwende dvh (dynamic viewport height) statt vh
-           - dvh passt sich an Safari's URL-Bar an
-        
-        2. CSS Grid mit festen Bereichen:
-           - Header: auto (nimmt was er braucht)
-           - Main: 1fr (füllt verfügbaren Platz)
-           - Keyboard: auto (feste Höhe)
-        
-        3. Das Grid im Main-Bereich:
-           - Maximale Breite begrenzt
-           - aspect-ratio für quadratische Tiles
-           - Flexibel in der Größe
-      */}
+      {/* Main container: CSS Grid layout for guaranteed header/content/footer fit */}
       <div
-        className="grid bg-[color:var(--bg)] text-[color:var(--fg)]"
+        className="grid h-[100dvh] w-full overflow-hidden bg-[color:var(--bg)] text-[color:var(--fg)]"
         style={{
-          height: "100dvh", // Dynamic viewport height!
           gridTemplateRows: "auto 1fr auto",
           paddingTop: "env(safe-area-inset-top)",
-          paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
-        {/* subtle background */}
+        {/* Subtle background blurs */}
         <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
           <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl" />
           <div className="absolute -right-24 -bottom-24 h-72 w-72 rounded-full bg-yellow-500/15 blur-3xl" />
         </div>
 
-        {/* HEADER */}
-        <header className="shrink-0">
-          <TopBar
-            onNew={requestReset}
-            onShare={share}
-            onOpenLeaderboard={() => setLeaderboardOpen(true)}
-            onOpenSettings={() => setSettingsOpen(true)}
-            onOpenStats={() => setStatsOpen(true)}
-            actionsSlot={
-              <>
-                {process.env.NODE_ENV !== "production" ? (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        requestReset();
-                        window.setTimeout(() => containerRef.current?.focus(), 0);
-                      }}
-                      title="Reset"
-                      aria-label="Reset"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
-                    >
-                      <RotateCcw size={18} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCurrent(answer);
-                        window.setTimeout(() => containerRef.current?.focus(), 0);
-                      }}
-                      title="Solve"
-                      aria-label="Solve"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
-                    >
-                      <Sparkles size={18} />
-                    </button>
-                  </div>
-                ) : null}
-              </>
-            }
-          />
-        </header>
+        {/* HEADER: TopBar with timer + hint */}
+        <TopBar
+          onNew={requestReset}
+          onShare={share}
+          onOpenLeaderboard={() => setLeaderboardOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenStats={() => setStatsOpen(true)}
+          timerText={formatDuration(Math.round(durationSec))}
+          hintSlot={
+            !gameOver.done ? (
+              <Hint
+                disabled={hintUsed || committedCount === 0}
+                revealedMarks={committedRows}
+                answerLength={5}
+                onHint={onHint}
+              />
+            ) : null
+          }
+          actionsSlot={
+            process.env.NODE_ENV !== "production" ? (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    requestReset();
+                    window.setTimeout(() => containerRef.current?.focus(), 0);
+                  }}
+                  title="Reset"
+                  aria-label="Reset"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                >
+                  <RotateCcw size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrent(answer);
+                    window.setTimeout(() => containerRef.current?.focus(), 0);
+                  }}
+                  title="Solve"
+                  aria-label="Solve"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                >
+                  <Sparkles size={16} />
+                </button>
+              </div>
+            ) : null
+          }
+        />
 
-        {/* MAIN CONTENT - Flexibel! */}
-        <main className="flex flex-col items-center overflow-hidden px-3">
-          {/* Status Row */}
-          <div className="flex w-full max-w-[350px] items-center justify-between gap-2 py-2">
-            <div className="inline-flex items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-1.5 text-xs font-semibold text-[color:var(--fg)]">
-              <Clock3 size={14} className="text-[color:var(--muted)]" />
-              <span>{formatDuration(Math.round(durationSec))}</span>
-            </div>
-
-            <div className="flex items-center justify-end">
-              {!gameOver.done ? (
-                <Hint
-                  disabled={hintUsed || committedCount === 0}
-                  revealedMarks={committedRows}
-                  answerLength={5}
-                  onHint={onHint}
-                />
-              ) : (
-                <div className="h-8 w-8" />
-              )}
-            </div>
-          </div>
-
+        {/* MAIN: Scrollable content area with Grid */}
+        <main className="flex min-h-0 flex-col items-center justify-center overflow-hidden px-4">
           {/* Toast */}
           <div className="h-6 text-center text-sm text-[color:var(--muted)]">{toast}</div>
 
-          {/* Game Over Banner */}
+          {/* Game over banner */}
           <div className="h-10 flex items-center justify-center">
             {gameOver.won ? (
-              <div className="text-center text-2xl font-extrabold tracking-[0.18em] text-emerald-300 drop-shadow">
+              <div className="text-2xl font-extrabold tracking-[0.15em] text-emerald-300 drop-shadow">
                 YOU WON
               </div>
             ) : gameOver.lost ? (
-              <div className="text-center text-2xl font-extrabold tracking-[0.18em] text-rose-400 drop-shadow">
+              <div className="text-2xl font-extrabold tracking-[0.15em] text-rose-400 drop-shadow">
                 GAME OVER
               </div>
             ) : null}
           </div>
 
-          {/* GRID CONTAINER - Das Herzstück */}
-          <div className="flex flex-1 items-center justify-center w-full min-h-0">
-            <Grid
-              rows={viewRows}
-              activeRowIndex={activeRowIndex}
-              shakeRowNonce={shakeNonce}
-              onDeleteChar={onDeleteChar}
-            />
+          {/* Grid */}
+          <div className="py-2">
+            <Grid rows={viewRows} activeRowIndex={activeRowIndex} shakeRowNonce={shakeNonce} onDeleteChar={onDeleteChar} />
           </div>
 
-          {/* Answer reveal for lost game */}
+          {/* Answer reveal on loss */}
           {gameOver.lost && committedCount > 0 && (
-            <div className="py-2 text-center">
+            <div className="pt-2 text-center">
               <div className="text-xs text-[color:var(--muted)]">The word was:</div>
               <div className="text-xl font-bold text-[color:var(--fg)] uppercase tracking-widest">
                 {answer}
@@ -553,8 +551,12 @@ export default function Game() {
           )}
         </main>
 
-        {/* KEYBOARD - Feste Position am unteren Rand */}
-        <footer className="shrink-0 border-t border-[color:var(--border)] bg-[color:var(--bg)]/92 backdrop-blur">
+        {/* FOOTER: Keyboard (fixed to bottom) */}
+        <div
+          ref={keyboardRef}
+          className="border-t border-[color:var(--border)] bg-[color:var(--bg)]/92 backdrop-blur"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
           <div className="mx-auto w-full max-w-[560px] px-3 py-2">
             {gameOver.done ? (
               <div className="pb-2">
@@ -567,14 +569,14 @@ export default function Game() {
                     }}
                     className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-2.5 text-sm font-semibold text-[color:var(--fg)] shadow-sm transition hover:bg-[color:var(--surface2)]"
                   >
-                    Start New Game
+                    New Game
                   </button>
                   <button
                     type="button"
                     onClick={() => setStatsOpen(true)}
                     className="inline-flex items-center gap-2 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-2.5 text-sm font-semibold text-[color:var(--fg)] shadow-sm transition hover:bg-[color:var(--surface2)]"
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M4 19V5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                       <path d="M20 19V11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                       <path d="M12 19V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -589,7 +591,7 @@ export default function Game() {
 
             <Keyboard keyMarks={keyMarks} onKey={onKey} disabled={gameOver.done} />
           </div>
-        </footer>
+        </div>
       </div>
 
       <Leaderboard open={leaderboardOpen} onClose={() => setLeaderboardOpen(false)} />

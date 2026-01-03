@@ -1,5 +1,6 @@
 "use client";
 
+import { Clock3 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,65 +15,13 @@ type Props = {
   onOpenStats: () => void;
   onOpenLeaderboard: () => void;
   onOpenSettings: () => void;
-  timerText?: string;
+  // Timer
+  timerText: string;
+  // Hint slot (rendered by parent)
   hintSlot?: React.ReactNode;
+  // Dev buttons slot
   actionsSlot?: React.ReactNode;
 };
-
-function IconButton({
-  children,
-  onClick,
-  title,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  title: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      aria-label={title}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] shadow-sm backdrop-blur transition hover:bg-[color:var(--surface2)] active:translate-y-[1px]"
-    >
-      {children}
-    </button>
-  );
-}
-
-function SunIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <path d="M12 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M12 20v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M4.93 4.93l1.41 1.41" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M17.66 17.66l1.41 1.41" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M2 12h2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M20 12h2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M4.93 19.07l1.41-1.41" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M17.66 6.34l1.41-1.41" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function MoonIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M21 12.8A8.5 8.5 0 0 1 11.2 3a7 7 0 1 0 9.8 9.8Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 function StatsIcon() {
   return (
@@ -103,7 +52,6 @@ function TrophyIcon() {
 }
 
 function GearIcon() {
-  // Simpler "settings" glyph to avoid the busy/odd look on small screens
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M4 7h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -122,25 +70,9 @@ function GearIcon() {
 function ShareIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M12 16V3"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M7 7l5-4 5 4"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
+      <path d="M12 16V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M7 7l5-4 5 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -175,24 +107,33 @@ export default function TopBar({
   actionsSlot,
 }: Props) {
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-[color:var(--border)] bg-[color:var(--bg)]/90 px-4 py-2 backdrop-blur">
-      <div className="flex items-center gap-2">
+    <div className="flex items-center justify-between gap-2 border-b border-[color:var(--border)] bg-[color:var(--bg)]/90 px-3 py-2 backdrop-blur">
+      {/* Left: Logo + Timer */}
+      <div className="flex items-center gap-3">
         <div className="text-sm font-semibold tracking-tight text-[color:var(--fg)]">WordsTypeShi</div>
-        {timerText && (
-          <div className="text-xs font-mono text-[color:var(--muted)]">{timerText}</div>
-        )}
+        
+        {/* Timer badge */}
+        <div className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-1 text-xs font-semibold text-[color:var(--fg)]">
+          <Clock3 size={12} className="text-[color:var(--muted)]" />
+          <span>{timerText}</span>
+        </div>
       </div>
 
+      {/* Right: Hint + Actions + Menu */}
       <div className="flex items-center gap-2">
+        {/* Hint button (passed from parent) */}
         {hintSlot}
+        
+        {/* Dev buttons */}
         {actionsSlot}
 
+        {/* Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
               aria-label="Menu"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] shadow-sm backdrop-blur transition hover:bg-[color:var(--surface2)] active:translate-y-[1px]"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] shadow-sm backdrop-blur transition hover:bg-[color:var(--surface2)] active:translate-y-[1px]"
             >
               <MoreIcon />
             </button>
