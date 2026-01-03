@@ -12,27 +12,43 @@ function isValidFiveLetterWord(s: string) {
   return /^[A-Z]{5}$/.test(s);
 }
 
-export async function loadWordLists(): Promise<WordLists> {
-  const [wordsRes, bannedRes] = await Promise.all([
+export type Difficulty = "easy" | "medium" | "hard";
+
+export async function loadWordLists(difficulty: Difficulty = "medium"): Promise<WordLists> {
+  const solutionsPath =
+    difficulty === "easy" ? "/words/easy.txt" : difficulty === "hard" ? "/words/hard.txt" : "/words/medium.txt";
+
+  const [allowedRes, solutionsRes, bannedRes] = await Promise.all([
     fetch("/words/words.txt", { cache: "force-cache" }),
+    fetch(solutionsPath, { cache: "force-cache" }),
     fetch("/words/banned.txt", { cache: "force-cache" }).catch(() => null),
   ]);
 
-  const wordsText = await wordsRes.text();
+  const allowedText = await allowedRes.text();
+  const solutionsText = await solutionsRes.text();
   const bannedText = bannedRes ? await bannedRes.text() : "";
 
-  const banned = new Set(
-    bannedText.split(/\r?\n/).map(normalizeLine).filter(Boolean)
+  const banned = new Set(bannedText.split(/\r?\n/).map(normalizeLine).filter(Boolean));
+
+  const allowed = Array.from(
+    new Set(
+      allowedText
+        .split(/\r?\n/)
+        .map(normalizeLine)
+        .filter(isValidFiveLetterWord)
+        .filter((w) => !banned.has(w)),
+    ),
   );
 
-  const all = wordsText
-    .split(/\r?\n/)
-    .map(normalizeLine)
-    .filter(isValidFiveLetterWord);
+  const solutions = Array.from(
+    new Set(
+      solutionsText
+        .split(/\r?\n/)
+        .map(normalizeLine)
+        .filter(isValidFiveLetterWord)
+        .filter((w) => !banned.has(w)),
+    ),
+  );
 
-  // dedupe + filter banned
-  const clean = Array.from(new Set(all)).filter((w) => !banned.has(w));
-
-  // MVP: allowed == solutions (du kannst später trennen)
-  return { allowed: clean, solutions: clean };
+  return { allowed, solutions };
 }

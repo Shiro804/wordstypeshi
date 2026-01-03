@@ -43,6 +43,9 @@ export function SignUpForm({
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/`,
+        },
       });
 
       if (error) {
@@ -66,7 +69,7 @@ export function SignUpForm({
       const authUserId = data.user?.id;
       if (authUserId) {
         const { error: profileError } = await supabase
-          .from("users")
+          .from("profiles")
           .upsert({ id: authUserId }, { onConflict: "id" });
         if (profileError) throw profileError;
       }

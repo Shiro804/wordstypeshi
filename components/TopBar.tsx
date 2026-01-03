@@ -1,5 +1,13 @@
 "use client";
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
 type Props = {
   onNew: () => void;
   onShare: () => void;
@@ -95,19 +103,18 @@ function TrophyIcon() {
 }
 
 function GearIcon() {
+  // Simpler "settings" glyph to avoid the busy/odd look on small screens
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <path
-        d="M19.4 15a7.9 7.9 0 0 0 .1-1l2-1.5-2-3.5-2.4.5a7.5 7.5 0 0 0-1.7-1l-.4-2.5h-4l-.4 2.5a7.5 7.5 0 0 0-1.7 1L4.5 9 2.5 12.5l2 1.5a7.9 7.9 0 0 0 .1 1l-2 1.5 2 3.5 2.4-.5a7.5 7.5 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.5 7.5 0 0 0 1.7-1l2.4.5 2-3.5-2-1.5Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
+      <path d="M4 7h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M18 7h2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M4 12h2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M10 12h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M4 17h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M14 17h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="16" cy="7" r="2" stroke="currentColor" strokeWidth="2" />
+      <circle cx="8" cy="12" r="2" stroke="currentColor" strokeWidth="2" />
+      <circle cx="12" cy="17" r="2" stroke="currentColor" strokeWidth="2" />
     </svg>
   );
 }
@@ -147,6 +154,16 @@ function PlusIcon() {
   );
 }
 
+function MoreIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M5 12h.01" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+      <path d="M12 12h.01" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+      <path d="M19 12h.01" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export default function TopBar({
   onNew,
   onShare,
@@ -158,8 +175,8 @@ export default function TopBar({
   actionsSlot,
 }: Props) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] bg-[color:var(--bg)]/90 px-4 py-3 backdrop-blur">
-      <div className="text-base font-semibold tracking-tight text-[color:var(--fg)]">WordsTypeShi</div>
+    <div className="flex items-center justify-between gap-2 border-b border-[color:var(--border)] bg-[color:var(--bg)]/90 px-4 py-2 backdrop-blur">
+      <div className="text-sm font-semibold tracking-tight text-[color:var(--fg)]">WordsTypeShi</div>
 
       <div className="flex items-center gap-2">
         {actionsSlot}
@@ -168,21 +185,40 @@ export default function TopBar({
           {theme === "dark" ? <SunIcon /> : <MoonIcon />}
         </IconButton>
 
-        <IconButton onClick={onOpenLeaderboard} title="Leaderboard">
-          <TrophyIcon />
-        </IconButton>
-        <IconButton onClick={onOpenSettings} title="Settings">
-          <GearIcon />
-        </IconButton>
-        <IconButton onClick={onOpenStats} title="Stats">
-          <StatsIcon />
-        </IconButton>
-        <IconButton onClick={onShare} title="Share">
-          <ShareIcon />
-        </IconButton>
-        <IconButton onClick={onNew} title="New">
-          <PlusIcon />
-        </IconButton>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="Menu"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] shadow-sm backdrop-blur transition hover:bg-[color:var(--surface2)] active:translate-y-[1px]"
+            >
+              <MoreIcon />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-44">
+            <DropdownMenuItem onClick={onNew} className="flex items-center gap-2">
+              <PlusIcon />
+              <span>New game</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onShare} className="flex items-center gap-2">
+              <ShareIcon />
+              <span>Share</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onOpenStats} className="flex items-center gap-2">
+              <StatsIcon />
+              <span>Stats</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onOpenLeaderboard} className="flex items-center gap-2">
+              <TrophyIcon />
+              <span>Leaderboard</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onOpenSettings} className="flex items-center gap-2">
+              <GearIcon />
+              <span>Settings</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

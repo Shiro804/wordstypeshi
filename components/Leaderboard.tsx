@@ -2,11 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Modal from "@/components/Modal";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
 import type { Stats } from "@/lib/storage";
+import type { Difficulty } from "@/lib/difficulty";
 
 export type LeaderboardMetric =
   | "wins"
+  | "losses"
   | "winRate"
   | "played"
   | "maxStreak"
@@ -27,7 +35,20 @@ type Row = {
 
 type StatsTableRow = {
   user_id: string;
-  stats: unknown;
+  played: number;
+  wins: number;
+  losses: number;
+  current_streak: number;
+  max_streak: number;
+  dist_1: number;
+  dist_2: number;
+  dist_3: number;
+  dist_4: number;
+  dist_5: number;
+  dist_6: number;
+  best_time_sec: number | null;
+  avg_time_sec: number | null;
+  last_times_sec: number[];
   updated_at: string | null;
 };
 
@@ -36,20 +57,34 @@ type UsersTableRow = {
   username: string | null;
 };
 
-function isStats(value: unknown): value is Stats {
-  if (!value || typeof value !== "object") return false;
-  const v = value as Partial<Stats>;
-  return typeof v.played === "number" && typeof v.wins === "number";
-}
-
-function hasStats(row: StatsTableRow): row is StatsTableRow & { stats: Stats } {
-  return isStats(row.stats);
+function rowToStats(r: StatsTableRow): Stats {
+  return {
+    played: r.played ?? 0,
+    wins: r.wins ?? 0,
+    losses: r.losses ?? 0,
+    currentStreak: r.current_streak ?? 0,
+    maxStreak: r.max_streak ?? 0,
+    distribution: {
+      1: r.dist_1 ?? 0,
+      2: r.dist_2 ?? 0,
+      3: r.dist_3 ?? 0,
+      4: r.dist_4 ?? 0,
+      5: r.dist_5 ?? 0,
+      6: r.dist_6 ?? 0,
+    },
+    bestTimeSec: r.best_time_sec ?? null,
+    avgTimeSec: r.avg_time_sec ?? null,
+    lastTimesSec: Array.isArray(r.last_times_sec) ? (r.last_times_sec as number[]) : [],
+    updatedAt: r.updated_at ? Date.parse(r.updated_at) : Date.now(),
+  };
 }
 
 function metricLabel(m: LeaderboardMetric) {
   switch (m) {
     case "wins":
       return "Wins";
+    case "losses":
+      return "Losses";
     case "winRate":
       return "Win rate";
     case "played":
@@ -73,6 +108,7 @@ function formatSeconds(sec: number | null) {
 
 export default function Leaderboard({ open, onClose }: Props) {
   const [metric, setMetric] = useState<LeaderboardMetric>("wins");
+  const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,44 +123,88 @@ export default function Leaderboard({ open, onClose }: Props) {
       try {
         const supabase = createClient();
 
-        // Leaderboard needs to show data for all users.
-        // Depending on your schema/RLS, you may NOT have a foreign key relationship
-        // between stats.user_id and users.id. To be robust, we do a 2-step fetch:
-        // 1) fetch stats rows
-        // 2) fetch matching user profiles by id and merge client-side
+        const SELECT_COLS =
+          "user_id,played,wins,losses,current_streak,max_streak,dist_1,dist_2,dist_3,dist_4,dist_5,dist_6,best_time_sec,avg_time_sec,last_times_sec,updated_at";
 
-        const { data: statsRowsRaw, error: statsError } = await supabase
-          .from("stats")
-          .select("user_id, stats, updated_at");
+        // Server-side sorting/limiting for performance.
+        // For winRate (derived), we fetch a reasonable candidate set and sort client-side.
+        const LIMIT = 50;
+        const CANDIDATE_LIMIT = 250;
 
+        let statsQuery = supabase.from("stats").select(SELECT_COLS).eq("difficulty", difficulty);
+
+        switch (metric) {
+          case "wins":
+            statsQuery = statsQuery.order("wins", { ascending: false }).limit(LIMIT);
+            break;
+          case "losses":
+            // lower losses is better (ascending)
+            statsQuery = statsQuery.order("losses", { ascending: true }).limit(LIMIT);
+            break;
+          case "played":
+            statsQuery = statsQuery.order("played", { ascending: false }).limit(LIMIT);
+            break;
+          case "maxStreak":
+            statsQuery = statsQuery.order("max_streak", { ascending: false }).limit(LIMIT);
+            break;
+          case "bestTimeSec":
+            // lower is better; nulls last
+            statsQuery = statsQuery
+              .order("best_time_sec", { ascending: true, nullsFirst: false })
+              .limit(LIMIT);
+            break;
+          case "avgTimeSec":
+            // lower is better; nulls last
+            statsQuery = statsQuery
+              .order("avg_time_sec", { ascending: true, nullsFirst: false })
+              .limit(LIMIT);
+            break;
+          case "winRate":
+            // Can't sort by a derived ratio without a DB view/rpc.
+            // Get candidates (active players) and sort client-side.
+            statsQuery = statsQuery
+              .gte("played", 5)
+              .order("wins", { ascending: false })
+              .limit(CANDIDATE_LIMIT);
+            break;
+        }
+
+        const { data: statsRowsRaw, error: statsError } = await statsQuery;
         if (statsError) throw statsError;
 
-        const statsRows = (statsRowsRaw ?? []) as unknown as StatsTableRow[];
+        let statsRows = (statsRowsRaw ?? []) as unknown as StatsTableRow[];
+
+        if (metric === "winRate") {
+          statsRows = [...statsRows]
+            .sort((a, b) => {
+              const ar = a.played ? a.wins / a.played : 0;
+              const br = b.played ? b.wins / b.played : 0;
+              return br - ar;
+            })
+            .slice(0, LIMIT);
+        }
 
         const ids = Array.from(new Set(statsRows.map((r) => r.user_id).filter(Boolean)));
 
         const { data: usersRowsRaw, error: usersError } = ids.length
-          ? await supabase.from("users").select("id, username").in("id", ids)
+          ? await supabase.from("profiles").select("id, username").in("id", ids)
           : { data: [], error: null };
 
         if (usersError) throw usersError;
 
         const usersRows = (usersRowsRaw ?? []) as unknown as UsersTableRow[];
-
         const userById = new Map<string, UsersTableRow>();
         for (const u of usersRows) userById.set(u.id, u);
 
-        const mapped: Row[] = statsRows
-          .filter(hasStats)
-          .map((r) => {
-            const u = userById.get(r.user_id);
-            return {
-              user_id: r.user_id,
-              stats: r.stats,
-              updated_at: r.updated_at ?? null,
-              username: u?.username ?? null,
-            };
-          });
+        const mapped: Row[] = statsRows.map((r) => {
+          const u = userById.get(r.user_id);
+          return {
+            user_id: r.user_id,
+            stats: rowToStats(r),
+            updated_at: r.updated_at ?? null,
+            username: u?.username ?? null,
+          };
+        });
 
         setRows(mapped);
       } catch (e: unknown) {
@@ -135,36 +215,17 @@ export default function Leaderboard({ open, onClose }: Props) {
     };
 
     void run();
-  }, [open]);
+  }, [open, metric, difficulty]);
 
   const ranked = useMemo(() => {
-    const valueOf = (r: Row) => {
-      const s = r.stats;
-      switch (metric) {
-        case "wins":
-          return s.wins;
-        case "played":
-          return s.played;
-        case "maxStreak":
-          return s.maxStreak;
-        case "winRate":
-          return s.played ? s.wins / s.played : 0;
-        case "bestTimeSec":
-          // lower is better; treat null as worst
-          return s.bestTimeSec == null ? Number.POSITIVE_INFINITY : s.bestTimeSec;
-        case "avgTimeSec":
-          return s.avgTimeSec == null ? Number.POSITIVE_INFINITY : s.avgTimeSec;
-      }
-    };
-
-    const dir = metric === "bestTimeSec" || metric === "avgTimeSec" ? "asc" : "desc";
+    // Rows are already ordered/limited by the server for all metrics except winRate.
+    if (metric !== "winRate") return rows;
 
     return [...rows]
-      .filter((r) => !!r.stats)
       .sort((a, b) => {
-        const av = valueOf(a);
-        const bv = valueOf(b);
-        return dir === "asc" ? av - bv : bv - av;
+        const ar = a.stats.played ? a.stats.wins / a.stats.played : 0;
+        const br = b.stats.played ? b.stats.wins / b.stats.played : 0;
+        return br - ar;
       })
       .slice(0, 50);
   }, [rows, metric]);
@@ -173,28 +234,62 @@ export default function Leaderboard({ open, onClose }: Props) {
     <Modal open={open} onClose={onClose} title="Leaderboard">
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="text-xs font-semibold uppercase tracking-wide text-white/60">Sort by</div>
-          <select
-            value={metric}
-            onChange={(e) => setMetric(e.target.value as LeaderboardMetric)}
-            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
-          >
-            <option value="wins">Wins</option>
-            <option value="winRate">Win rate</option>
-            <option value="played">Played</option>
-            <option value="maxStreak">Max streak</option>
-            <option value="bestTimeSec">Best time</option>
-            <option value="avgTimeSec">Avg time</option>
-          </select>
+          <div className="text-xs font-semibold uppercase tracking-wide text-[color:var(--muted)]">Difficulty</div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] shadow-sm transition hover:bg-[color:var(--surface2)]"
+              >
+                <span>{difficulty}</span>
+                <span className="text-[color:var(--muted)]">▾</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-32">
+              {(["easy", "medium", "hard"] as Difficulty[]).map((d) => (
+                <DropdownMenuItem key={d} onClick={() => setDifficulty(d)}>
+                  {d}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <div className="text-xs font-semibold uppercase tracking-wide text-[color:var(--muted)]">Sort by</div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] shadow-sm transition hover:bg-[color:var(--surface2)]"
+              >
+                <span>{metricLabel(metric)}</span>
+                <span className="text-[color:var(--muted)]">▾</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-48">
+              {([
+                "wins",
+                "losses",
+                "winRate",
+                "played",
+                "maxStreak",
+                "bestTimeSec",
+                "avgTimeSec",
+              ] as LeaderboardMetric[]).map((m) => (
+                <DropdownMenuItem key={m} onClick={() => setMetric(m)}>
+                  {metricLabel(m)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
-        {loading ? <div className="text-sm text-white/70">Loading…</div> : null}
+        {loading ? <div className="text-sm text-[color:var(--muted)]">Loading…</div> : null}
         {error ? <div className="text-sm text-rose-300">{error}</div> : null}
 
         {!loading && !error ? (
-          <div className="divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10">
+          <div className="divide-y divide-[color:var(--border)] overflow-hidden rounded-2xl border border-[color:var(--border)]">
             {ranked.length === 0 ? (
-              <div className="p-4 text-sm text-white/70">No stats yet.</div>
+              <div className="p-4 text-sm text-[color:var(--muted)]">No stats yet.</div>
             ) : (
               ranked.map((r, idx) => {
                 const s = r.stats;
@@ -204,6 +299,9 @@ export default function Leaderboard({ open, onClose }: Props) {
                 switch (metric) {
                   case "wins":
                     val = s.wins;
+                    break;
+                  case "losses":
+                    val = s.losses;
                     break;
                   case "played":
                     val = s.played;
@@ -225,12 +323,12 @@ export default function Leaderboard({ open, onClose }: Props) {
                 return (
                   <div key={r.user_id} className="flex items-center justify-between gap-3 p-3">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-white">
+                      <div className="truncate text-sm font-semibold text-[color:var(--fg)]">
                         {idx + 1}. {name}
                       </div>
-                      <div className="text-xs text-white/50">{metricLabel(metric)}</div>
+                      <div className="text-xs text-[color:var(--muted)]">{metricLabel(metric)}</div>
                     </div>
-                    <div className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-bold text-white">
+                    <div className="shrink-0 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-1.5 text-sm font-bold text-[color:var(--fg)]">
                       {val}
                     </div>
                   </div>
@@ -240,9 +338,9 @@ export default function Leaderboard({ open, onClose }: Props) {
           </div>
         ) : null}
 
-        <div className="text-xs text-white/50">
+        {/* <div className="text-xs text-[color:var(--muted)]">
           Note: to show all users, your Supabase RLS must allow reading leaderboard data (typically via a view).
-        </div>
+        </div> */}
       </div>
     </Modal>
   );

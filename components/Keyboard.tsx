@@ -22,6 +22,7 @@ export default function Keyboard({ keyMarks, onKey, disabled }: Props) {
           {row.map((k) => {
             const mark = keyMarks[k];
             const wide = k === "ENTER" || k === "BACKSPACE";
+            const isAbsent = mark === "absent";
 
             const stateCls =
               mark === "correct"
@@ -36,10 +37,10 @@ export default function Keyboard({ keyMarks, onKey, disabled }: Props) {
               <button
                 key={k}
                 type="button"
-                disabled={disabled}
+                disabled={disabled || isAbsent}
                 onClick={() => onKey(k)}
                 className={
-                  "key inline-flex min-w-0 flex-1 basis-0 items-center justify-center rounded-xl border px-0.5 py-3 text-[11px] font-semibold uppercase shadow-sm transition active:translate-y-[1px] disabled:cursor-not-allowed disabled:opacity-70 sm:px-2 sm:text-sm" +
+                  "key inline-flex min-w-0 flex-1 basis-0 items-center justify-center rounded-xl border px-0.5 py-[clamp(0.65rem,2vh,0.95rem)] text-[clamp(0.65rem,1.6vh,0.95rem)] font-semibold uppercase shadow-sm transition active:translate-y-[1px] disabled:cursor-not-allowed disabled:opacity-70 sm:px-2" +
                   (wide ? " flex-[1.5]" : "") +
                   stateCls
                 }

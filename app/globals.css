@@ -11,6 +11,10 @@
   --surface: rgba(255, 255, 255, 0.05);
   --surface2: rgba(255, 255, 255, 0.08);
 
+  /* modal surfaces */
+  --modal-bg: rgba(9, 9, 11, 0.92);
+  --modal-overlay: rgba(0, 0, 0, 0.60);
+
   --correct-bg: rgba(16, 185, 129, 0.30);
   --correct-border: rgba(16, 185, 129, 0.55);
   --present-bg: rgba(234, 179, 8, 0.30);
@@ -27,6 +31,10 @@ html.light {
   --border: rgba(0, 0, 0, 0.12);
   --surface: rgba(0, 0, 0, 0.04);
   --surface2: rgba(0, 0, 0, 0.07);
+
+  /* modal surfaces (less transparent in light mode) */
+  --modal-bg: rgba(248, 250, 252, 0.98);
+  --modal-overlay: rgba(0, 0, 0, 0.35);
 }
 
 html.dark {
@@ -38,6 +46,7 @@ body {
   height: 100%;
   margin: 0;
   padding: 0;
+  overflow: hidden; /* app-like: prevent page scrolling */
 }
 
 body {
@@ -45,6 +54,8 @@ body {
     "Apple Color Emoji", "Segoe UI Emoji";
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   touch-action: manipulation;
   background: var(--bg);
   color: var(--fg);

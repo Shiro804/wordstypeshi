@@ -12,7 +12,7 @@ export async function getMyProfile(): Promise<UserProfile | null> {
   if (!user) return null;
 
   const { data, error } = await supabase
-    .from("users")
+    .from("profiles")
     .select("id, username")
     .eq("id", user.id)
     .maybeSingle();
@@ -35,7 +35,7 @@ export async function upsertMyProfile(profile: { username: string | null }): Pro
   const username = profile.username?.trim() ? profile.username.trim() : null;
 
   const { error } = await supabase
-    .from("users")
+    .from("profiles")
     .upsert(
       {
         id: user.id,
