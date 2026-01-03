@@ -9,6 +9,12 @@ export function getAvatarPublicUrl(path: string | null | undefined): string | nu
   return data.publicUrl ?? null;
 }
 
+export async function deleteMyAvatarObject(path: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.storage.from(AVATAR_BUCKET).remove([path]);
+  if (error) throw error;
+}
+
 function extFromMime(mime: string | undefined): string {
   switch (mime) {
     case "image/png":
@@ -43,7 +49,8 @@ export async function uploadMyAvatar(file: File): Promise<{ path: string }> {
 
   const ext = extFromMime(file.type);
   const safeExt = ext === "bin" ? "png" : ext;
-  const path = `${user.id}/avatar.${safeExt}`;
+  // Use a unique filename per upload to avoid stale cached images (especially on iOS PWA).
+  const path = `${user.id}/avatar_${Date.now()}.${safeExt}`;
 
   const { error } = await supabase.storage
     .from(AVATAR_BUCKET)

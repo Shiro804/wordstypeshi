@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "@/components/Modal";
 import {
   DropdownMenu,
@@ -11,7 +11,7 @@ import {
 import { LogoutButton } from "@/components/logout-button";
 import { createClient } from "@/lib/supabase/client";
 import { getMyProfile, upsertMyProfile } from "@/lib/profile";
-import { getAvatarPublicUrl, uploadMyAvatar } from "@/lib/avatar";
+import { deleteMyAvatarObject, getAvatarPublicUrl, uploadMyAvatar } from "@/lib/avatar";
 
 import type { Difficulty } from "@/lib/difficulty";
 
@@ -28,6 +28,8 @@ export default function Settings({ open, onClose, difficulty, onDifficultyChange
   const [avatarPath, setAvatarPath] = useState<string | null>(null);
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const initialAvatarPathRef = useRef<string | null>(null);
+  const lastUnsavedUploadRef = useRef<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,8 +44,11 @@ export default function Settings({ open, onClose, difficulty, onDifficultyChange
 
     getMyProfile().then((p) => {
       setUsername(p?.username ?? "");
-      setAvatarPath(p?.avatar_path ?? null);
-      setAvatarPreviewUrl(getAvatarPublicUrl(p?.avatar_path ?? null));
+      const ap = p?.avatar_path ?? null;
+      initialAvatarPathRef.current = ap;
+      lastUnsavedUploadRef.current = null;
+      setAvatarPath(ap);
+      setAvatarPreviewUrl(getAvatarPublicUrl(ap));
     });
   }, [open]);
 
@@ -161,9 +166,26 @@ export default function Settings({ open, onClose, difficulty, onDifficultyChange
                     setError(null);
                     setAvatarUploading(true);
                     try {
+                      // If the user previously uploaded an image but didn't save it,
+                      // remove that old unsaved object before uploading a new one.
+                      if (lastUnsavedUploadRef.current) {
+                        try {
+                          await deleteMyAvatarObject(lastUnsavedUploadRef.current);
+                        } catch {
+                          // best-effort cleanup
+                        }
+                        lastUnsavedUploadRef.current = null;
+                      }
+
                       const { path } = await uploadMyAvatar(file);
+                      // Mark as "unsaved" unless it's the same as the stored profile avatar.
+                      if (path !== initialAvatarPathRef.current) {
+                        lastUnsavedUploadRef.current = path;
+                      }
                       setAvatarPath(path);
-                      setAvatarPreviewUrl(getAvatarPublicUrl(path));
+                      // Cache-bust the preview by appending a local query param.
+                      const url = getAvatarPublicUrl(path);
+                      setAvatarPreviewUrl(url ? `${url}?t=${Date.now()}` : null);
                     } catch (err: unknown) {
                       setError(err instanceof Error ? err.message : "Failed to upload avatar");
                     } finally {
@@ -178,7 +200,17 @@ export default function Settings({ open, onClose, difficulty, onDifficultyChange
                 type="button"
                 disabled={!avatarPath || avatarUploading}
                 className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-medium text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)] disabled:opacity-50"
-                onClick={() => {
+                onClick={async () => {
+                  // If current avatar is an unsaved upload, delete it.
+                  if (lastUnsavedUploadRef.current) {
+                    try {
+                      await deleteMyAvatarObject(lastUnsavedUploadRef.current);
+                    } catch {
+                      // best-effort cleanup
+                    }
+                    lastUnsavedUploadRef.current = null;
+                  }
+
                   setAvatarPath(null);
                   setAvatarPreviewUrl(null);
                 }}

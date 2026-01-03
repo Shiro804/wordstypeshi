@@ -36,7 +36,7 @@ export default function Grid({
 
   return (
     <div
-      className="grid py-2"
+      className="grid py-1"
       style={{
         rowGap: `${rowGap}px`,
         // expose vars so child tiles can use Tailwind arbitrary values

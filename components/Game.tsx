@@ -51,9 +51,22 @@ export default function Game() {
 
     const recompute = () => {
       const rect = el.getBoundingClientRect();
-      const w = Math.max(0, rect.width);
-      const h = Math.max(0, rect.height);
+      const wRaw = Math.max(0, rect.width);
+      const hRaw = Math.max(0, rect.height);
+      if (!wRaw || !hRaw) return;
+
+      // Safety margin so the grid never relies on Safari zoom to fit.
+      // This helps with rounding differences, iOS UI quirks, and padding.
+      // We bias the margin vertically because overflow issues are typically vertical.
+      const safetyW = 10;
+      const safetyH = 18 + 12; // includes extra bottom buffer to avoid clipping behind the fixed keyboard
+      const w = Math.max(0, wRaw - safetyW);
+      const h = Math.max(0, hRaw - safetyH);
       if (!w || !h) return;
+
+      // Grid has its own vertical padding (see Grid.tsx `py-*`). Account for it here.
+      const gridPadY = 8; // px total (top+bottom)
+      const hForGrid = Math.max(0, h - gridPadY);
 
       const cols = 5;
       const rows = 6;
@@ -62,31 +75,32 @@ export default function Game() {
       // prioritize width and accept that the grid may not fully fit vertically.
       const isLandscape = w > h;
 
-      // First pass with conservative gaps
-      const baseColGap = 8;
-      const baseRowGap = 10;
+      // First pass with conservative gaps (slightly smaller for phones)
+      const baseColGap = 6;
+      const baseRowGap = 8;
 
       let tile = Math.floor(
         isLandscape
           ? (w - baseColGap * (cols - 1)) / cols
           : Math.min(
               (w - baseColGap * (cols - 1)) / cols,
-              (h - baseRowGap * (rows - 1)) / rows,
+              (hForGrid - baseRowGap * (rows - 1)) / rows,
             ),
       );
 
       tile = clamp(tile, 18, 72);
 
       // Second pass: scale gaps with tile size for nicer proportions.
-      const colGap = clamp(Math.round(tile * 0.14), 4, 12);
-      const rowGap = clamp(Math.round(tile * 0.16), 4, 14);
+      // Slightly tighter so the grid fits comfortably on small phones.
+      const colGap = clamp(Math.round(tile * 0.12), 4, 10);
+      const rowGap = clamp(Math.round(tile * 0.13), 4, 12);
 
       const tile2 = Math.floor(
         isLandscape
           ? (w - colGap * (cols - 1)) / cols
           : Math.min(
               (w - colGap * (cols - 1)) / cols,
-              (h - rowGap * (rows - 1)) / rows,
+              (hForGrid - rowGap * (rows - 1)) / rows,
             ),
       );
 
@@ -536,7 +550,7 @@ export default function Game() {
         }
       }}
     >
-      <div className="relative min-h-dvh w-full overflow-hidden bg-[color:var(--bg)] text-[color:var(--fg)] safe-top safe-bottom">
+      <div className="relative flex h-dvh w-full flex-col overflow-hidden bg-[color:var(--bg)] text-[color:var(--fg)] safe-top safe-bottom">
         {/* subtle background */}
         <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
           <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl" />
@@ -585,8 +599,8 @@ export default function Game() {
         </div>
 
         <div
-          className="mx-auto flex h-full w-full max-w-[560px] flex-col px-4 py-2"
-          style={{ paddingBottom: `calc(${keyboardHeight}px + max(0.5rem, env(safe-area-inset-bottom)))` }}
+          className="mx-auto flex w-full max-w-[560px] flex-1 min-h-0 flex-col px-4 py-2"
+          style={{ paddingBottom: `calc(${keyboardHeight}px + 12px + max(0.5rem, env(safe-area-inset-bottom)))` }}
         >
           {/* toast slot (fixed height to prevent layout shift) */}
           <div className="h-5 text-center text-xs text-[color:var(--muted)]">{toast}</div>
