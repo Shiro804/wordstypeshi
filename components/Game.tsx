@@ -592,20 +592,30 @@ export default function Game() {
     >
       {/* Main container: CSS Grid layout for guaranteed header/content/footer fit */}
       <div
-        className="grid h-[100dvh] w-full overflow-hidden bg-[color:var(--bg)] text-[color:var(--fg)]"
+        className="relative grid h-[100dvh] w-full overflow-hidden bg-transparent text-[color:var(--fg)]"
         style={{
           gridTemplateRows: "auto 1fr auto",
           paddingTop: "env(safe-area-inset-top)",
         }}
       >
-        {/* Subtle background blurs */}
+        {/* Background image placeholder:
+            Put your image into `public/game-bg.jpg` to replace it. */}
         <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-          <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl" />
-          <div className="absolute -right-24 -bottom-24 h-72 w-72 rounded-full bg-yellow-500/15 blur-3xl" />
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{
+              backgroundColor: "#09090b",
+              backgroundImage:
+                "radial-gradient(1200px 700px at 20% 10%, rgba(255,255,255,0.08), transparent 55%), radial-gradient(900px 600px at 80% 20%, rgba(16,185,129,0.10), transparent 60%), url(/game-bg.jpg)",
+            }}
+          />
+          {/* Dim overlay so the UI stays readable */}
+          <div className="absolute inset-0 bg-black/35" />
         </div>
 
         {/* HEADER: TopBar with timer + hint */}
-        <TopBar
+        <div className="relative z-10">
+          <TopBar
           onNew={requestReset}
           onShare={share}
           onOpenLeaderboard={() => setLeaderboardOpen(true)}
@@ -670,9 +680,10 @@ export default function Game() {
             </div>
           }
         />
+        </div>
 
         {/* MAIN: Scrollable content area with Grid */}
-        <main className="flex min-h-0 flex-col items-center justify-center overflow-hidden px-4">
+        <main className="relative z-10 flex min-h-0 flex-col items-center justify-center overflow-hidden px-4">
           {/* Toast */}
           <div className="h-6 text-center text-sm text-[color:var(--muted)]">{toast}</div>
 
@@ -708,7 +719,7 @@ export default function Game() {
         {/* FOOTER: Keyboard (fixed to bottom) */}
         <div
           ref={keyboardRef}
-          className="border-t border-[color:var(--border)] bg-[color:var(--bg)]/92 backdrop-blur"
+          className="relative z-10 border-t border-[color:var(--border)] bg-[color:var(--bg)]/92 backdrop-blur"
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
           <div className="mx-auto w-full max-w-[560px] px-3 py-2">

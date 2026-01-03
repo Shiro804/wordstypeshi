@@ -55,10 +55,12 @@ export default function Grid({ rows, activeRowIndex, shakeRowNonce, onDeleteChar
 
               const animCls = r.revealed && mark ? " animate-tile-flip" : hasLetter && !mark ? " animate-tile-pop" : "";
 
+              const rowDimCls = r.marks ? " opacity-90" : "";
+
               return (
                 <div
                   key={`${ri}-${ci}-${ch}-${r.revealed ? "r" : "n"}`}
-                  className={`${base}${stateCls}${animCls}${isActive && hasLetter ? " cursor-pointer hover:opacity-80 transition" : ""}`}
+                  className={`${base}${stateCls}${animCls}${rowDimCls}${isActive && hasLetter ? " cursor-pointer hover:opacity-80 transition" : ""}`}
                   style={
                     r.revealed && mark
                       ? ({ animationDelay: `${ci * 120}ms` } as React.CSSProperties)
