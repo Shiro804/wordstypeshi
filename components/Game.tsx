@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { RotateCcw, Sparkles } from "lucide-react";
+import { flushSync } from "react-dom";
+import { RotateCcw, Skull, CheckCircle2 } from "lucide-react";
 import { Mark, marksToEmoji, pickRandom, scoreGuess } from "@/lib/game";
 import { loadWordLists } from "@/lib/words";
 import type { Difficulty } from "@/lib/difficulty";
@@ -289,6 +290,35 @@ export default function Game() {
     setShakeNonce((n) => n + 1);
   }
 
+  const isDev = process.env.NODE_ENV !== "production";
+
+  async function devSolve() {
+    if (gameOver.done) return;
+    if (!answer) return;
+    if (!startedAtMs) setStartedAtMs(Date.now());
+
+    // Ensure `current` is updated before committing (React state batching).
+    flushSync(() => setCurrent(answer));
+    commitGuess();
+  }
+
+  async function devLose() {
+    if (gameOver.done) return;
+    if (!allowed.length) return;
+    if (!startedAtMs) setStartedAtMs(Date.now());
+
+    // Pick a valid wrong word to satisfy normal validation.
+    const wrong = (allowed.find((w) => w.toUpperCase() !== answer.toUpperCase()) ?? "AAAAA").toUpperCase();
+
+    // Fill remaining rows with wrong guesses.
+    for (let i = committedCount; i < MAX_TRIES; i++) {
+      flushSync(() => setCurrent(wrong));
+      commitGuess();
+      // Let React paint between commits.
+      await new Promise(requestAnimationFrame);
+    }
+  }
+
   function onKey(k: string) {
     if (k === "ENTER") return commitGuess();
     if (k === "BACKSPACE") return setCurrent((s) => {
@@ -486,34 +516,50 @@ export default function Game() {
             ) : null
           }
           actionsSlot={
-            process.env.NODE_ENV !== "production" ? (
-              <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1">
+              {/* Reset button: appears after the first committed guess; asks for confirmation (forfeit) */}
+              {committedCount > 0 && !gameOver.done ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    requestReset();
-                    window.setTimeout(() => containerRef.current?.focus(), 0);
-                  }}
+                  onClick={() => setConfirmResetOpen(true)}
                   title="Reset"
                   aria-label="Reset"
                   className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
                 >
                   <RotateCcw size={16} />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrent(answer);
-                    window.setTimeout(() => containerRef.current?.focus(), 0);
-                  }}
-                  title="Solve"
-                  aria-label="Solve"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
-                >
-                  <Sparkles size={16} />
-                </button>
-              </div>
-            ) : null
+              ) : null}
+
+              {/* Dev-only helpers */}
+              {isDev ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void devLose();
+                      window.setTimeout(() => containerRef.current?.focus(), 0);
+                    }}
+                    title="Simulate lose"
+                    aria-label="Simulate lose"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                  >
+                    <Skull size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void devSolve();
+                      window.setTimeout(() => containerRef.current?.focus(), 0);
+                    }}
+                    title="Simulate solve"
+                    aria-label="Simulate solve"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                  >
+                    <CheckCircle2 size={16} />
+                  </button>
+                </>
+              ) : null}
+            </div>
           }
         />
 
