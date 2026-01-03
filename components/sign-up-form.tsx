@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-
+// Sign-up via email + password.
 export function SignUpForm({
   className,
   ...props
@@ -40,17 +40,52 @@ export function SignUpForm({
     }
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
         password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/protected`,
-        },
       });
-      if (error) throw error;
-      router.push("/auth/sign-up-success");
+
+      if (error) {
+        // Supabase returns a structured error; surface status + message.
+        const status = typeof error === "object" && error && "status" in error ? (error as { status?: number }).status : undefined;
+        throw new Error(status ? `${status}: ${error.message}` : error.message);
+      }
+
+      // If email confirmation is enabled, the user will not have an authenticated
+      // session yet, so RLS-protected tables (like `users`) will reject inserts.
+      // We defer profile creation until after the user logs in.
+
+      // When confirmation is required, Supabase returns data.session == null.
+      if (!data.session) {
+        router.push("/auth/sign-up-success");
+        return;
+      }
+
+      // If confirmation is NOT required and we got a session immediately,
+      // we can safely create/ensure the profile row.
+      const authUserId = data.user?.id;
+      if (authUserId) {
+        const { error: profileError } = await supabase
+          .from("users")
+          .upsert({ id: authUserId }, { onConflict: "id" });
+        if (profileError) throw profileError;
+      }
+
+      router.push("/");
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred");
+      // This helps when the browser shows generic "422 unprocessable content".
+      // The actual Supabase error message is usually more descriptive.
+      console.error("Sign up failed:", error);
+
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        try {
+          setError(JSON.stringify(error));
+        } catch {
+          setError("An error occurred");
+        }
+      }
     } finally {
       setIsLoading(false);
     }
@@ -60,8 +95,8 @@ export function SignUpForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Sign up</CardTitle>
-          <CardDescription>Create a new account</CardDescription>
+          <CardTitle className="text-2xl">Register</CardTitle>
+          <CardDescription>Create an account with email + password</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignUp}>
@@ -71,7 +106,9 @@ export function SignUpForm({
                 <Input
                   id="email"
                   type="email"
-                  placeholder="m@example.com"
+                  placeholder="you@example.com"
+                  autoCapitalize="none"
+                  autoCorrect="off"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}

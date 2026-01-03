@@ -59,5 +59,7 @@ export default {
       },
     },
   },
+  // tailwindcss-animate doesn't ship ESM typings; keep require but silence ESLint.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   plugins: [require("tailwindcss-animate")],
 } satisfies Config;
