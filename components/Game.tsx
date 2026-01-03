@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Clock3, RotateCcw, Sparkles } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { Mark, marksToEmoji, pickRandom, scoreGuess } from "@/lib/game";
 import { loadWordLists } from "@/lib/words";
 import type { Difficulty } from "@/lib/difficulty";
@@ -318,6 +318,11 @@ export default function Game() {
     // Prevent typing letters that are marked as absent (greyed out)
     if (keyMarks[k] === "absent") return;
 
+    // Start timer on FIRST letter (not on submit)
+    if (!startedAtMs) {
+      setStartedAtMs(Date.now());
+    }
+
     setCurrent((s) => {
       // Check if there's a gap (space) to fill from left to right
       const gapIndex = s.indexOf(" ");
@@ -361,11 +366,6 @@ export default function Game() {
     next[idx] = { guess, marks, revealed: true };
     setRows(next);
     setCurrent("");
-
-    // Start timer on first guess
-    if (!startedAtMs) {
-      setStartedAtMs(Date.now());
-    }
 
     const won = marks.every((m) => m === "correct");
     const lost = !won && idx === MAX_TRIES - 1;
@@ -483,13 +483,23 @@ export default function Game() {
             onOpenStats={() => setStatsOpen(true)}
             theme={theme}
             onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+            timerText={formatDuration(Math.round(durationSec))}
+            hintSlot={
+              !gameOver.done ? (
+                <Hint
+                  disabled={hintUsed || committedCount === 0}
+                  revealedMarks={committedRows}
+                  answerLength={5}
+                  onHint={onHint}
+                />
+              ) : null
+            }
             actionsSlot={
               <>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => {
-                      // Reset the whole game
                       requestReset();
                       window.setTimeout(() => containerRef.current?.focus(), 0);
                     }}
@@ -509,29 +519,8 @@ export default function Game() {
           className="mx-auto flex h-full w-full max-w-[560px] flex-col px-4 py-2"
           style={{ paddingBottom: `calc(${keyboardHeight}px + max(0.5rem, env(safe-area-inset-bottom)))` }}
         >
-          {/* top status row (fixed height to prevent layout shift) */}
-          <div className="flex h-10 items-center justify-between gap-2">
-            <div className="inline-flex items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-xs font-semibold text-[color:var(--fg)]">
-              <Clock3 size={14} className="text-[color:var(--muted)]" />
-              <span>{formatDuration(Math.round(durationSec))}</span>
-            </div>
-
-            <div className="flex h-10 items-center justify-end">
-              {!gameOver.done ? (
-                <Hint
-                  disabled={hintUsed || committedCount === 0}
-                  revealedMarks={committedRows}
-                  answerLength={5}
-                  onHint={onHint}
-                />
-              ) : (
-                <div className="h-10 w-10" />
-              )}
-            </div>
-          </div>
-
           {/* toast slot (fixed height to prevent layout shift) */}
-          <div className="h-6 pt-1 text-center text-xs text-[color:var(--muted)]">{toast}</div>
+          <div className="h-5 text-center text-xs text-[color:var(--muted)]">{toast}</div>
 
           {/* center area */}
           <div className="flex flex-1 flex-col items-center justify-center">

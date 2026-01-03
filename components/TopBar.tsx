@@ -16,7 +16,9 @@ type Props = {
   onOpenSettings: () => void;
   onToggleTheme: () => void;
   theme: "dark" | "light";
-  actionsSlot?: React.ReactNode; // e.g. Hint / dev buttons
+  timerText?: string;
+  hintSlot?: React.ReactNode;
+  actionsSlot?: React.ReactNode;
 };
 
 function IconButton({
@@ -172,13 +174,21 @@ export default function TopBar({
   onOpenSettings,
   onToggleTheme,
   theme,
+  timerText,
+  hintSlot,
   actionsSlot,
 }: Props) {
   return (
     <div className="flex items-center justify-between gap-2 border-b border-[color:var(--border)] bg-[color:var(--bg)]/90 px-4 py-2 backdrop-blur">
-      <div className="text-sm font-semibold tracking-tight text-[color:var(--fg)]">WordsTypeShi</div>
+      <div className="flex items-center gap-2">
+        <div className="text-sm font-semibold tracking-tight text-[color:var(--fg)]">WordsTypeShi</div>
+        {timerText && (
+          <div className="text-xs font-mono text-[color:var(--muted)]">{timerText}</div>
+        )}
+      </div>
 
       <div className="flex items-center gap-2">
+        {hintSlot}
         {actionsSlot}
 
         <IconButton onClick={onToggleTheme} title={theme === "dark" ? "Light mode" : "Dark mode"}>

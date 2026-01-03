@@ -152,8 +152,14 @@ export function applyGameResult(prev: Stats, result: GameResult): Stats {
 }
 
 export function formatDuration(sec: number) {
-  const s = Math.max(0, Math.floor(sec));
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return m > 0 ? `${m}:${String(r).padStart(2, "0")}` : `${r}s`;
+  const totalSec = Math.max(0, Math.floor(sec));
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  
+  // Show minutes:seconds format only if >= 60 seconds
+  if (m > 0) {
+    return `${m}:${String(s).padStart(2, "0")}`;
+  }
+  // Show only seconds if < 60 seconds
+  return `${s}s`;
 }
