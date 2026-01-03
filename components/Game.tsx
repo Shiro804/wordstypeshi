@@ -149,6 +149,26 @@ export default function Game() {
   const [endedAtMs, setEndedAtMs] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
+  // Stabilize app height for older iOS Safari where `dvh`/`vh` can be wrong
+  // due to top/bottom bars. We use visualViewport height when available.
+  useLayoutEffect(() => {
+    const update = () => {
+      const h = window.visualViewport?.height ?? window.innerHeight;
+      document.documentElement.style.setProperty("--app-height", `${Math.round(h)}px`);
+    };
+
+    update();
+    window.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("scroll", update);
+
+    return () => {
+      window.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("scroll", update);
+    };
+  }, []);
+
   useEffect(() => {
     // Auth + remote stats + active session
     getCurrentUserId().then(async (uid) => {
@@ -547,7 +567,10 @@ export default function Game() {
         }
       }}
     >
-      <div className="relative flex h-dvh w-full flex-col overflow-hidden bg-transparent text-[color:var(--fg)] safe-top safe-bottom">
+      <div
+        className="relative flex w-full flex-col overflow-hidden bg-transparent text-[color:var(--fg)] safe-top safe-bottom"
+        style={{ height: "var(--app-height)" }}
+      >
         {/* background image placeholder:
             Put your image into `public/game-bg.jpg` to replace it.
             Uses CSS background so missing file falls back gracefully. */}

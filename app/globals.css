@@ -4,6 +4,9 @@
 
 /* Default theme = dark */
 :root {
+  /* Used to stabilize fullscreen height on older iOS Safari (URL bars). */
+  --app-height: 100dvh;
+
   /* App theme tokens (used by the game UI) */
   --bg: #09090b;
   --fg: #fafafa;
