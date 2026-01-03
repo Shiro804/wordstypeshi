@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { RotateCcw } from "lucide-react";
+import { Clock3, RotateCcw, Sparkles } from "lucide-react";
 import { Mark, marksToEmoji, pickRandom, scoreGuess } from "@/lib/game";
 import { loadWordLists } from "@/lib/words";
 import type { Difficulty } from "@/lib/difficulty";
@@ -13,6 +13,7 @@ import Modal from "@/components/Modal";
 import TopBar from "@/components/TopBar";
 import Settings from "@/components/Settings";
 import Leaderboard from "@/components/Leaderboard";
+import { applyTheme } from "@/lib/theme";
 import Hint, { type HintResult } from "@/components/Hint";
 import {
   applyGameResult,
@@ -29,98 +30,8 @@ const MAX_TRIES = 6;
 
 export default function Game() {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const keyboardRef = useRef<HTMLDivElement | null>(null);
-  const gridRegionRef = useRef<HTMLDivElement | null>(null);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [gridSizing, setGridSizing] = useState<{ tile: number; colGap: number; rowGap: number }>(() => ({
-    tile: 46,
-    colGap: 8,
-    rowGap: 10,
-  }));
 
   const [difficulty, setDifficulty] = useState<Difficulty>(() => loadDifficulty());
-
-  // Bulletproof mobile-first grid sizing: compute tile size from actual available width+height
-  // (works for landscape + keyboard, small phones, tablets).
-  useLayoutEffect(() => {
-    const el = gridRegionRef.current;
-    if (!el) return;
-
-    const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
-
-    const recompute = () => {
-      const rect = el.getBoundingClientRect();
-      const wRaw = Math.max(0, rect.width);
-      const hRaw = Math.max(0, rect.height);
-      if (!wRaw || !hRaw) return;
-
-      // Safety margin so the grid never relies on Safari zoom to fit.
-      // This helps with rounding differences, iOS UI quirks, and padding.
-      // We bias the margin vertically because overflow issues are typically vertical.
-      const safetyW = 10;
-      const safetyH = 18 + 12; // includes extra bottom buffer to avoid clipping behind the fixed keyboard
-      const w = Math.max(0, wRaw - safetyW);
-      const h = Math.max(0, hRaw - safetyH);
-      if (!w || !h) return;
-
-      // Grid has its own vertical padding (see Grid.tsx `py-*`). Account for it here.
-      const gridPadY = 8; // px total (top+bottom)
-      const hForGrid = Math.max(0, h - gridPadY);
-
-      const cols = 5;
-      const rows = 6;
-
-      // We optimize for portrait (how people actually play). In landscape we
-      // prioritize width and accept that the grid may not fully fit vertically.
-      const isLandscape = w > h;
-
-      // First pass with conservative gaps (slightly smaller for phones)
-      const baseColGap = 6;
-      const baseRowGap = 8;
-
-      let tile = Math.floor(
-        isLandscape
-          ? (w - baseColGap * (cols - 1)) / cols
-          : Math.min(
-              (w - baseColGap * (cols - 1)) / cols,
-              (hForGrid - baseRowGap * (rows - 1)) / rows,
-            ),
-      );
-
-      tile = clamp(tile, 18, 72);
-
-      // Second pass: scale gaps with tile size for nicer proportions.
-      // Slightly tighter so the grid fits comfortably on small phones.
-      const colGap = clamp(Math.round(tile * 0.12), 4, 10);
-      const rowGap = clamp(Math.round(tile * 0.13), 4, 12);
-
-      const tile2 = Math.floor(
-        isLandscape
-          ? (w - colGap * (cols - 1)) / cols
-          : Math.min(
-              (w - colGap * (cols - 1)) / cols,
-              (hForGrid - rowGap * (rows - 1)) / rows,
-            ),
-      );
-
-      // Extra headroom to avoid Safari clipping (rounding, UI bars, keyboard chrome).
-      // This is intentionally small but makes the layout "bulletproof" on iPhones.
-      const headroomFactor = 0.94;
-      const tileFinal = Math.floor(tile2 * headroomFactor);
-
-      setGridSizing({
-        tile: clamp(tileFinal, 18, 72),
-        colGap,
-        rowGap,
-      });
-    };
-
-    recompute();
-
-    const ro = new ResizeObserver(() => recompute());
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   const [allowed, setAllowed] = useState<string[]>([]);
   const [solutions, setSolutions] = useState<string[]>([]);
@@ -154,27 +65,11 @@ export default function Game() {
   const [endedAtMs, setEndedAtMs] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
-  // Stabilize app height for older iOS Safari where `dvh`/`vh` can be wrong
-  // due to top/bottom bars. We use visualViewport height when available.
-  useLayoutEffect(() => {
-    const update = () => {
-      const h = window.visualViewport?.height ?? window.innerHeight;
-      document.documentElement.style.setProperty("--app-height", `${Math.round(h)}px`);
-    };
-
-    update();
-    window.addEventListener("resize", update);
-    window.visualViewport?.addEventListener("resize", update);
-    window.visualViewport?.addEventListener("scroll", update);
-
-    return () => {
-      window.removeEventListener("resize", update);
-      window.visualViewport?.removeEventListener("resize", update);
-      window.visualViewport?.removeEventListener("scroll", update);
-    };
-  }, []);
+  const theme = "dark" as const;
 
   useEffect(() => {
+    applyTheme();
+
     // Auth + remote stats + active session
     getCurrentUserId().then(async (uid) => {
       setUserId(uid);
@@ -191,7 +86,6 @@ export default function Game() {
 
       const remote = await fetchRemoteStats(uid, difficulty);
       if (remote) {
-        // Keep whichever one is newer (lets you keep playing offline too)
         const local = loadStats(difficulty);
         const pick = (remote.updatedAt ?? 0) >= (local.updatedAt ?? 0) ? remote : local;
         setStats(pick);
@@ -205,7 +99,6 @@ export default function Game() {
       setSolutions(solutions);
     });
 
-    // Load previously played words for this difficulty
     if (userId) {
       fetchPlayedWords(userId, difficulty).then((played) => {
         setPlayedWords(played);
@@ -214,24 +107,22 @@ export default function Game() {
   }, [difficulty, userId]);
 
   useEffect(() => {
+    applyTheme();
+  }, [theme]);
+
+  useEffect(() => {
     if (!solutions.length) return;
 
     const persisted = loadGameState();
     if (persisted && persisted.answer && persisted.difficulty === difficulty) {
-      // If the user is logged in, only restore a persisted game that belongs to the same user.
-      // This prevents inheriting an old timer/game after signing up / confirming email.
-      if (userId && persisted.userId !== userId) {
-        saveGameState(null);
-      } else {
-        setAnswer(persisted.answer);
-        setRows(persisted.rows);
-        setCurrent(persisted.current);
-        setStartedAtMs(persisted.startedAtMs);
-        setEndedAtMs(persisted.endedAtMs);
-        setHintUsed(persisted.hintUsed);
-        window.setTimeout(() => containerRef.current?.focus(), 0);
-        return;
-      }
+      setAnswer(persisted.answer);
+      setRows(persisted.rows);
+      setCurrent(persisted.current);
+      setStartedAtMs(persisted.startedAtMs);
+      setEndedAtMs(persisted.endedAtMs);
+      setHintUsed(persisted.hintUsed);
+      window.setTimeout(() => containerRef.current?.focus(), 0);
+      return;
     }
 
     newGame();
@@ -240,13 +131,10 @@ export default function Game() {
 
   useEffect(() => {
     saveStats(difficulty, stats);
-
-    // Best-effort remote persistence (non-blocking)
     if (!userId) return;
     void upsertRemoteStats(userId, difficulty, stats);
   }, [difficulty, stats, userId]);
 
-  // Persist active game locally to prevent reload-cheating.
   useEffect(() => {
     if (!answer) return;
     saveGameState({
@@ -258,31 +146,12 @@ export default function Game() {
       startedAtMs,
       endedAtMs,
       hintUsed,
-      userId,
     });
   }, [difficulty, answer, rows, current, startedAtMs, endedAtMs, hintUsed]);
 
   useEffect(() => {
     saveDifficulty(difficulty);
   }, [difficulty]);
-
-  // Measure keyboard height so the grid can reserve space (prevents clipping on small iPhones).
-  useLayoutEffect(() => {
-    const measure = () => {
-      const h = keyboardRef.current?.offsetHeight ?? 0;
-      setKeyboardHeight(h);
-    };
-
-    measure();
-    window.addEventListener("resize", measure);
-    // iOS Safari: visualViewport changes when the URL bar collapses/expands
-    window.visualViewport?.addEventListener("resize", measure);
-
-    return () => {
-      window.removeEventListener("resize", measure);
-      window.visualViewport?.removeEventListener("resize", measure);
-    };
-  }, []);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -309,7 +178,6 @@ export default function Game() {
   }, [rows]);
 
   useEffect(() => {
-    // Freeze timer on first transition to game over.
     if (!gameOver.done) return;
     if (!startedAtMs) return;
     setEndedAtMs((prev) => prev ?? Date.now());
@@ -337,17 +205,13 @@ export default function Game() {
   }, [rows]);
 
   async function startNewGameInternal() {
-    // starting a new game invalidates persisted state
     saveGameState(null);
 
     if (!solutions.length) return;
 
-    // Pick a word that hasn't been played yet
-    // Filter out already-played words
     const availableWords = solutions.filter((word) => !playedWords.has(word.toUpperCase()));
 
     if (availableWords.length === 0) {
-      // If all words have been played, reset and pick any word
       showToast("You've played all words! Starting fresh...");
       setPlayedWords(new Set());
       var a = pickRandom(solutions);
@@ -355,19 +219,13 @@ export default function Game() {
       var a = pickRandom(availableWords);
     }
 
-    setAnswer(a);
 
-    // Don't start the timer yet - it will start after the first guess
-    setStartedAtMs(null);
-    setEndedAtMs(null);
-
-    // Create an active session in Supabase if logged in (prevents reload cheating across devices)
     if (userId) {
       const s = await createOrReuseActiveSession({
         userId,
         difficulty,
         answer: a,
-        startedAtMs: Date.now(), // Session is created now, but timer hasn't started
+        startedAtMs: Date.now(),
       });
       if (s) setSessionId(s.id);
     } else {
@@ -384,6 +242,9 @@ export default function Game() {
     setCurrent("");
     setToast("");
     setHintUsed(false);
+    setStartedAtMs(null);
+    setEndedAtMs(null);
+    setAnswer(a);
     window.setTimeout(() => containerRef.current?.focus(), 0);
   }
 
@@ -411,7 +272,6 @@ export default function Game() {
     if (k === "ENTER") return commitGuess();
     if (k === "BACKSPACE") return setCurrent((s) => {
       if (s.length === 0) return s;
-      // Remove last non-space character, or last character if all spaces at end
       const lastNonSpaceIdx = s.search(/\S(?=\s*$)/);
       if (lastNonSpaceIdx === -1) return s.slice(0, -1);
       return s.slice(0, lastNonSpaceIdx) + " " + s.slice(lastNonSpaceIdx + 1);
@@ -419,33 +279,19 @@ export default function Game() {
     if (gameOver.done) return;
 
     if (!/^[A-Z]$/.test(k)) return;
-
-    // Prevent typing letters that are marked as absent (greyed out)
     if (keyMarks[k] === "absent") return;
 
-    // Start timer on FIRST letter (not on submit)
-    if (!startedAtMs) {
-      setStartedAtMs(Date.now());
-    }
-
     setCurrent((s) => {
-      // Check if there's a gap (space) to fill from left to right
       const gapIndex = s.indexOf(" ");
       if (gapIndex !== -1) {
-        // Replace first gap from left (even if s.length === 5)
         return s.slice(0, gapIndex) + k + s.slice(gapIndex + 1);
       }
-
-      // No gaps, only append if length < 5
       if (s.length >= 5) return s;
-
-      // No gaps, append to the end
       return s + k;
     });
   }
 
   function onDeleteChar(index: number) {
-    // Replace character at index with space (keep position, don't shift)
     setCurrent((s) => s.slice(0, index) + " " + s.slice(index + 1));
   }
 
@@ -472,6 +318,10 @@ export default function Game() {
     setRows(next);
     setCurrent("");
 
+    if (!startedAtMs) {
+      setStartedAtMs(Date.now());
+    }
+
     const won = marks.every((m) => m === "correct");
     const lost = !won && idx === MAX_TRIES - 1;
 
@@ -484,14 +334,12 @@ export default function Game() {
           durationSec,
         })
       );
-      // Track the word as played
       if (userId) {
         void trackPlayedWord(userId, difficulty, answer);
       }
     } else if (lost) {
       showToast(`Answer: ${answer}`);
       setStats(applyGameResult(stats, { outcome: "lose", durationSec }));
-      // Track the word as played (even if lost)
       if (userId) {
         void trackPlayedWord(userId, difficulty, answer);
       }
@@ -553,7 +401,6 @@ export default function Game() {
       tabIndex={0}
       className="outline-none"
       onKeyDown={(e) => {
-        // Block game typing when a modal is open or when focusing an input.
         const t = e.target as HTMLElement | null;
         const isTypingField =
           t instanceof HTMLInputElement ||
@@ -572,158 +419,177 @@ export default function Game() {
         }
       }}
     >
+      {/* 
+        BULLETPROOF LAYOUT STRATEGY:
+        
+        1. Verwende dvh (dynamic viewport height) statt vh
+           - dvh passt sich an Safari's URL-Bar an
+        
+        2. CSS Grid mit festen Bereichen:
+           - Header: auto (nimmt was er braucht)
+           - Main: 1fr (füllt verfügbaren Platz)
+           - Keyboard: auto (feste Höhe)
+        
+        3. Das Grid im Main-Bereich:
+           - Maximale Breite begrenzt
+           - aspect-ratio für quadratische Tiles
+           - Flexibel in der Größe
+      */}
       <div
-        className="relative flex w-full flex-col overflow-hidden bg-transparent text-[color:var(--fg)] safe-top safe-bottom"
-        style={{ height: "var(--app-height)" }}
+        className="grid bg-[color:var(--bg)] text-[color:var(--fg)]"
+        style={{
+          height: "100dvh", // Dynamic viewport height!
+          gridTemplateRows: "auto 1fr auto",
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
       >
-        {/* background image placeholder:
-            Put your image into `public/game-bg.jpg` to replace it.
-            Uses CSS background so missing file falls back gracefully. */}
-        <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{
-              backgroundColor: "#09090b",
-              backgroundImage:
-                "radial-gradient(1200px 700px at 20% 10%, rgba(255,255,255,0.08), transparent 55%), radial-gradient(900px 600px at 80% 20%, rgba(16,185,129,0.10), transparent 60%), url(/game-bg.jpg)",
-            }}
-          />
-          {/* Dim overlay so the UI stays readable */}
-          <div className="absolute inset-0 bg-black/35" />
+        {/* subtle background */}
+        <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+          <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl" />
+          <div className="absolute -right-24 -bottom-24 h-72 w-72 rounded-full bg-yellow-500/15 blur-3xl" />
         </div>
 
-        <div className="relative z-10 shrink-0" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+        {/* HEADER */}
+        <header className="shrink-0">
           <TopBar
             onNew={requestReset}
             onShare={share}
             onOpenLeaderboard={() => setLeaderboardOpen(true)}
             onOpenSettings={() => setSettingsOpen(true)}
             onOpenStats={() => setStatsOpen(true)}
-            timerText={formatDuration(Math.round(durationSec))}
-            hintSlot={
-              !gameOver.done ? (
+            actionsSlot={
+              <>
+                {process.env.NODE_ENV !== "production" ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        requestReset();
+                        window.setTimeout(() => containerRef.current?.focus(), 0);
+                      }}
+                      title="Reset"
+                      aria-label="Reset"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                    >
+                      <RotateCcw size={18} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCurrent(answer);
+                        window.setTimeout(() => containerRef.current?.focus(), 0);
+                      }}
+                      title="Solve"
+                      aria-label="Solve"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                    >
+                      <Sparkles size={18} />
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            }
+          />
+        </header>
+
+        {/* MAIN CONTENT - Flexibel! */}
+        <main className="flex flex-col items-center overflow-hidden px-3">
+          {/* Status Row */}
+          <div className="flex w-full max-w-[350px] items-center justify-between gap-2 py-2">
+            <div className="inline-flex items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-1.5 text-xs font-semibold text-[color:var(--fg)]">
+              <Clock3 size={14} className="text-[color:var(--muted)]" />
+              <span>{formatDuration(Math.round(durationSec))}</span>
+            </div>
+
+            <div className="flex items-center justify-end">
+              {!gameOver.done ? (
                 <Hint
                   disabled={hintUsed || committedCount === 0}
                   revealedMarks={committedRows}
                   answerLength={5}
                   onHint={onHint}
                 />
-              ) : null
-            }
-            actionsSlot={
-              <>
-                <div className="flex items-center gap-2">
+              ) : (
+                <div className="h-8 w-8" />
+              )}
+            </div>
+          </div>
+
+          {/* Toast */}
+          <div className="h-6 text-center text-sm text-[color:var(--muted)]">{toast}</div>
+
+          {/* Game Over Banner */}
+          <div className="h-10 flex items-center justify-center">
+            {gameOver.won ? (
+              <div className="text-center text-2xl font-extrabold tracking-[0.18em] text-emerald-300 drop-shadow">
+                YOU WON
+              </div>
+            ) : gameOver.lost ? (
+              <div className="text-center text-2xl font-extrabold tracking-[0.18em] text-rose-400 drop-shadow">
+                GAME OVER
+              </div>
+            ) : null}
+          </div>
+
+          {/* GRID CONTAINER - Das Herzstück */}
+          <div className="flex flex-1 items-center justify-center w-full min-h-0">
+            <Grid
+              rows={viewRows}
+              activeRowIndex={activeRowIndex}
+              shakeRowNonce={shakeNonce}
+              onDeleteChar={onDeleteChar}
+            />
+          </div>
+
+          {/* Answer reveal for lost game */}
+          {gameOver.lost && committedCount > 0 && (
+            <div className="py-2 text-center">
+              <div className="text-xs text-[color:var(--muted)]">The word was:</div>
+              <div className="text-xl font-bold text-[color:var(--fg)] uppercase tracking-widest">
+                {answer}
+              </div>
+            </div>
+          )}
+        </main>
+
+        {/* KEYBOARD - Feste Position am unteren Rand */}
+        <footer className="shrink-0 border-t border-[color:var(--border)] bg-[color:var(--bg)]/92 backdrop-blur">
+          <div className="mx-auto w-full max-w-[560px] px-3 py-2">
+            {gameOver.done ? (
+              <div className="pb-2">
+                <div className="flex items-center justify-center gap-3">
                   <button
                     type="button"
                     onClick={() => {
-                      requestReset();
+                      newGame();
                       window.setTimeout(() => containerRef.current?.focus(), 0);
                     }}
-                    title="Reset"
-                    aria-label="Reset"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                    className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-2.5 text-sm font-semibold text-[color:var(--fg)] shadow-sm transition hover:bg-[color:var(--surface2)]"
                   >
-                    <RotateCcw size={18} />
+                    Start New Game
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatsOpen(true)}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-2.5 text-sm font-semibold text-[color:var(--fg)] shadow-sm transition hover:bg-[color:var(--surface2)]"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M4 19V5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      <path d="M20 19V11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      <path d="M12 19V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      <path d="M8 19V13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      <path d="M16 19V7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                    <span>Results</span>
                   </button>
                 </div>
-              </>
-            }
-          />
-        </div>
+              </div>
+            ) : null}
 
-        <div
-          className="relative z-10 mx-auto flex w-full max-w-[560px] flex-1 min-h-0 flex-col px-4 py-2"
-          style={{ paddingBottom: `calc(${keyboardHeight}px + 12px + max(0.5rem, env(safe-area-inset-bottom)))` }}
-        >
-          {/* toast slot (fixed height to prevent layout shift) */}
-          <div className="h-5 text-center text-xs text-[color:var(--muted)]">{toast}</div>
-
-          {/* center area */}
-          <div className="flex flex-1 flex-col items-center overflow-hidden">
-            {/* top status (keeps a little reserved space to prevent jumps) */}
-            <div className="h-4 sm:h-6 shrink-0">
-              {gameOver.won ? (
-                <div className="text-center text-3xl font-extrabold tracking-[0.18em] text-emerald-300 drop-shadow">
-                  YOU WON
-                </div>
-              ) : gameOver.lost ? (
-                <div className="text-center text-3xl font-extrabold tracking-[0.18em] text-rose-400 drop-shadow">
-                  GAME OVER
-                </div>
-              ) : null}
-            </div>
-
-            {/* grid region: takes remaining space and is what we measure for bulletproof sizing */}
-            <div ref={gridRegionRef} className="flex flex-1 w-full items-center justify-center overflow-hidden pt-1">
-              <Grid
-                rows={viewRows}
-                activeRowIndex={activeRowIndex}
-                shakeRowNonce={shakeNonce}
-                onDeleteChar={onDeleteChar}
-                tileSizePx={gridSizing.tile}
-                colGapPx={gridSizing.colGap}
-                rowGapPx={gridSizing.rowGap}
-              />
-            </div>
-
-            {/* bottom info */}
-            {/* bottom info: reserve space to prevent layout shifting when the game ends */}
-            <div className="shrink-0 h-[4.25rem] flex items-end justify-center w-full">
-              {gameOver.lost && committedCount > 0 ? (
-                <div className="text-center">
-                  <div className="text-sm text-[color:var(--muted)]">The word was:</div>
-                  <div className="text-2xl font-bold text-[color:var(--fg)] uppercase tracking-widest">
-                    {answer}
-                  </div>
-                </div>
-              ) : null}
-            </div>
+            <Keyboard keyMarks={keyMarks} onKey={onKey} disabled={gameOver.done} />
           </div>
-
-          {/* keyboard: fixed to bottom (iOS-friendly) */}
-          <div
-            ref={keyboardRef}
-            className="fixed bottom-0 left-0 right-0 z-20 border-t border-[color:var(--border)] bg-[color:var(--bg)]/92 backdrop-blur"
-            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-          >
-            <div className="mx-auto w-full max-w-[560px] px-4 py-3.5">
-              {gameOver.done ? (
-                <div className="pb-3">
-                  <div className="flex items-center justify-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        newGame();
-                        window.setTimeout(() => containerRef.current?.focus(), 0);
-                      }}
-                      className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] px-5 py-3 text-sm font-semibold text-[color:var(--fg)] shadow-sm transition hover:bg-[color:var(--surface2)]"
-                    >
-                      Start New Game
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStatsOpen(true)}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] px-5 py-3 text-sm font-semibold text-[color:var(--fg)] shadow-sm transition hover:bg-[color:var(--surface2)]"
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M4 19V5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        <path d="M20 19V11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        <path d="M12 19V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        <path d="M8 19V13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        <path d="M16 19V7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
-                      <span>Results</span>
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              <Keyboard keyMarks={keyMarks} onKey={onKey} disabled={gameOver.done} />
-
-              <div className="flex items-center justify-end pt-2" />
-            </div>
-          </div>
-        </div>
+        </footer>
       </div>
 
       <Leaderboard open={leaderboardOpen} onClose={() => setLeaderboardOpen(false)} />
@@ -733,7 +599,6 @@ export default function Game() {
         difficulty={difficulty}
         onDifficultyChange={(d) => {
           setDifficulty(d);
-          // also reset current game state when switching difficulty
           saveGameState(null);
         }}
       />
@@ -758,10 +623,8 @@ export default function Game() {
                 const ended = Date.now();
                 const d = startedAtMs ? Math.max(0, (ended - startedAtMs) / 1000) : 0;
 
-                // Count as a loss/forfeit once at least one guess was committed
                 setStats(applyGameResult(stats, { outcome: "lose", durationSec: d }));
 
-                // Track the word as played (forfeit counts as played)
                 if (userId) {
                   void trackPlayedWord(userId, difficulty, answer);
                 }
@@ -843,7 +706,6 @@ export default function Game() {
             ))}
           </div>
         </div>
-
       </Modal>
     </div>
   );
@@ -861,14 +723,13 @@ function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
 function BarRow({ n, value, max }: { n: number; value: number; max: number }) {
   const pct = Math.round((value / Math.max(1, max)) * 100);
 
-  // Color gradient: 1 (green) → 6 (red)
   const barColor =
-    n === 1 ? "bg-emerald-500/60" :    // Green (best)
-      n === 2 ? "bg-lime-500/50" :       // Light green
-        n === 3 ? "bg-yellow-500/50" :     // Yellow
-          n === 4 ? "bg-amber-500/50" :      // Orange
-            n === 5 ? "bg-orange-500/50" :     // Dark orange
-              "bg-red-500/50";                   // Red (worst)
+    n === 1 ? "bg-emerald-500/60" :
+      n === 2 ? "bg-lime-500/50" :
+        n === 3 ? "bg-yellow-500/50" :
+          n === 4 ? "bg-amber-500/50" :
+            n === 5 ? "bg-orange-500/50" :
+              "bg-red-500/50";
 
   return (
     <div className="flex items-center gap-3">

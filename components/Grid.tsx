@@ -5,7 +5,6 @@ import type { Mark } from "@/lib/game";
 export type GridRow = {
   guess: string;
   marks: Mark[] | null;
-  // Used to trigger animations deterministically.
   revealed: boolean;
 };
 
@@ -14,99 +13,100 @@ type Props = {
   activeRowIndex: number;
   shakeRowNonce: number;
   onDeleteChar?: (index: number) => void;
-  /** Calculated in Game.tsx for bulletproof mobile-first sizing */
-  tileSizePx?: number;
-  colGapPx?: number;
-  rowGapPx?: number;
 };
 
-export default function Grid({
-  rows,
-  activeRowIndex,
-  shakeRowNonce,
-  onDeleteChar,
-  tileSizePx,
-  colGapPx,
-  rowGapPx,
-}: Props) {
-  const tile = Math.max(18, Math.round(tileSizePx ?? 46));
-  const colGap = Math.max(4, Math.round(colGapPx ?? 8));
-  const rowGap = Math.max(4, Math.round(rowGapPx ?? 10));
-  const fontPx = Math.max(10, Math.round(tile * 0.56));
-
+/**
+ * Bulletproof Grid Design:
+ * 
+ * Statt vh-basierter Größen verwenden wir:
+ * 1. CSS Container Queries für den verfügbaren Platz
+ * 2. aspect-ratio: 1 für quadratische Tiles
+ * 3. Grid mit fr-Units für gleichmäßige Verteilung
+ * 4. max-width/max-height Constraints für große Screens
+ */
+export default function Grid({ rows, activeRowIndex, shakeRowNonce, onDeleteChar }: Props) {
   return (
-    <div
-      className="grid py-1"
+    <div 
+      className="grid-container w-full"
       style={{
-        rowGap: `${rowGap}px`,
-        // expose vars so child tiles can use Tailwind arbitrary values
-        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-        ...( {
-          "--tile": `${tile}px`,
-          "--tile-font": `${fontPx}px`,
-          "--col-gap": `${colGap}px`,
-        } as React.CSSProperties),
+        // Container für 6 Reihen mit Gaps
+        // Berechnung: 6 Tiles + 5 Gaps (0.75rem = 12px)
+        // Max-Höhe begrenzt das Grid auf vernünftige Größe
+        maxWidth: "min(100%, 350px)",
+        margin: "0 auto",
       }}
     >
-      {rows.map((r, ri) => {
-        const isActive = ri === activeRowIndex;
-        // key includes nonce so the shake animation restarts
-        const rowKey = `${ri}-${isActive ? shakeRowNonce : 0}`;
+      <div 
+        className="grid gap-2 sm:gap-3"
+        style={{
+          // 6 Reihen, jede nimmt gleich viel Platz
+          gridTemplateRows: "repeat(6, 1fr)",
+        }}
+      >
+        {rows.map((r, ri) => {
+          const isActive = ri === activeRowIndex;
+          const rowKey = `${ri}-${isActive ? shakeRowNonce : 0}`;
 
-        return (
-          <div
-            key={rowKey}
-            className={
-              "grid" + (isActive && shakeRowNonce ? " animate-row-shake" : "")
-            }
-            style={{
-              gridTemplateColumns: "repeat(5, var(--tile))",
-              columnGap: "var(--col-gap)",
-            }}
-          >
-            {Array.from({ length: 5 }).map((_, ci) => {
-              const ch = (r.guess[ci] ?? " ").toUpperCase();
-              const mark = r.marks?.[ci];
-              const hasLetter = ch.trim().length > 0;
+          return (
+            <div
+              key={rowKey}
+              className={
+                "grid grid-cols-5 gap-2 sm:gap-3" +
+                (isActive && shakeRowNonce ? " animate-row-shake" : "")
+              }
+            >
+              {Array.from({ length: 5 }).map((_, ci) => {
+                const ch = (r.guess[ci] ?? " ").toUpperCase();
+                const mark = r.marks?.[ci];
+                const hasLetter = ch.trim().length > 0;
 
-              const base =
-                "tile flex h-[var(--tile)] w-[var(--tile)] min-w-0 items-center justify-center rounded-xl border font-extrabold uppercase leading-none text-[length:var(--tile-font)]";
+                const stateCls =
+                  mark === "correct"
+                    ? " tile-correct"
+                    : mark === "present"
+                      ? " tile-present"
+                      : mark === "absent"
+                        ? " tile-absent"
+                        : hasLetter
+                          ? " tile-filled"
+                          : " tile-empty";
 
-              const stateCls =
-                mark === "correct"
-                  ? " tile-correct"
-                  : mark === "present"
-                    ? " tile-present"
-                    : mark === "absent"
-                      ? " tile-absent"
-                      : hasLetter
-                        ? " tile-filled"
-                        : " tile-empty";
+                const animCls = r.revealed && mark 
+                  ? " animate-tile-flip" 
+                  : hasLetter && !mark 
+                    ? " animate-tile-pop" 
+                    : "";
 
-              const animCls = r.revealed && mark ? " animate-tile-flip" : hasLetter && !mark ? " animate-tile-pop" : "";
-
-              return (
-                <div
-                  key={`${ri}-${ci}-${ch}-${r.revealed ? "r" : "n"}`}
-                  className={`${base}${stateCls}${animCls}${isActive && hasLetter ? " cursor-pointer hover:opacity-80 transition" : ""}`}
-                  style={
-                    r.revealed && mark
-                      ? ({ animationDelay: `${ci * 120}ms` } as React.CSSProperties)
-                      : undefined
-                  }
-                  onClick={() => {
-                    if (isActive && hasLetter && onDeleteChar) {
-                      onDeleteChar(ci);
+                return (
+                  <div
+                    key={`${ri}-${ci}-${ch}-${r.revealed ? "r" : "n"}`}
+                    className={
+                      "tile flex items-center justify-center rounded-xl border " +
+                      "text-[clamp(1rem,5cqw,1.5rem)] font-extrabold uppercase " +
+                      "aspect-square" + // Quadratisch!
+                      stateCls +
+                      animCls +
+                      (isActive && hasLetter ? " cursor-pointer hover:opacity-80 transition" : "")
                     }
-                  }}
-                >
-                  {hasLetter ? ch : ""}
-                </div>
-              );
-            })}
-          </div>
-        );
-      })}
+                    style={
+                      r.revealed && mark
+                        ? ({ animationDelay: `${ci * 120}ms` } as React.CSSProperties)
+                        : undefined
+                    }
+                    onClick={() => {
+                      if (isActive && hasLetter && onDeleteChar) {
+                        onDeleteChar(ci);
+                      }
+                    }}
+                  >
+                    {hasLetter ? ch : ""}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

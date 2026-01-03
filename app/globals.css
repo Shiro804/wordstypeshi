@@ -4,36 +4,12 @@
 
 /* Default theme = dark */
 :root {
-  /* Used to stabilize fullscreen height on older iOS Safari (URL bars). */
-  --app-height: 100dvh;
-
-  /* App theme tokens (used by the game UI) */
   --bg: #09090b;
   --fg: #fafafa;
   --muted: rgba(255, 255, 255, 0.6);
   --border: rgba(255, 255, 255, 0.10);
   --surface: rgba(255, 255, 255, 0.05);
   --surface2: rgba(255, 255, 255, 0.08);
-
-  /* shadcn/ui tokens (used by auth forms/components) */
-  --background: 240 10% 3.9%;
-  --foreground: 0 0% 98%;
-  --card: 240 10% 3.9%;
-  --card-foreground: 0 0% 98%;
-  --popover: 240 10% 3.9%;
-  --popover-foreground: 0 0% 98%;
-  --primary: 0 0% 98%;
-  --primary-foreground: 240 5.9% 10%;
-  --secondary: 240 3.7% 15.9%;
-  --secondary-foreground: 0 0% 98%;
-  --muted-foreground: 240 5% 64.9%;
-  --accent: 240 3.7% 15.9%;
-  --accent-foreground: 0 0% 98%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 0 0% 98%;
-  --input: 240 3.7% 15.9%;
-  --ring: 240 4.9% 83.9%;
-  --radius: 0.75rem;
 
   /* modal surfaces */
   --modal-bg: rgba(9, 9, 11, 0.92);
@@ -47,6 +23,20 @@
   --absent-border: rgba(113, 113, 122, 0.40);
 }
 
+html.light {
+  color-scheme: light;
+  --bg: #f8fafc;
+  --fg: #0a0a0a;
+  --muted: rgba(0, 0, 0, 0.55);
+  --border: rgba(0, 0, 0, 0.12);
+  --surface: rgba(0, 0, 0, 0.04);
+  --surface2: rgba(0, 0, 0, 0.07);
+
+  /* modal surfaces (less transparent in light mode) */
+  --modal-bg: rgba(248, 250, 252, 0.98);
+  --modal-overlay: rgba(0, 0, 0, 0.35);
+}
+
 html.dark {
   color-scheme: dark;
 }
@@ -57,18 +47,6 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden; /* app-like: prevent page scrolling */
-}
-
-/* iOS PWA / Add-to-Home-Screen fullscreen stability:
-   `100vh` can be wrong; `dvh` is best, and `-webkit-fill-available` is a good fallback.
-   This prevents "white bars" and layout jumps when Safari UI changes. */
-html {
-  height: -webkit-fill-available;
-}
-
-body {
-  min-height: 100dvh;
-  min-height: -webkit-fill-available;
 }
 
 body {
@@ -160,9 +138,43 @@ button {
   animation: row-shake 320ms ease-in-out;
 }
 
+/* --- BULLETPROOF GRID CONTAINER --- */
+.grid-container {
+  /* Container query context */
+  container-type: inline-size;
+  container-name: grid;
+  
+  /* 
+   * Das Grid soll maximal so groß sein, dass alle 6 Reihen 
+   * plus der Rest der UI reinpassen.
+   * 
+   * Berechnung für iPhone 14 Pro (393 x 852 logical px):
+   * - Safe area top: ~59px (Dynamic Island)
+   * - Safe area bottom: ~34px (Home Indicator)
+   * - Header: ~56px
+   * - Status row: ~40px
+   * - Toast: ~24px
+   * - Game over banner: ~40px
+   * - Keyboard: ~180px
+   * - Keyboard game over buttons: ~56px
+   * - Padding: ~24px
+   * 
+   * Verfügbar fürs Grid: 852 - 59 - 34 - 56 - 40 - 24 - 40 - 180 - 24 ≈ 395px
+   * 
+   * Mit max-height begrenzen wir das Grid auf vernünftige Werte.
+   */
+  max-height: min(
+    calc(100dvh - 320px), /* Dynamisch: Viewport minus UI-Elemente */
+    400px                  /* Absolutes Maximum */
+  );
+}
+
 /* --- Tile states (Grid.tsx uses these classes) --- */
 .tile {
   letter-spacing: 0.02em;
+  /* Fallback für sehr kleine Screens */
+  min-width: 2.5rem;
+  min-height: 2.5rem;
 }
 
 .tile-empty {
@@ -213,4 +225,22 @@ button {
   background: var(--absent-bg);
   border-color: var(--absent-border);
   color: color-mix(in srgb, var(--fg) 65%, transparent);
+}
+
+/* 
+ * Container Query basierte Tile-Größen
+ * Das erlaubt responsive Tiles basierend auf dem CONTAINER, nicht dem Viewport!
+ */
+@container grid (min-width: 320px) {
+  .tile {
+    min-width: 3rem;
+    min-height: 3rem;
+  }
+}
+
+@container grid (min-width: 380px) {
+  .tile {
+    min-width: 3.5rem;
+    min-height: 3.5rem;
+  }
 }

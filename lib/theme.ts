@@ -5,3 +5,4 @@ export function applyTheme() {
   root.classList.remove("light");
   root.classList.add("dark");
 }
+
