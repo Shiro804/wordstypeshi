@@ -18,7 +18,7 @@ type Props = {
 
 export default function Grid({ rows, activeRowIndex, shakeRowNonce, onDeleteChar }: Props) {
   return (
-    <div className="grid gap-[clamp(6px,1.5dvh,10px)]">
+    <div className="grid gap-[clamp(5px,1.2dvh,9px)]">
       {rows.map((r, ri) => {
         const isActive = ri === activeRowIndex;
         // key includes nonce so the shake animation restarts
@@ -28,7 +28,7 @@ export default function Grid({ rows, activeRowIndex, shakeRowNonce, onDeleteChar
           <div
             key={rowKey}
             className={
-              "grid grid-cols-5 gap-[clamp(6px,1.5dvh,10px)]" +
+              "grid grid-cols-5 gap-[clamp(5px,1.2dvh,9px)]" +
               (isActive && shakeRowNonce ? " animate-row-shake" : "")
             }
           >
@@ -38,9 +38,9 @@ export default function Grid({ rows, activeRowIndex, shakeRowNonce, onDeleteChar
               const hasLetter = ch.trim().length > 0;
 
               // Tile size: responsive based on dvh (dynamic viewport height)
-              // Min 52px, max 62px, scales with viewport
+              // Tuned smaller for iPhone Safari so the full grid fits without manual zoom.
               const base =
-                "tile flex aspect-square w-[clamp(52px,9dvh,62px)] items-center justify-center rounded-xl border text-[clamp(1.4rem,4dvh,1.75rem)] font-extrabold uppercase select-none";
+                "tile flex aspect-square w-[clamp(46px,8dvh,56px)] items-center justify-center rounded-xl border text-[clamp(1.25rem,3.6dvh,1.55rem)] font-extrabold uppercase select-none";
 
               const stateCls =
                 mark === "correct"
