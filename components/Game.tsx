@@ -203,14 +203,20 @@ export default function Game() {
 
     const persisted = loadGameState();
     if (persisted && persisted.answer && persisted.difficulty === difficulty) {
-      setAnswer(persisted.answer);
-      setRows(persisted.rows);
-      setCurrent(persisted.current);
-      setStartedAtMs(persisted.startedAtMs);
-      setEndedAtMs(persisted.endedAtMs);
-      setHintUsed(persisted.hintUsed);
-      window.setTimeout(() => containerRef.current?.focus(), 0);
-      return;
+      // If the user is logged in, only restore a persisted game that belongs to the same user.
+      // This prevents inheriting an old timer/game after signing up / confirming email.
+      if (userId && persisted.userId !== userId) {
+        saveGameState(null);
+      } else {
+        setAnswer(persisted.answer);
+        setRows(persisted.rows);
+        setCurrent(persisted.current);
+        setStartedAtMs(persisted.startedAtMs);
+        setEndedAtMs(persisted.endedAtMs);
+        setHintUsed(persisted.hintUsed);
+        window.setTimeout(() => containerRef.current?.focus(), 0);
+        return;
+      }
     }
 
     newGame();
@@ -237,6 +243,7 @@ export default function Game() {
       startedAtMs,
       endedAtMs,
       hintUsed,
+      userId,
     });
   }, [difficulty, answer, rows, current, startedAtMs, endedAtMs, hintUsed]);
 

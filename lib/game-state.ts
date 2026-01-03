@@ -11,6 +11,8 @@ export type PersistedGameState = {
   endedAtMs: number | null;
   hintUsed: boolean;
   sessionId?: string | null;
+  /** Scope persisted game to a specific authenticated user (null/undefined = anonymous). */
+  userId?: string | null;
 };
 
 const STORAGE_KEY = "wordstypeshi.game.v1";

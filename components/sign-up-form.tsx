@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { getPublicSiteUrl } from "@/lib/site-url";
 // Sign-up via email + password.
 export function SignUpForm({
   className,
@@ -44,7 +45,7 @@ export function SignUpForm({
         email: email.trim(),
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/`,
+          emailRedirectTo: `${getPublicSiteUrl()}/auth/confirm?next=/`,
         },
       });
 
