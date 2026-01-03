@@ -485,35 +485,21 @@ export default function Game() {
             onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
             actionsSlot={
               <>
-                {process.env.NODE_ENV !== "production" ? (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // Reset the whole game
-                        requestReset();
-                        window.setTimeout(() => containerRef.current?.focus(), 0);
-                      }}
-                      title="Reset"
-                      aria-label="Reset"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
-                    >
-                      <RotateCcw size={18} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCurrent(answer);
-                        window.setTimeout(() => containerRef.current?.focus(), 0);
-                      }}
-                      title="Solve"
-                      aria-label="Solve"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
-                    >
-                      <Sparkles size={18} />
-                    </button>
-                  </div>
-                ) : null}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Reset the whole game
+                      requestReset();
+                      window.setTimeout(() => containerRef.current?.focus(), 0);
+                    }}
+                    title="Reset"
+                    aria-label="Reset"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                  >
+                    <RotateCcw size={18} />
+                  </button>
+                </div>
               </>
             }
           />
