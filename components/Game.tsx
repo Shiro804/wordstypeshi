@@ -56,6 +56,8 @@ export default function Game() {
   const [stats, setStats] = useState<Stats>(() => loadStats(difficulty));
   const [statsOpen, setStatsOpen] = useState(false);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+  const [confirmDifficultyOpen, setConfirmDifficultyOpen] = useState(false);
+  const [pendingDifficulty, setPendingDifficulty] = useState<Difficulty | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
@@ -70,14 +72,21 @@ export default function Game() {
   const [endedAtMs, setEndedAtMs] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
+  const didInitSessionRef = useRef(false);
+
+  // Resolve current user once.
   useEffect(() => {
+    getCurrentUserId().then((uid) => setUserId(uid));
+  }, []);
 
-    // Auth + remote stats + active session
-    getCurrentUserId().then(async (uid) => {
-      setUserId(uid);
-      if (!uid) return;
+  // Restore active session once after login (do not override manual difficulty changes).
+  useEffect(() => {
+    if (!userId) return;
+    if (didInitSessionRef.current) return;
+    didInitSessionRef.current = true;
 
-      const active = await fetchActiveSession(uid);
+    (async () => {
+      const active = await fetchActiveSession(userId);
       if (active) {
         setSessionId(active.id);
         setDifficulty(active.difficulty);
@@ -85,28 +94,41 @@ export default function Game() {
         setStartedAtMs(Date.parse(active.started_at));
         setEndedAtMs(null);
       }
+    })();
+  }, [userId]);
 
-      const remote = await fetchRemoteStats(uid, difficulty);
-      if (remote) {
-        const local = loadStats(difficulty);
-        const pick = (remote.updatedAt ?? 0) >= (local.updatedAt ?? 0) ? remote : local;
-        setStats(pick);
-      } else {
-        setStats(loadStats(difficulty));
-      }
-    });
-
+  // Load word lists whenever difficulty changes.
+  useEffect(() => {
     loadWordLists(difficulty).then(({ allowed, solutions }) => {
       setAllowed(allowed);
       setSolutions(solutions);
     });
+  }, [difficulty]);
 
-    if (userId) {
-      fetchPlayedWords(userId, difficulty).then((played) => {
-        setPlayedWords(played);
-      });
-    }
-  }, [difficulty, userId]);
+  // Load played words for this user + difficulty.
+  useEffect(() => {
+    if (!userId) return;
+    fetchPlayedWords(userId, difficulty).then((played) => {
+      setPlayedWords(played);
+    });
+  }, [userId, difficulty]);
+
+  // Load remote stats whenever user or difficulty changes.
+  useEffect(() => {
+    // Always keep local stats in sync for the selected difficulty.
+    const local = loadStats(difficulty);
+    setStats(local);
+
+    if (!userId) return;
+
+    (async () => {
+      const remote = await fetchRemoteStats(userId, difficulty);
+      if (remote) {
+        const pick = (remote.updatedAt ?? 0) >= (local.updatedAt ?? 0) ? remote : local;
+        setStats(pick);
+      }
+    })();
+  }, [userId, difficulty]);
 
   useEffect(() => {
     applyTheme();
@@ -272,6 +294,91 @@ export default function Game() {
 
   function newGame() {
     void startNewGameInternal();
+  }
+
+  async function forfeitCurrentGame() {
+    const ended = Date.now();
+    const d = startedAtMs ? Math.max(0, (ended - startedAtMs) / 1000) : 0;
+
+    setStats(applyGameResult(stats, { outcome: "lose", durationSec: d }));
+
+    if (userId) {
+      void trackPlayedWord(userId, difficulty, answer);
+    }
+
+    // End the active session if we have one.
+    if (sessionId) {
+      await endSession({
+        sessionId,
+        outcome: "forfeit",
+        guessesUsed: committedCount,
+        durationSec: d,
+        endedAtMs: ended,
+      });
+      setSessionId(null);
+      return;
+    }
+
+    // If for some reason sessionId isn't set, still try to end any active session
+    // so it can't override difficulty on refresh.
+    if (userId) {
+      const active = await fetchActiveSession(userId);
+      if (active?.id) {
+        await endSession({
+          sessionId: active.id,
+          outcome: "forfeit",
+          guessesUsed: committedCount,
+          durationSec: d,
+          endedAtMs: ended,
+        });
+      }
+      setSessionId(null);
+    }
+  }
+
+  async function forfeitCurrentGameAndReset() {
+    await forfeitCurrentGame();
+    newGame();
+  }
+
+  async function endAnyActiveSession() {
+    if (!userId) return;
+    const active = await fetchActiveSession(userId);
+    if (active?.id) {
+      await endSession({
+        sessionId: active.id,
+        outcome: "forfeit",
+        guessesUsed: committedCount > 0 ? committedCount : null,
+        durationSec: durationSec,
+        endedAtMs: Date.now(),
+      });
+    }
+    setSessionId(null);
+  }
+
+  async function applyDifficultyChange(d: Difficulty) {
+    // Ensure no active session remains that could override difficulty on refresh.
+    await endAnyActiveSession();
+
+    setDifficulty(d);
+    saveGameState(null);
+    setSettingsOpen(false);
+  }
+
+  function requestDifficultyChange(d: Difficulty) {
+    if (d === difficulty) {
+      setSettingsOpen(false);
+      return;
+    }
+
+    // If the user has started playing, changing difficulty counts as a forfeit/loss.
+    if (!gameOver.done && committedCount > 0) {
+      setPendingDifficulty(d);
+      setConfirmDifficultyOpen(true);
+      return;
+    }
+
+    void applyDifficultyChange(d);
   }
 
   function requestReset() {
@@ -504,6 +611,7 @@ export default function Game() {
           onOpenLeaderboard={() => setLeaderboardOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenStats={() => setStatsOpen(true)}
+          difficulty={difficulty}
           timerText={formatDuration(Math.round(durationSec))}
           hintSlot={
             !gameOver.done ? (
@@ -645,10 +753,7 @@ export default function Game() {
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         difficulty={difficulty}
-        onDifficultyChange={(d) => {
-          setDifficulty(d);
-          saveGameState(null);
-        }}
+        onDifficultyChange={requestDifficultyChange}
       />
 
       <Modal
@@ -668,26 +773,7 @@ export default function Game() {
               type="button"
               onClick={() => {
                 setConfirmResetOpen(false);
-                const ended = Date.now();
-                const d = startedAtMs ? Math.max(0, (ended - startedAtMs) / 1000) : 0;
-
-                setStats(applyGameResult(stats, { outcome: "lose", durationSec: d }));
-
-                if (userId) {
-                  void trackPlayedWord(userId, difficulty, answer);
-                }
-
-                if (sessionId) {
-                  void endSession({
-                    sessionId,
-                    outcome: "forfeit",
-                    guessesUsed: committedCount,
-                    durationSec: d,
-                    endedAtMs: ended,
-                  });
-                }
-
-                newGame();
+                forfeitCurrentGameAndReset();
               }}
               className="rounded-xl border border-[color:var(--border)] bg-rose-500/20 px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-rose-500/30"
             >
@@ -698,6 +784,50 @@ export default function Game() {
       >
         <div className="text-sm text-[color:var(--fg)]/85">
           You already made guesses. Resetting now will count as a loss.
+        </div>
+      </Modal>
+
+      <Modal
+        open={confirmDifficultyOpen}
+        title="Change difficulty?"
+        onClose={() => {
+          setConfirmDifficultyOpen(false);
+          setPendingDifficulty(null);
+        }}
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmDifficultyOpen(false);
+                setPendingDifficulty(null);
+              }}
+              className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const next = pendingDifficulty;
+                setConfirmDifficultyOpen(false);
+                setPendingDifficulty(null);
+                // Count as forfeit/loss, then switch difficulty.
+                // IMPORTANT: don't start a new game on the old difficulty.
+                void (async () => {
+                  await forfeitCurrentGame();
+                  if (next) await applyDifficultyChange(next);
+                })();
+              }}
+              className="rounded-xl border border-[color:var(--border)] bg-rose-500/20 px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-rose-500/30"
+            >
+              Switch (counts as loss)
+            </button>
+          </div>
+        }
+      >
+        <div className="text-sm text-[color:var(--fg)]/85">
+          You already made guesses. Switching difficulty now will forfeit this game and count as a loss.
         </div>
       </Modal>
 

@@ -9,12 +9,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+import type { Difficulty } from "@/lib/difficulty";
+
 type Props = {
   onNew: () => void;
   onShare: () => void;
   onOpenStats: () => void;
   onOpenLeaderboard: () => void;
   onOpenSettings: () => void;
+  difficulty: Difficulty;
   // Timer
   timerText: string;
   // Hint slot (rendered by parent)
@@ -102,6 +105,7 @@ export default function TopBar({
   onOpenStats,
   onOpenLeaderboard,
   onOpenSettings,
+  difficulty,
   timerText,
   hintSlot,
   actionsSlot,
@@ -111,21 +115,35 @@ export default function TopBar({
       {/* Left: Logo + Timer */}
       <div className="flex items-center gap-3">
         <div className="text-sm font-semibold tracking-tight text-[color:var(--fg)]">WordsTypeShi</div>
-        
+
         {/* Timer badge */}
         <div className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-1 text-xs font-semibold text-[color:var(--fg)]">
           <Clock3 size={12} className="text-[color:var(--muted)]" />
-          <span>{timerText}</span>
+          <span className="tabular-nums inline-block w-[2rem] text-right">{timerText}</span>
+        </div>
+
+        {/* Difficulty badge */}
+        <div
+          className={
+            "inline-flex items-center rounded-lg border border-[color:var(--border)] px-2 py-1 text-[11px] font-extrabold uppercase tracking-wide " +
+            (difficulty === "easy"
+              ? " bg-emerald-500/15 text-emerald-200"
+              : difficulty === "medium"
+                ? " bg-orange-500/15 text-orange-200"
+                : " bg-rose-500/15 text-rose-200")
+          }
+        >
+          {difficulty}
         </div>
       </div>
 
       {/* Right: Hint + Actions + Menu */}
       <div className="flex items-center gap-2">
-        {/* Hint button (passed from parent) */}
-        {hintSlot}
-        
         {/* Dev buttons */}
         {actionsSlot}
+
+        {/* Hint button (passed from parent) */}
+        {hintSlot}
 
         {/* Menu */}
         <DropdownMenu>
