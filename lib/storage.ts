@@ -112,6 +112,7 @@ export type GameResult =
   | { outcome: "lose"; durationSec: number };
 
 function roundSec(sec: number) {
+  if (!Number.isFinite(sec)) return 0;
   return Math.max(0, Math.round(sec));
 }
 
@@ -122,20 +123,21 @@ export function applyGameResult(prev: Stats, result: GameResult): Stats {
     updatedAt: Date.now(),
   };
 
-  const duration = roundSec(result.durationSec);
-
-  // time aggregates
-  const times = [duration, ...prev.lastTimesSec].slice(0, 20);
-  next.lastTimesSec = times;
-
-  const allTimes = [duration, ...prev.lastTimesSec];
-  next.avgTimeSec = Math.round(
-    allTimes.reduce((a, b) => a + b, 0) / allTimes.length
-  );
-  next.bestTimeSec =
-    prev.bestTimeSec == null ? duration : Math.min(prev.bestTimeSec, duration);
-
   if (result.outcome === "win") {
+    const duration = roundSec(result.durationSec);
+
+    // Time-based stats should reflect *completed wins* only.
+    // Keep only the most recent 20 win times.
+    const times = [duration, ...prev.lastTimesSec].slice(0, 20);
+    next.lastTimesSec = times;
+
+    next.avgTimeSec = times.length
+      ? Math.round(times.reduce((a, b) => a + b, 0) / times.length)
+      : null;
+
+    next.bestTimeSec =
+      prev.bestTimeSec == null ? duration : Math.min(prev.bestTimeSec, duration);
+
     next.wins = prev.wins + 1;
     next.currentStreak = prev.currentStreak + 1;
     next.maxStreak = Math.max(prev.maxStreak, next.currentStreak);
@@ -144,6 +146,7 @@ export function applyGameResult(prev: Stats, result: GameResult): Stats {
       [result.guessesUsed]: (prev.distribution[result.guessesUsed] ?? 0) + 1,
     };
   } else {
+    // Losses should not affect win-time aggregates.
     next.losses = prev.losses + 1;
     next.currentStreak = 0;
   }
@@ -155,7 +158,7 @@ export function formatDuration(sec: number) {
   const totalSec = Math.max(0, Math.floor(sec));
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
-  
+
   // Show minutes:seconds format only if >= 60 seconds
   if (m > 0) {
     return `${m}:${String(s).padStart(2, "0")}`;
