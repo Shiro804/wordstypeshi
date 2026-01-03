@@ -103,8 +103,13 @@ export default function Game() {
             ),
       );
 
+      // Extra headroom to avoid Safari clipping (rounding, UI bars, keyboard chrome).
+      // This is intentionally small but makes the layout "bulletproof" on iPhones.
+      const headroomFactor = 0.94;
+      const tileFinal = Math.floor(tile2 * headroomFactor);
+
       setGridSizing({
-        tile: clamp(tile2, 18, 72),
+        tile: clamp(tileFinal, 18, 72),
         colGap,
         rowGap,
       });
@@ -649,7 +654,7 @@ export default function Game() {
             </div>
 
             {/* grid region: takes remaining space and is what we measure for bulletproof sizing */}
-            <div ref={gridRegionRef} className="flex flex-1 w-full items-center justify-center overflow-hidden">
+            <div ref={gridRegionRef} className="flex flex-1 w-full items-center justify-center overflow-hidden pt-1">
               <Grid
                 rows={viewRows}
                 activeRowIndex={activeRowIndex}
@@ -662,17 +667,16 @@ export default function Game() {
             </div>
 
             {/* bottom info */}
-            <div className="shrink-0">
+            {/* bottom info: reserve space to prevent layout shifting when the game ends */}
+            <div className="shrink-0 h-[4.25rem] flex items-end justify-center w-full">
               {gameOver.lost && committedCount > 0 ? (
-                <div className="mt-3 text-center">
+                <div className="text-center">
                   <div className="text-sm text-[color:var(--muted)]">The word was:</div>
                   <div className="text-2xl font-bold text-[color:var(--fg)] uppercase tracking-widest">
                     {answer}
                   </div>
                 </div>
-              ) : (
-                <div className="h-8" />
-              )}
+              ) : null}
             </div>
           </div>
 
