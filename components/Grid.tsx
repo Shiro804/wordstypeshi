@@ -14,11 +14,40 @@ type Props = {
   activeRowIndex: number;
   shakeRowNonce: number;
   onDeleteChar?: (index: number) => void;
+  /** Calculated in Game.tsx for bulletproof mobile-first sizing */
+  tileSizePx?: number;
+  colGapPx?: number;
+  rowGapPx?: number;
 };
 
-export default function Grid({ rows, activeRowIndex, shakeRowNonce, onDeleteChar }: Props) {
+export default function Grid({
+  rows,
+  activeRowIndex,
+  shakeRowNonce,
+  onDeleteChar,
+  tileSizePx,
+  colGapPx,
+  rowGapPx,
+}: Props) {
+  const tile = Math.max(18, Math.round(tileSizePx ?? 46));
+  const colGap = Math.max(4, Math.round(colGapPx ?? 8));
+  const rowGap = Math.max(4, Math.round(rowGapPx ?? 10));
+  const fontPx = Math.max(10, Math.round(tile * 0.56));
+
   return (
-    <div className="grid gap-2 sm:gap-3 py-2 sm:py-3">
+    <div
+      className="grid py-2"
+      style={{
+        rowGap: `${rowGap}px`,
+        // expose vars so child tiles can use Tailwind arbitrary values
+        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+        ...( {
+          "--tile": `${tile}px`,
+          "--tile-font": `${fontPx}px`,
+          "--col-gap": `${colGap}px`,
+        } as React.CSSProperties),
+      }}
+    >
       {rows.map((r, ri) => {
         const isActive = ri === activeRowIndex;
         // key includes nonce so the shake animation restarts
@@ -28,9 +57,12 @@ export default function Grid({ rows, activeRowIndex, shakeRowNonce, onDeleteChar
           <div
             key={rowKey}
             className={
-              "grid grid-cols-5 gap-2 sm:gap-4" +
-              (isActive && shakeRowNonce ? " animate-row-shake" : "")
+              "grid" + (isActive && shakeRowNonce ? " animate-row-shake" : "")
             }
+            style={{
+              gridTemplateColumns: "repeat(5, var(--tile))",
+              columnGap: "var(--col-gap)",
+            }}
           >
             {Array.from({ length: 5 }).map((_, ci) => {
               const ch = (r.guess[ci] ?? " ").toUpperCase();
@@ -38,7 +70,7 @@ export default function Grid({ rows, activeRowIndex, shakeRowNonce, onDeleteChar
               const hasLetter = ch.trim().length > 0;
 
               const base =
-                "tile flex h-[clamp(2.6rem,7.5vh,3.5rem)] w-[clamp(2.6rem,7.5vh,3.5rem)] items-center justify-center rounded-xl border text-[clamp(1.2rem,3.2vh,1.6rem)] font-extrabold uppercase";
+                "tile flex h-[var(--tile)] w-[var(--tile)] min-w-0 items-center justify-center rounded-xl border font-extrabold uppercase leading-none text-[length:var(--tile-font)]";
 
               const stateCls =
                 mark === "correct"

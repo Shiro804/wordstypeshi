@@ -11,6 +11,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import type { Stats } from "@/lib/storage";
 import type { Difficulty } from "@/lib/difficulty";
+import { getAvatarPublicUrl } from "@/lib/avatar";
 
 export type LeaderboardMetric =
   | "wins"
@@ -31,6 +32,7 @@ type Row = {
   stats: Stats;
   updated_at: string | null;
   username: string | null;
+  avatar_path: string | null;
 };
 
 type StatsTableRow = {
@@ -187,7 +189,7 @@ export default function Leaderboard({ open, onClose }: Props) {
         const ids = Array.from(new Set(statsRows.map((r) => r.user_id).filter(Boolean)));
 
         const { data: usersRowsRaw, error: usersError } = ids.length
-          ? await supabase.from("profiles").select("id, username").in("id", ids)
+          ? await supabase.from("profiles").select("id, username, avatar_path").in("id", ids)
           : { data: [], error: null };
 
         if (usersError) throw usersError;
@@ -203,6 +205,7 @@ export default function Leaderboard({ open, onClose }: Props) {
             stats: rowToStats(r),
             updated_at: r.updated_at ?? null,
             username: u?.username ?? null,
+            avatar_path: (u as any)?.avatar_path ?? null,
           };
         });
 
@@ -320,11 +323,23 @@ export default function Leaderboard({ open, onClose }: Props) {
                     break;
                 }
 
+                const avatarUrl = getAvatarPublicUrl(r.avatar_path);
+
                 return (
                   <div key={r.user_id} className="flex items-center justify-between gap-3 p-3">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-[color:var(--fg)]">
-                        {idx + 1}. {name}
+                      <div className="flex items-center gap-2">
+                        <div className="shrink-0">
+                          <div className="h-6 w-6 overflow-hidden rounded-full border border-[color:var(--border)] bg-[color:var(--surface2)]">
+                            {avatarUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="min-w-0 truncate text-sm font-semibold text-[color:var(--fg)]">
+                          {idx + 1}. {name}
+                        </div>
                       </div>
                       <div className="text-xs text-[color:var(--muted)]">{metricLabel(metric)}</div>
                     </div>

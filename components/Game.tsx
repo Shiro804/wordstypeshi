@@ -31,9 +31,82 @@ const MAX_TRIES = 6;
 export default function Game() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const keyboardRef = useRef<HTMLDivElement | null>(null);
+  const gridRegionRef = useRef<HTMLDivElement | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [gridSizing, setGridSizing] = useState<{ tile: number; colGap: number; rowGap: number }>(() => ({
+    tile: 46,
+    colGap: 8,
+    rowGap: 10,
+  }));
 
   const [difficulty, setDifficulty] = useState<Difficulty>(() => loadDifficulty());
+
+  // Bulletproof mobile-first grid sizing: compute tile size from actual available width+height
+  // (works for landscape + keyboard, small phones, tablets).
+  useLayoutEffect(() => {
+    const el = gridRegionRef.current;
+    if (!el) return;
+
+    const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
+    const recompute = () => {
+      const rect = el.getBoundingClientRect();
+      const w = Math.max(0, rect.width);
+      const h = Math.max(0, rect.height);
+      if (!w || !h) return;
+
+      const cols = 5;
+      const rows = 6;
+
+      // We optimize for portrait (how people actually play). In landscape we
+      // prioritize width and accept that the grid may not fully fit vertically.
+      const isLandscape = w > h;
+
+      // First pass with conservative gaps
+      const baseColGap = 8;
+      const baseRowGap = 10;
+
+      let tile = Math.floor(
+        isLandscape
+          ? (w - baseColGap * (cols - 1)) / cols
+          : Math.min(
+              (w - baseColGap * (cols - 1)) / cols,
+              (h - baseRowGap * (rows - 1)) / rows,
+            ),
+      );
+
+      tile = clamp(tile, 18, 72);
+
+      // Second pass: scale gaps with tile size for nicer proportions.
+      const colGap = clamp(Math.round(tile * 0.14), 4, 12);
+      const rowGap = clamp(Math.round(tile * 0.16), 4, 14);
+
+      const tile2 = Math.floor(
+        isLandscape
+          ? (w - colGap * (cols - 1)) / cols
+          : Math.min(
+              (w - colGap * (cols - 1)) / cols,
+              (h - rowGap * (rows - 1)) / rows,
+            ),
+      );
+
+      // Allow the grid to scale up on larger devices (tablet/desktop)
+      // similar to how the keyboard scales.
+      const maxTile = clamp(Math.floor(w / cols), 72, 112);
+
+      setGridSizing({
+        tile: clamp(tile2, 18, maxTile),
+        colGap,
+        rowGap,
+      });
+    };
+
+    recompute();
+
+    const ro = new ResizeObserver(() => recompute());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const [allowed, setAllowed] = useState<string[]>([]);
   const [solutions, setSolutions] = useState<string[]>([]);
@@ -467,7 +540,7 @@ export default function Game() {
         }
       }}
     >
-      <div className="relative h-dvh w-full overflow-hidden bg-[color:var(--bg)] text-[color:var(--fg)] safe-top safe-bottom">
+      <div className="relative min-h-dvh w-full overflow-hidden bg-[color:var(--bg)] text-[color:var(--fg)] safe-top safe-bottom">
         {/* subtle background */}
         <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
           <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl" />
@@ -516,15 +589,16 @@ export default function Game() {
         </div>
 
         <div
-          className="mx-auto flex h-full w-full max-w-[560px] flex-col px-4 py-2"
+          className="mx-auto flex h-full w-full max-w-[560px] sm:max-w-[640px] md:max-w-[720px] lg:max-w-[840px] flex-col px-4 py-2"
           style={{ paddingBottom: `calc(${keyboardHeight}px + max(0.5rem, env(safe-area-inset-bottom)))` }}
         >
           {/* toast slot (fixed height to prevent layout shift) */}
           <div className="h-5 text-center text-xs text-[color:var(--muted)]">{toast}</div>
 
           {/* center area */}
-          <div className="flex flex-1 flex-col items-center justify-center">
-            <div className="h-8">
+          <div className="flex flex-1 flex-col items-center overflow-hidden">
+            {/* top status (keeps a little reserved space to prevent jumps) */}
+            <div className="h-4 sm:h-6 shrink-0">
               {gameOver.won ? (
                 <div className="text-center text-3xl font-extrabold tracking-[0.18em] text-emerald-300 drop-shadow">
                   YOU WON
@@ -536,18 +610,32 @@ export default function Game() {
               ) : null}
             </div>
 
-            <Grid rows={viewRows} activeRowIndex={activeRowIndex} shakeRowNonce={shakeNonce} onDeleteChar={onDeleteChar} />
+            {/* grid region: takes remaining space and is what we measure for bulletproof sizing */}
+            <div ref={gridRegionRef} className="flex flex-1 w-full items-center justify-center overflow-hidden">
+              <Grid
+                rows={viewRows}
+                activeRowIndex={activeRowIndex}
+                shakeRowNonce={shakeNonce}
+                onDeleteChar={onDeleteChar}
+                tileSizePx={gridSizing.tile}
+                colGapPx={gridSizing.colGap}
+                rowGapPx={gridSizing.rowGap}
+              />
+            </div>
 
-            {gameOver.lost && committedCount > 0 && (
-              <div className="mt-4 text-center">
-                <div className="text-sm text-[color:var(--muted)]">The word was:</div>
-                <div className="text-2xl font-bold text-[color:var(--fg)] uppercase tracking-widest">
-                  {answer}
+            {/* bottom info */}
+            <div className="shrink-0">
+              {gameOver.lost && committedCount > 0 ? (
+                <div className="mt-3 text-center">
+                  <div className="text-sm text-[color:var(--muted)]">The word was:</div>
+                  <div className="text-2xl font-bold text-[color:var(--fg)] uppercase tracking-widest">
+                    {answer}
+                  </div>
                 </div>
-              </div>
-            )}
-
-            <div className="h-8" />
+              ) : (
+                <div className="h-8" />
+              )}
+            </div>
           </div>
 
           {/* keyboard: fixed to bottom (iOS-friendly) */}

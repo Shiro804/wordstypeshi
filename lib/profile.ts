@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/client";
 export type UserProfile = {
   id: string;
   username: string | null;
+  avatar_path: string | null;
 };
 
 export async function getMyProfile(): Promise<UserProfile | null> {
@@ -13,20 +14,21 @@ export async function getMyProfile(): Promise<UserProfile | null> {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, username")
+    .select("id, username, avatar_path")
     .eq("id", user.id)
     .maybeSingle();
 
   if (error) return null;
-  if (!data) return { id: user.id, username: null };
+  if (!data) return { id: user.id, username: null, avatar_path: null };
 
   return {
     id: data.id,
     username: data.username ?? null,
+    avatar_path: (data as any).avatar_path ?? null,
   };
 }
 
-export async function upsertMyProfile(profile: { username: string | null }): Promise<void> {
+export async function upsertMyProfile(profile: { username: string | null; avatar_path?: string | null }): Promise<void> {
   const supabase = createClient();
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;
@@ -40,6 +42,7 @@ export async function upsertMyProfile(profile: { username: string | null }): Pro
       {
         id: user.id,
         username,
+        ...(profile.avatar_path !== undefined ? { avatar_path: profile.avatar_path } : {}),
       },
       { onConflict: "id" },
     );

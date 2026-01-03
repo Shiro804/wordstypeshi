@@ -49,6 +49,18 @@ body {
   overflow: hidden; /* app-like: prevent page scrolling */
 }
 
+/* iOS PWA / Add-to-Home-Screen fullscreen stability:
+   `100vh` can be wrong; `dvh` is best, and `-webkit-fill-available` is a good fallback.
+   This prevents "white bars" and layout jumps when Safari UI changes. */
+html {
+  height: -webkit-fill-available;
+}
+
+body {
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+}
+
 body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
     "Apple Color Emoji", "Segoe UI Emoji";
