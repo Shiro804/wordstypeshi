@@ -90,12 +90,8 @@ export default function Game() {
             ),
       );
 
-      // Allow the grid to scale up on larger devices (tablet/desktop)
-      // similar to how the keyboard scales.
-      const maxTile = clamp(Math.floor(w / cols), 72, 112);
-
       setGridSizing({
-        tile: clamp(tile2, 18, maxTile),
+        tile: clamp(tile2, 18, 72),
         colGap,
         rowGap,
       });
@@ -589,7 +585,7 @@ export default function Game() {
         </div>
 
         <div
-          className="mx-auto flex h-full w-full max-w-[560px] sm:max-w-[640px] md:max-w-[720px] lg:max-w-[840px] flex-col px-4 py-2"
+          className="mx-auto flex h-full w-full max-w-[560px] flex-col px-4 py-2"
           style={{ paddingBottom: `calc(${keyboardHeight}px + max(0.5rem, env(safe-area-inset-bottom)))` }}
         >
           {/* toast slot (fixed height to prevent layout shift) */}
