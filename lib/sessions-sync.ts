@@ -95,3 +95,22 @@ export async function endSession(params: {
     console.error("Failed to end session", error);
   }
 }
+
+/**
+ * Update the answer in an active session.
+ * Called when answer changes to ensure DB always has the current word.
+ */
+export async function updateSessionAnswer(params: {
+  sessionId: string;
+  answer: string;
+}): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("game_sessions")
+    .update({ answer: params.answer })
+    .eq("id", params.sessionId);
+
+  if (error) {
+    console.error("Failed to update session answer", error);
+  }
+}

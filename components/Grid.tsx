@@ -18,7 +18,7 @@ type Props = {
 
 export default function Grid({ rows, activeRowIndex, shakeRowNonce, onDeleteChar }: Props) {
   return (
-    <div className="grid gap-[clamp(5px,1.2dvh,9px)]">
+    <div className="grid gap-[clamp(4px,1dvh,7px)]">
       {rows.map((r, ri) => {
         const isActive = ri === activeRowIndex;
         // key includes nonce so the shake animation restarts
@@ -28,7 +28,7 @@ export default function Grid({ rows, activeRowIndex, shakeRowNonce, onDeleteChar
           <div
             key={rowKey}
             className={
-              "grid grid-cols-5 gap-[clamp(5px,1.2dvh,9px)]" +
+              "grid grid-cols-5 gap-[clamp(4px,1dvh,7px)]" +
               (isActive && shakeRowNonce ? " animate-row-shake" : "")
             }
           >
@@ -37,10 +37,12 @@ export default function Grid({ rows, activeRowIndex, shakeRowNonce, onDeleteChar
               const mark = r.marks?.[ci];
               const hasLetter = ch.trim().length > 0;
 
-              // Tile size: responsive based on dvh (dynamic viewport height)
-              // Tuned smaller for iPhone Safari so the full grid fits without manual zoom.
+              // Tile size: bulletproof calculation for 6 rows
+              // Formula: (available height) / 6 rows - gap
+              // Available height = 100dvh - 320px (header ~56 + keyboard ~180 + safe areas ~60 + margins ~24)
+              // Max tile size capped at 56px for larger screens
               const base =
-                "tile flex aspect-square w-[clamp(46px,8dvh,56px)] items-center justify-center rounded-xl border text-[clamp(1.25rem,3.6dvh,1.55rem)] font-extrabold uppercase select-none";
+                "tile flex aspect-square w-[min(calc((100dvh-320px)/6-8px),56px)] items-center justify-center rounded-xl border text-[clamp(1.1rem,min(3dvh,calc((100dvh-320px)/6*0.42)),1.4rem)] font-extrabold uppercase select-none";
 
               const isActiveRow = ri === activeRowIndex && r.marks == null;
 

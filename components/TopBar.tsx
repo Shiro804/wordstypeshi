@@ -18,6 +18,7 @@ type Props = {
   onOpenLeaderboard: () => void;
   onOpenSettings: () => void;
   difficulty: Difficulty;
+  onDifficultyChange: (d: Difficulty) => void;
   // Timer
   timerText: string;
   // Hint slot (rendered by parent)
@@ -106,15 +107,22 @@ export default function TopBar({
   onOpenLeaderboard,
   onOpenSettings,
   difficulty,
+  onDifficultyChange,
   timerText,
   hintSlot,
   actionsSlot,
 }: Props) {
+  const difficultyColors: Record<Difficulty, string> = {
+    easy: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+    medium: "bg-orange-500/15 text-orange-300 border-orange-500/30",
+    hard: "bg-rose-500/15 text-rose-300 border-rose-500/30",
+  };
+
   return (
     <div className="flex items-center justify-between gap-2 border-b border-[color:var(--border)] bg-[color:var(--bg)]/90 px-3 py-2 backdrop-blur">
       {/* Left: Logo + Timer */}
-      <div className="flex items-center gap-3">
-        <div className="text-sm font-semibold tracking-tight text-[color:var(--fg)]">WordsTypeShi</div>
+      <div className="flex items-center gap-2 sm:gap-3">
+        <div className="text-sm font-semibold tracking-tight text-[color:var(--fg)]">BatasWordle</div>
 
         {/* Timer badge */}
         <div className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-1 text-xs font-semibold text-[color:var(--fg)]">
@@ -122,19 +130,34 @@ export default function TopBar({
           <span className="tabular-nums inline-block w-[2rem] text-right">{timerText}</span>
         </div>
 
-        {/* Difficulty badge */}
-        <div
-          className={
-            "inline-flex items-center rounded-lg border border-[color:var(--border)] px-2 py-1 text-[11px] font-extrabold uppercase tracking-wide " +
-            (difficulty === "easy"
-              ? " bg-emerald-500/15 text-emerald-200"
-              : difficulty === "medium"
-                ? " bg-orange-500/15 text-orange-200"
-                : " bg-rose-500/15 text-rose-200")
-          }
-        >
-          {difficulty}
-        </div>
+        {/* Difficulty dropdown badge */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className={
+                "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-extrabold uppercase tracking-wide transition cursor-pointer hover:opacity-80 " +
+                difficultyColors[difficulty]
+              }
+            >
+              {difficulty}
+              <span className="opacity-60">▾</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-28">
+            {(["easy", "medium", "hard"] as Difficulty[]).map((d) => (
+              <DropdownMenuItem
+                key={d}
+                onClick={() => onDifficultyChange(d)}
+                className="flex items-center gap-2"
+              >
+                <span className={`inline-block w-2 h-2 rounded-full ${d === "easy" ? "bg-emerald-400" : d === "medium" ? "bg-orange-400" : "bg-rose-400"
+                  }`} />
+                <span className="capitalize">{d}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Right: Hint + Actions + Menu */}

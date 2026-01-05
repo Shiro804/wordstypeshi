@@ -12,6 +12,7 @@ import { LogoutButton } from "@/components/logout-button";
 import { createClient } from "@/lib/supabase/client";
 import { getMyProfile, upsertMyProfile } from "@/lib/profile";
 import { deleteMyAvatarObject, getAvatarPublicUrl, uploadMyAvatar } from "@/lib/avatar";
+import { getCustomBackground, setCustomBackground, clearCustomBackground } from "@/lib/background-storage";
 
 import type { Difficulty } from "@/lib/difficulty";
 
@@ -20,9 +21,16 @@ type Props = {
   onClose: () => void;
   difficulty: Difficulty;
   onDifficultyChange: (d: Difficulty) => void;
+  onBackgroundChange: (bg: string | null) => void;
 };
 
-export default function Settings({ open, onClose, difficulty, onDifficultyChange }: Props) {
+const difficultyColors: Record<Difficulty, string> = {
+  easy: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+  medium: "bg-orange-500/15 text-orange-300 border-orange-500/30",
+  hard: "bg-rose-500/15 text-rose-300 border-rose-500/30",
+};
+
+export default function Settings({ open, onClose, difficulty, onDifficultyChange, onBackgroundChange }: Props) {
   const [authEmail, setAuthEmail] = useState<string>("");
   const [username, setUsername] = useState("");
   const [avatarPath, setAvatarPath] = useState<string | null>(null);
@@ -33,11 +41,16 @@ export default function Settings({ open, onClose, difficulty, onDifficultyChange
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Background state
+  const [bgPreview, setBgPreview] = useState<string | null>(null);
+  const [bgUploading, setBgUploading] = useState(false);
+
   useEffect(() => {
     if (!open) return;
     setError(null);
     setSaving(false);
     setAvatarUploading(false);
+    setBgUploading(false);
 
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => setAuthEmail(data.user?.email ?? ""));
@@ -50,6 +63,9 @@ export default function Settings({ open, onClose, difficulty, onDifficultyChange
       setAvatarPath(ap);
       setAvatarPreviewUrl(getAvatarPublicUrl(ap));
     });
+
+    // Load current background
+    setBgPreview(getCustomBackground());
   }, [open]);
 
   const canSave = useMemo(() => {
@@ -68,54 +84,168 @@ export default function Settings({ open, onClose, difficulty, onDifficultyChange
           <LogoutButton />
 
           <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-medium text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={!canSave || saving}
-            className="rounded-xl border border-[color:var(--border)] bg-emerald-500/20 px-3 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/30 disabled:opacity-50"
-            onClick={async () => {
-              setSaving(true);
-              setError(null);
-              try {
-                await upsertMyProfile({ username: username.trim() || null, avatar_path: avatarPath });
-                await getMyProfile();
-                onClose();
-              } catch (e: unknown) {
-                setError(e instanceof Error ? e.message : "Failed to save");
-              } finally {
-                setSaving(false);
-              }
-            }}
-          >
-            {saving ? "Saving..." : "Save"}
-          </button>
+            <button
+              type="button"
+              className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-medium text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!canSave || saving}
+              className="rounded-xl border border-[color:var(--border)] bg-emerald-500/20 px-3 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/30 disabled:opacity-50"
+              onClick={async () => {
+                setSaving(true);
+                setError(null);
+                try {
+                  await upsertMyProfile({ username: username.trim() || null, avatar_path: avatarPath });
+                  await getMyProfile();
+                  onClose();
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : "Failed to save");
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
           </div>
         </div>
       }
     >
-      <div className="space-y-3">
+      <div className="space-y-6">
+        {/* ═══ PROFILE SECTION ═══ */}
         <div>
-          <div className="text-xs uppercase tracking-wide text-[color:var(--muted)]">Account</div>
-          <div className="mt-1 text-sm text-[color:var(--fg)]/85">{authEmail}</div>
+          <div className="text-xs uppercase tracking-widest text-[color:var(--muted)] font-bold mb-3">📱 Profile</div>
+
+          {/* Account email */}
+          <div className="mb-3">
+            <div className="text-xs uppercase tracking-wide text-[color:var(--muted)]">Account</div>
+            <div className="mt-1 text-sm text-[color:var(--fg)]/85">{authEmail}</div>
+          </div>
+
+          {/* Username */}
+          <div className="mb-3">
+            <label className="text-xs uppercase tracking-wide text-[color:var(--muted)]" htmlFor="username">
+              Username
+            </label>
+            <input
+              id="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+              }}
+              placeholder="Pick a username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              className="mt-1 w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm text-[color:var(--fg)] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--border)]"
+            />
+            <div className="mt-1 text-xs text-[color:var(--muted)]">
+              2–20 chars. Letters, numbers, underscore, dash, dot.
+            </div>
+          </div>
+
+          {/* Profile picture */}
+          <div>
+            <div className="text-xs uppercase tracking-wide text-[color:var(--muted)]">Profile picture</div>
+            <div className="mt-2 flex items-center gap-3">
+              <div className="h-12 w-12 overflow-hidden rounded-full border border-[color:var(--border)] bg-[color:var(--surface2)]">
+                {avatarPreviewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatarPreviewUrl} alt="Avatar" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-[color:var(--muted)]">
+                    –
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <label
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)] ${avatarUploading ? "opacity-60 pointer-events-none" : ""}`}
+                >
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!file) return;
+
+                      setError(null);
+                      setAvatarUploading(true);
+                      try {
+                        if (lastUnsavedUploadRef.current) {
+                          try {
+                            await deleteMyAvatarObject(lastUnsavedUploadRef.current);
+                          } catch {
+                            // best-effort cleanup
+                          }
+                          lastUnsavedUploadRef.current = null;
+                        }
+
+                        const { path } = await uploadMyAvatar(file);
+                        if (path !== initialAvatarPathRef.current) {
+                          lastUnsavedUploadRef.current = path;
+                        }
+                        setAvatarPath(path);
+                        const url = getAvatarPublicUrl(path);
+                        setAvatarPreviewUrl(url ? `${url}?t=${Date.now()}` : null);
+                      } catch (err: unknown) {
+                        setError(err instanceof Error ? err.message : "Failed to upload avatar");
+                      } finally {
+                        setAvatarUploading(false);
+                      }
+                    }}
+                  />
+                  <span>{avatarUploading ? "Uploading..." : "Upload"}</span>
+                </label>
+
+                <button
+                  type="button"
+                  disabled={!avatarPath || avatarUploading}
+                  className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-medium text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)] disabled:opacity-50"
+                  onClick={async () => {
+                    if (lastUnsavedUploadRef.current) {
+                      try {
+                        await deleteMyAvatarObject(lastUnsavedUploadRef.current);
+                      } catch {
+                        // best-effort cleanup
+                      }
+                      lastUnsavedUploadRef.current = null;
+                    }
+
+                    setAvatarPath(null);
+                    setAvatarPreviewUrl(null);
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
+        <hr className="border-[color:var(--border)]" />
+
+        {/* ═══ GAMEPLAY SECTION ═══ */}
         <div>
+          <div className="text-xs uppercase tracking-widest text-[color:var(--muted)] font-bold mb-3">🎮 Gameplay</div>
+
           <div className="text-xs uppercase tracking-wide text-[color:var(--muted)]">Difficulty</div>
-          <div className="mt-1">
+          <div className="mt-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="inline-flex items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] shadow-sm transition hover:bg-[color:var(--surface2)]"
+                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm transition hover:opacity-80 ${difficultyColors[difficulty]}`}
                 >
                   <span className="capitalize">{difficulty}</span>
-                  <span className="text-[color:var(--muted)]">▾</span>
+                  <span className="opacity-60">▾</span>
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="min-w-32">
@@ -126,7 +256,10 @@ export default function Settings({ open, onClose, difficulty, onDifficultyChange
                       onDifficultyChange(d);
                       onClose();
                     }}
+                    className="flex items-center gap-2"
                   >
+                    <span className={`inline-block w-2 h-2 rounded-full ${d === "easy" ? "bg-emerald-400" : d === "medium" ? "bg-orange-400" : "bg-rose-400"
+                      }`} />
                     <span className="capitalize">{d}</span>
                   </DropdownMenuItem>
                 ))}
@@ -135,23 +268,26 @@ export default function Settings({ open, onClose, difficulty, onDifficultyChange
           </div>
         </div>
 
+        <hr className="border-[color:var(--border)]" />
+
+        {/* ═══ APPEARANCE SECTION ═══ */}
         <div>
-          <div className="text-xs uppercase tracking-wide text-[color:var(--muted)]">Profile picture</div>
-          <div className="mt-2 flex items-center gap-3">
-            <div className="h-12 w-12 overflow-hidden rounded-full border border-[color:var(--border)] bg-[color:var(--surface2)]">
-              {avatarPreviewUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={avatarPreviewUrl} alt="Avatar" className="h-full w-full object-cover" />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-[color:var(--muted)]">
-                  –
-                </div>
-              )}
+          <div className="text-xs uppercase tracking-widest text-[color:var(--muted)] font-bold mb-3">🎨 Appearance</div>
+
+          <div className="text-xs uppercase tracking-wide text-[color:var(--muted)]">Background image</div>
+          <div className="mt-2 flex items-start gap-3">
+            <div className="h-16 w-24 overflow-hidden rounded-lg border border-[color:var(--border)] bg-[color:var(--surface2)]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={bgPreview || "/game-bg.jpg"}
+                alt="Background"
+                className="h-full w-full object-cover"
+              />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-col gap-2">
               <label
-                className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)] ${avatarUploading ? "opacity-60 pointer-events-none" : ""}`}
+                className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)] ${bgUploading ? "opacity-60 pointer-events-none" : ""}`}
               >
                 <input
                   type="file"
@@ -159,89 +295,40 @@ export default function Settings({ open, onClose, difficulty, onDifficultyChange
                   className="hidden"
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
-                    // allow re-selecting same file
                     e.target.value = "";
                     if (!file) return;
 
                     setError(null);
-                    setAvatarUploading(true);
+                    setBgUploading(true);
                     try {
-                      // If the user previously uploaded an image but didn't save it,
-                      // remove that old unsaved object before uploading a new one.
-                      if (lastUnsavedUploadRef.current) {
-                        try {
-                          await deleteMyAvatarObject(lastUnsavedUploadRef.current);
-                        } catch {
-                          // best-effort cleanup
-                        }
-                        lastUnsavedUploadRef.current = null;
-                      }
-
-                      const { path } = await uploadMyAvatar(file);
-                      // Mark as "unsaved" unless it's the same as the stored profile avatar.
-                      if (path !== initialAvatarPathRef.current) {
-                        lastUnsavedUploadRef.current = path;
-                      }
-                      setAvatarPath(path);
-                      // Cache-bust the preview by appending a local query param.
-                      const url = getAvatarPublicUrl(path);
-                      setAvatarPreviewUrl(url ? `${url}?t=${Date.now()}` : null);
+                      const dataUrl = await setCustomBackground(file);
+                      setBgPreview(dataUrl);
+                      onBackgroundChange(dataUrl);
                     } catch (err: unknown) {
-                      setError(err instanceof Error ? err.message : "Failed to upload avatar");
+                      setError(err instanceof Error ? err.message : "Failed to set background");
                     } finally {
-                      setAvatarUploading(false);
+                      setBgUploading(false);
                     }
                   }}
                 />
-                <span>{avatarUploading ? "Uploading..." : "Upload"}</span>
+                <span>{bgUploading ? "Uploading..." : "Upload"}</span>
               </label>
 
               <button
                 type="button"
-                disabled={!avatarPath || avatarUploading}
+                disabled={!bgPreview}
                 className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-medium text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)] disabled:opacity-50"
-                onClick={async () => {
-                  // If current avatar is an unsaved upload, delete it.
-                  if (lastUnsavedUploadRef.current) {
-                    try {
-                      await deleteMyAvatarObject(lastUnsavedUploadRef.current);
-                    } catch {
-                      // best-effort cleanup
-                    }
-                    lastUnsavedUploadRef.current = null;
-                  }
-
-                  setAvatarPath(null);
-                  setAvatarPreviewUrl(null);
+                onClick={() => {
+                  clearCustomBackground();
+                  setBgPreview(null);
+                  onBackgroundChange(null);
                 }}
               >
-                Remove
+                Reset to default
               </button>
 
-              <div className="text-xs text-[color:var(--muted)]">Max 2MB. Square works best.</div>
+              <div className="text-xs text-[color:var(--muted)]">Max 5MB. Will be resized.</div>
             </div>
-          </div>
-        </div>
-
-        <div>
-          <label className="text-xs uppercase tracking-wide text-[color:var(--muted)]" htmlFor="username">
-            Username
-          </label>
-          <input
-            id="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            onKeyDown={(e) => {
-              // prevent game key handler from also receiving keystrokes while typing
-              e.stopPropagation();
-            }}
-            placeholder="Pick a username"
-            autoCapitalize="none"
-            autoCorrect="off"
-            className="mt-1 w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm text-[color:var(--fg)] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--border)]"
-          />
-          <div className="mt-1 text-xs text-[color:var(--muted)]">
-            2–20 chars. Letters, numbers, underscore, dash, dot.
           </div>
         </div>
 

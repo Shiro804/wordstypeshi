@@ -24,8 +24,11 @@ import {
   type Stats,
 } from "@/lib/storage";
 import { fetchRemoteStats, getCurrentUserId, upsertRemoteStats } from "@/lib/stats-sync";
-import { createOrReuseActiveSession, endSession, fetchActiveSession } from "@/lib/sessions-sync";
+import { createOrReuseActiveSession, endSession, fetchActiveSession, updateSessionAnswer } from "@/lib/sessions-sync";
 import { fetchPlayedWords, trackPlayedWord } from "@/lib/played-words";
+import { consumeHint, getHintNoRemind, setHintNoRemind, getRemainingHints } from "@/lib/hint-storage";
+import { getCustomBackground } from "@/lib/background-storage";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const MAX_TRIES = 6;
 
@@ -64,6 +67,9 @@ export default function Game() {
   const [userId, setUserId] = useState<string | null>(null);
 
   const [hintUsed, setHintUsed] = useState(false);
+  const [hintWarningOpen, setHintWarningOpen] = useState(false);
+  const [hintNoRemindChecked, setHintNoRemindChecked] = useState(false);
+  const [customBackground, setCustomBackground] = useState<string | null>(null);
 
   const theme = "dark" as const;
 
@@ -71,6 +77,8 @@ export default function Game() {
   const [startedAtMs, setStartedAtMs] = useState<number | null>(null);
   const [endedAtMs, setEndedAtMs] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  // Track when the page was hidden to pause timer accurately
+  const [hiddenAtMs, setHiddenAtMs] = useState<number | null>(null);
 
   const didInitSessionRef = useRef(false);
 
@@ -204,6 +212,12 @@ export default function Game() {
     saveDifficulty(difficulty);
   }, [difficulty]);
 
+  // Sync answer to database whenever it changes (ensures DB always has current word)
+  useEffect(() => {
+    if (!sessionId || !answer) return;
+    void updateSessionAnswer({ sessionId, answer });
+  }, [sessionId, answer]);
+
   useLayoutEffect(() => {
     const measure = () => {
       const h = keyboardRef.current?.offsetHeight ?? 0;
@@ -233,11 +247,34 @@ export default function Game() {
     return { won, lost, done: won || lost };
   }, [rows, committedCount]);
 
+  // Pause timer when page is hidden (tab switch, minimize Safari)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        // Page is now hidden - record when
+        setHiddenAtMs(Date.now());
+      } else {
+        // Page is visible again - adjust startedAtMs to exclude hidden time
+        setHiddenAtMs((prevHidden) => {
+          if (prevHidden && startedAtMs && !endedAtMs) {
+            const hiddenDuration = Date.now() - prevHidden;
+            setStartedAtMs((prev) => (prev ? prev + hiddenDuration : prev));
+          }
+          return null;
+        });
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [startedAtMs, endedAtMs]);
+
+  // Timer tick - only runs when visible and game is active
   useEffect(() => {
     if (gameOver.done) return;
+    if (hiddenAtMs) return; // Don't tick while hidden
     const id = window.setInterval(() => setNowMs(Date.now()), 250);
     return () => window.clearInterval(id);
-  }, [gameOver.done]);
+  }, [gameOver.done, hiddenAtMs]);
 
   const activeRowIndex = useMemo(() => {
     const idx = rows.findIndex((r) => r.marks === null);
@@ -513,14 +550,18 @@ export default function Game() {
     const lost = !won && idx === MAX_TRIES - 1;
 
     if (won) {
-      showToast("Nice 🎉");
-      setStats(
-        applyGameResult(stats, {
-          outcome: "win",
-          guessesUsed: (idx + 1) as 1 | 2 | 3 | 4 | 5 | 6,
-          durationSec,
-        })
-      );
+      // If hint was used, don't count as win (counts as played but not won)
+      if (hintUsed) {
+        setStats(applyGameResult(stats, { outcome: "lose", durationSec }));
+      } else {
+        setStats(
+          applyGameResult(stats, {
+            outcome: "win",
+            guessesUsed: (idx + 1) as 1 | 2 | 3 | 4 | 5 | 6,
+            durationSec,
+          })
+        );
+      }
       if (userId) {
         void trackPlayedWord(userId, difficulty, answer);
       }
@@ -584,12 +625,45 @@ export default function Game() {
     [rows]
   );
 
+  // Handle hint reveal after confirmation
   function onHint(h: HintResult) {
     if (hintUsed) return;
     setHintUsed(true);
-    if (h.type === "reveal") showToast(`Revealed ${h.letter} at ${h.index + 1}`);
-    else showToast(h.letters.length ? `Not in word: ${h.letters.join(", ")}` : "");
+    consumeHint(); // Decrement daily hint count
+    // Show hint for longer (5 seconds)
+    setToast(`Position ${h.index + 1} is "${h.letter}"`);
+    window.setTimeout(() => setToast(""), 5000);
   }
+
+  // Handle hint request (show warning if first time)
+  function onRequestHint() {
+    if (getHintNoRemind()) {
+      // User said don't remind, trigger hint directly
+      triggerHintReveal();
+    } else {
+      setHintWarningOpen(true);
+      setHintNoRemindChecked(false);
+    }
+  }
+
+  function triggerHintReveal() {
+    // Call the reveal function exposed by Hint component
+    const revealFn = (window as unknown as { __revealHint?: () => void }).__revealHint;
+    if (revealFn) revealFn();
+  }
+
+  function confirmHint() {
+    if (hintNoRemindChecked) {
+      setHintNoRemind(true);
+    }
+    setHintWarningOpen(false);
+    triggerHintReveal();
+  }
+
+  // Load custom background on mount
+  useEffect(() => {
+    setCustomBackground(getCustomBackground());
+  }, []);
 
   const winRate = stats.played ? Math.round((stats.wins / stats.played) * 100) : 0;
   const distMax = Math.max(1, ...Object.values(stats.distribution));
@@ -626,15 +700,15 @@ export default function Game() {
           paddingTop: "env(safe-area-inset-top)",
         }}
       >
-        {/* Background image placeholder:
-            Put your image into `public/game-bg.jpg` to replace it. */}
+        {/* Background image - uses custom background if set */}
         <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
           <div
             className="absolute inset-0 bg-cover bg-center"
             style={{
               backgroundColor: "#09090b",
-              backgroundImage:
-                "radial-gradient(1200px 700px at 20% 10%, rgba(255,255,255,0.08), transparent 55%), radial-gradient(900px 600px at 80% 20%, rgba(16,185,129,0.10), transparent 60%), url(/game-bg.jpg)",
+              backgroundImage: customBackground
+                ? `radial-gradient(1200px 700px at 20% 10%, rgba(255,255,255,0.08), transparent 55%), radial-gradient(900px 600px at 80% 20%, rgba(16,185,129,0.10), transparent 60%), url(${customBackground})`
+                : "radial-gradient(1200px 700px at 20% 10%, rgba(255,255,255,0.08), transparent 55%), radial-gradient(900px 600px at 80% 20%, rgba(16,185,129,0.10), transparent 60%), url(/game-bg.jpg)",
             }}
           />
           {/* Dim overlay so the UI stays readable */}
@@ -644,70 +718,74 @@ export default function Game() {
         {/* HEADER: TopBar with timer + hint */}
         <div className="relative z-10">
           <TopBar
-          onNew={requestReset}
-          onShare={share}
-          onOpenLeaderboard={() => setLeaderboardOpen(true)}
-          onOpenSettings={() => setSettingsOpen(true)}
-          onOpenStats={() => setStatsOpen(true)}
-          difficulty={difficulty}
-          timerText={formatDuration(Math.round(durationSec))}
-          hintSlot={
-            !gameOver.done ? (
-              <Hint
-                disabled={hintUsed || committedCount === 0}
-                revealedMarks={committedRows}
-                answerLength={5}
-                onHint={onHint}
-              />
-            ) : null
-          }
-          actionsSlot={
-            <div className="flex items-center gap-1">
-              {/* Reset button: appears after the first committed guess; asks for confirmation (forfeit) */}
-              {committedCount > 0 && !gameOver.done ? (
-                <button
-                  type="button"
-                  onClick={() => setConfirmResetOpen(true)}
-                  title="Reset"
-                  aria-label="Reset"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
-                >
-                  <RotateCcw size={16} />
-                </button>
-              ) : null}
+            onNew={requestReset}
+            onShare={share}
+            onOpenLeaderboard={() => setLeaderboardOpen(true)}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenStats={() => setStatsOpen(true)}
+            difficulty={difficulty}
+            onDifficultyChange={requestDifficultyChange}
+            timerText={formatDuration(Math.round(durationSec))}
+            hintSlot={
+              !gameOver.done && answer ? (
+                <Hint
+                  answer={answer}
+                  disabled={hintUsed || committedCount === 0 || getRemainingHints() <= 0}
+                  revealedMarks={committedRows}
+                  answerLength={5}
+                  hintUsedThisGame={hintUsed}
+                  onHint={onHint}
+                  onRequestHint={onRequestHint}
+                />
+              ) : null
+            }
+            actionsSlot={
+              <div className="flex items-center gap-1">
+                {/* Reset button: appears after the first committed guess; asks for confirmation (forfeit) */}
+                {committedCount > 0 && !gameOver.done ? (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmResetOpen(true)}
+                    title="Reset"
+                    aria-label="Reset"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                  >
+                    <RotateCcw size={16} />
+                  </button>
+                ) : null}
 
-              {/* Dev-only helpers */}
-              {isDev ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void devLose();
-                      window.setTimeout(() => containerRef.current?.focus(), 0);
-                    }}
-                    title="Simulate lose"
-                    aria-label="Simulate lose"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
-                  >
-                    <Skull size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void devSolve();
-                      window.setTimeout(() => containerRef.current?.focus(), 0);
-                    }}
-                    title="Simulate solve"
-                    aria-label="Simulate solve"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
-                  >
-                    <CheckCircle2 size={16} />
-                  </button>
-                </>
-              ) : null}
-            </div>
-          }
-        />
+                {/* Dev-only helpers */}
+                {isDev ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void devLose();
+                        window.setTimeout(() => containerRef.current?.focus(), 0);
+                      }}
+                      title="Simulate lose"
+                      aria-label="Simulate lose"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                    >
+                      <Skull size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void devSolve();
+                        window.setTimeout(() => containerRef.current?.focus(), 0);
+                      }}
+                      title="Simulate solve"
+                      aria-label="Simulate solve"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                    >
+                      <CheckCircle2 size={16} />
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            }
+          />
         </div>
 
         {/* MAIN: Scrollable content area with Grid */}
@@ -715,21 +793,22 @@ export default function Game() {
           {/* Toast */}
           <div className="h-6 text-center text-sm text-[color:var(--muted)]">{toast}</div>
 
-          {/* Game over banner */}
-          <div className="h-10 flex items-center justify-center">
-            {gameOver.won ? (
-              <div className="text-2xl font-extrabold tracking-[0.15em] text-emerald-300 drop-shadow">
-                YOU WON
+          {/* Grid Container with overlay */}
+          <div className="relative py-2">
+            {/* Game over overlay - positioned OVER the grid to save space */}
+            {gameOver.done && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+                <div className={`px-6 py-3 rounded-2xl backdrop-blur-md shadow-xl ${gameOver.won
+                  ? "bg-emerald-500/20 border border-emerald-400/40"
+                  : "bg-rose-500/20 border border-rose-400/40"
+                  }`}>
+                  <div className={`text-xl sm:text-2xl font-extrabold tracking-[0.12em] drop-shadow ${gameOver.won ? "text-emerald-300" : "text-rose-400"
+                    }`}>
+                    {gameOver.won ? "YOU WON" : "GAME OVER"}
+                  </div>
+                </div>
               </div>
-            ) : gameOver.lost ? (
-              <div className="text-2xl font-extrabold tracking-[0.15em] text-rose-400 drop-shadow">
-                GAME OVER
-              </div>
-            ) : null}
-          </div>
-
-          {/* Grid */}
-          <div className="py-2">
+            )}
             <Grid rows={viewRows} activeRowIndex={activeRowIndex} shakeRowNonce={shakeNonce} onDeleteChar={onDeleteChar} />
           </div>
 
@@ -793,7 +872,49 @@ export default function Game() {
         onClose={() => setSettingsOpen(false)}
         difficulty={difficulty}
         onDifficultyChange={requestDifficultyChange}
+        onBackgroundChange={(bg) => setCustomBackground(bg)}
       />
+
+      {/* Hint warning modal */}
+      <Modal
+        open={hintWarningOpen}
+        title="Use a hint?"
+        onClose={() => setHintWarningOpen(false)}
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setHintWarningOpen(false)}
+              className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmHint}
+              className="rounded-xl border border-[color:var(--border)] bg-amber-500/20 px-3 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/30"
+            >
+              Use Hint
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="text-sm text-[color:var(--fg)]/85">
+            Using a hint will reveal a letter position. However, <strong>this game will not count as a win</strong> in your statistics.
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="hint-no-remind"
+              checked={hintNoRemindChecked}
+              onCheckedChange={(checked) => setHintNoRemindChecked(checked === true)}
+            />
+            <label htmlFor="hint-no-remind" className="text-sm text-[color:var(--muted)] cursor-pointer">
+              Don&apos;t remind me again
+            </label>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         open={confirmResetOpen}

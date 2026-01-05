@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "WordsTypeShi",
-    short_name: "WordsTypeShi",
+    name: "BatasWordle",
+    short_name: "BatasWordle",
     description: "Clean, ad-free word puzzle.",
     start_url: "/",
     scope: "/",

@@ -250,3 +250,21 @@ button {
     min-height: 3.5rem;
   }
 }
+
+/* Better keyboard sizing for very small phones (iPhone SE, short screens) */
+@media (max-height: 600px) {
+  .key {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+    font-size: 0.65rem !important;
+  }
+}
+
+/* Ensure tiles stay reasonably sized on very small screens */
+@media (max-height: 550px) {
+  .tile {
+    min-width: 2rem !important;
+    min-height: 2rem !important;
+    font-size: 0.9rem !important;
+  }
+}
