@@ -550,8 +550,10 @@ export default function Game() {
     const lost = !won && idx === MAX_TRIES - 1;
 
     if (won) {
-      // If hint was used, don't count as win (counts as played but not won)
-      if (hintUsed) {
+      // Logic per difficulty:
+      // Easy: If hint used -> No Win (played, lose outcome)
+      // Medium/Hard: If hint used -> Counts as Win
+      if (difficulty === "easy" && hintUsed) {
         setStats(applyGameResult(stats, { outcome: "lose", durationSec }));
       } else {
         setStats(
@@ -579,6 +581,7 @@ export default function Game() {
           durationSec,
           endedAtMs: Date.now(),
         });
+
       }
     }
   }
@@ -629,14 +632,23 @@ export default function Game() {
   function onHint(h: HintResult) {
     if (hintUsed) return;
     setHintUsed(true);
-    consumeHint(); // Decrement daily hint count
+    setHintUsed(true);
+    consumeHint(difficulty); // Decrement daily hint count for this difficulty
     // Show hint for longer (5 seconds)
     setToast(`Position ${h.index + 1} is "${h.letter}"`);
     window.setTimeout(() => setToast(""), 5000);
   }
 
   // Handle hint request (show warning if first time)
+  // Handle hint request
   function onRequestHint() {
+    // Only Easy difficulty has a "No Win" penalty that requires a warning
+    // Medium/Hard just consume a hint
+    if (difficulty !== "easy") {
+      triggerHintReveal();
+      return;
+    }
+
     if (getHintNoRemind()) {
       // User said don't remind, trigger hint directly
       triggerHintReveal();
@@ -730,10 +742,11 @@ export default function Game() {
               !gameOver.done && answer ? (
                 <Hint
                   answer={answer}
-                  disabled={hintUsed || committedCount === 0 || getRemainingHints() <= 0}
+                  disabled={hintUsed || committedCount === 0 || getRemainingHints(difficulty) <= 0}
                   revealedMarks={committedRows}
                   answerLength={5}
                   hintUsedThisGame={hintUsed}
+                  remainingHints={getRemainingHints(difficulty)}
                   onHint={onHint}
                   onRequestHint={onRequestHint}
                 />
@@ -901,7 +914,8 @@ export default function Game() {
       >
         <div className="space-y-4">
           <div className="text-sm text-[color:var(--fg)]/85">
-            Using a hint will reveal a letter position. However, <strong>this game will not count as a win</strong> in your statistics.
+            Using a hint will reveal a letter position. <br /><br />
+            <strong>Note for Easy Mode:</strong> This game will <strong>not count as a win</strong> in your statistics if you use a hint.
           </div>
           <div className="flex items-center gap-2">
             <Checkbox

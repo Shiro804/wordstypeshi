@@ -1,7 +1,6 @@
 "use client";
 
 import type { Mark } from "@/lib/game";
-import { getRemainingHints } from "@/lib/hint-storage";
 
 type Props = {
   answer: string; // The actual answer for intelligent hints
@@ -9,6 +8,7 @@ type Props = {
   revealedMarks: Array<{ guess: string; marks: Mark[] }>; // only committed rows
   disabled?: boolean;
   hintUsedThisGame: boolean;
+  remainingHints: number;
   onHint: (hint: HintResult) => void;
   onRequestHint: () => void; // Called before using hint (for warning modal)
 };
@@ -33,6 +33,7 @@ export default function Hint({
   revealedMarks,
   disabled,
   hintUsedThisGame,
+  remainingHints,
   onHint,
   onRequestHint
 }: Props) {
@@ -55,7 +56,6 @@ export default function Hint({
     }
   }
 
-  const remainingHints = getRemainingHints();
   const noHintsLeft = remainingHints <= 0;
   const allPositionsKnown = unknownPositions.length === 0;
 
