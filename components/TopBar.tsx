@@ -16,6 +16,7 @@ type Props = {
   onShare: () => void;
   onOpenStats: () => void;
   onOpenLeaderboard: () => void;
+  onOpenWordHistory: () => void;
   onOpenSettings: () => void;
   difficulty: Difficulty;
   onDifficultyChange: (d: Difficulty) => void;
@@ -105,6 +106,7 @@ export default function TopBar({
   onShare,
   onOpenStats,
   onOpenLeaderboard,
+  onOpenWordHistory,
   onOpenSettings,
   difficulty,
   onDifficultyChange,
@@ -196,6 +198,10 @@ export default function TopBar({
             <DropdownMenuItem onClick={onOpenLeaderboard} className="flex items-center gap-2">
               <TrophyIcon />
               <span>Leaderboard</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onOpenWordHistory} className="flex items-center gap-2">
+              <span className="text-lg">📚</span>
+              <span>Worthistorie</span>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onOpenSettings} className="flex items-center gap-2">
               <GearIcon />

@@ -14,6 +14,7 @@ import Modal from "@/components/Modal";
 import TopBar from "@/components/TopBar";
 import Settings from "@/components/Settings";
 import Leaderboard from "@/components/Leaderboard";
+import WordHistory from "@/components/WordHistory";
 import { applyTheme } from "@/lib/theme";
 import Hint, { type HintResult } from "@/components/Hint";
 import {
@@ -29,6 +30,8 @@ import { fetchPlayedWords, trackPlayedWord } from "@/lib/played-words";
 import { consumeHint, getHintNoRemind, setHintNoRemind, getRemainingHints } from "@/lib/hint-storage";
 import { getCustomBackground } from "@/lib/background-storage";
 import { Checkbox } from "@/components/ui/checkbox";
+import { fetchWordDefinition, translatePartOfSpeech, translateToGerman, type WordDefinition } from "@/lib/dictionary";
+import { saveWordDefinition } from "@/lib/word-definitions";
 
 const MAX_TRIES = 6;
 
@@ -64,12 +67,15 @@ export default function Game() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [wordHistoryOpen, setWordHistoryOpen] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
 
   const [hintUsed, setHintUsed] = useState(false);
   const [hintWarningOpen, setHintWarningOpen] = useState(false);
   const [hintNoRemindChecked, setHintNoRemindChecked] = useState(false);
   const [customBackground, setCustomBackground] = useState<string | null>(null);
+  const [wordDefinition, setWordDefinition] = useState<WordDefinition | null>(null);
+  const [definitionPopupOpen, setDefinitionPopupOpen] = useState(false);
 
   const theme = "dark" as const;
 
@@ -286,6 +292,38 @@ export default function Game() {
     if (!startedAtMs) return;
     setEndedAtMs((prev) => prev ?? Date.now());
   }, [gameOver.done, startedAtMs]);
+
+  // Fetch word definition when game ends
+  useEffect(() => {
+    if (!gameOver.done || !answer) {
+      setWordDefinition(null);
+      return;
+    }
+    fetchWordDefinition(answer).then(async (def) => {
+      if (def?.meaning) {
+        // Also fetch German translation of the meaning
+        const germanTranslation = await translateToGerman(def.meaning);
+        const fullDef = { ...def, meaningGerman: germanTranslation ?? undefined };
+        setWordDefinition(fullDef);
+
+        // Save to Supabase if user is logged in
+        if (userId) {
+          void saveWordDefinition(
+            userId,
+            answer,
+            {
+              partOfSpeech: def.partOfSpeech,
+              meaning: def.meaning,
+              meaningGerman: germanTranslation ?? undefined,
+            },
+            difficulty
+          );
+        }
+      } else {
+        setWordDefinition(def);
+      }
+    });
+  }, [gameOver.done, answer, userId, difficulty]);
 
   const durationSec = useMemo(() => {
     if (!startedAtMs) return 0;
@@ -733,6 +771,7 @@ export default function Game() {
             onNew={requestReset}
             onShare={share}
             onOpenLeaderboard={() => setLeaderboardOpen(true)}
+            onOpenWordHistory={() => setWordHistoryOpen(true)}
             onOpenSettings={() => setSettingsOpen(true)}
             onOpenStats={() => setStatsOpen(true)}
             difficulty={difficulty}
@@ -825,13 +864,52 @@ export default function Game() {
             <Grid rows={viewRows} activeRowIndex={activeRowIndex} shakeRowNonce={shakeNonce} onDeleteChar={onDeleteChar} />
           </div>
 
-          {/* Answer reveal on loss */}
-          {gameOver.lost && committedCount > 0 && (
-            <div className="pt-2 text-center">
-              <div className="text-xs text-[color:var(--muted)]">The word was:</div>
+          {/* Word reveal and definition after game ends */}
+          {gameOver.done && committedCount > 0 && (
+            <div className="pt-2 text-center max-w-md mx-auto px-4">
+              {/* Word display */}
+              <div className="text-xs text-[color:var(--muted)]">
+                {gameOver.won ? "The word:" : "The word was:"}
+              </div>
               <div className="text-xl font-bold text-[color:var(--fg)] uppercase tracking-widest">
                 {answer}
               </div>
+
+              {/* Word definition - Desktop: inline, Mobile: popup button */}
+              {wordDefinition && (
+                <>
+                  {/* Desktop/Tablet: Show inline */}
+                  <div className="hidden sm:block mt-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)]/80 backdrop-blur-sm px-3 py-2">
+                    {wordDefinition.partOfSpeech && (
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">
+                        {translatePartOfSpeech(wordDefinition.partOfSpeech)}
+                        <span className="mx-1 opacity-50">•</span>
+                        <span className="lowercase italic opacity-75">{wordDefinition.partOfSpeech}</span>
+                      </div>
+                    )}
+                    <div className="text-sm text-[color:var(--fg)]/90 leading-snug mt-1">
+                      {wordDefinition.meaning}
+                    </div>
+                    {wordDefinition.meaningGerman && (
+                      <div className="text-sm text-[color:var(--muted)] leading-snug mt-1 pt-1 border-t border-[color:var(--border)]/50 italic">
+                        🇩🇪 {wordDefinition.meaningGerman}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Mobile: Show popup button */}
+                  <div className="sm:hidden mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setDefinitionPopupOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)]/80 backdrop-blur-sm px-3 py-2 text-sm text-[color:var(--fg)] hover:bg-[color:var(--surface2)] transition"
+                    >
+                      <span>📖</span>
+                      <span>Definition anzeigen</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </main>
@@ -880,6 +958,7 @@ export default function Game() {
       </div>
 
       <Leaderboard open={leaderboardOpen} onClose={() => setLeaderboardOpen(false)} />
+      <WordHistory open={wordHistoryOpen} onClose={() => setWordHistoryOpen(false)} />
       <Settings
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
@@ -887,6 +966,33 @@ export default function Game() {
         onDifficultyChange={requestDifficultyChange}
         onBackgroundChange={(bg) => setCustomBackground(bg)}
       />
+
+      {/* Definition popup for mobile */}
+      <Modal
+        open={definitionPopupOpen}
+        title={answer}
+        onClose={() => setDefinitionPopupOpen(false)}
+      >
+        {wordDefinition && (
+          <div className="space-y-3">
+            {wordDefinition.partOfSpeech && (
+              <div className="text-xs font-semibold uppercase tracking-wide text-[color:var(--muted)]">
+                {translatePartOfSpeech(wordDefinition.partOfSpeech)}
+                <span className="mx-1 opacity-50">•</span>
+                <span className="lowercase italic opacity-75">{wordDefinition.partOfSpeech}</span>
+              </div>
+            )}
+            <div className="text-sm text-[color:var(--fg)]/90 leading-relaxed">
+              {wordDefinition.meaning}
+            </div>
+            {wordDefinition.meaningGerman && (
+              <div className="text-sm text-[color:var(--muted)] leading-relaxed pt-2 border-t border-[color:var(--border)]/50 italic">
+                🇩🇪 {wordDefinition.meaningGerman}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {/* Hint warning modal */}
       <Modal
