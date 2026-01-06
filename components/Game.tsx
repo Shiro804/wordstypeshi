@@ -24,7 +24,7 @@ import {
   saveStats,
   type Stats,
 } from "@/lib/storage";
-import { fetchRemoteStats, getCurrentUserId, upsertRemoteStats } from "@/lib/stats-sync";
+import { fetchRemoteStats, getCurrentUserId, upsertRemoteStats, syncStats } from "@/lib/stats-sync";
 import { createOrReuseActiveSession, endSession, fetchActiveSession, updateSessionAnswer } from "@/lib/sessions-sync";
 import { fetchPlayedWords, trackPlayedWord } from "@/lib/played-words";
 import { consumeHint, getHintNoRemind, setHintNoRemind, getRemainingHints } from "@/lib/hint-storage";
@@ -154,7 +154,8 @@ export default function Game() {
     });
   }, [userId, difficulty]);
 
-  // Load remote stats whenever user or difficulty changes.
+  // Load and sync stats whenever user or difficulty changes.
+  // Server-first: always prefer remote stats for consistency across Safari/PWA.
   useEffect(() => {
     // Always keep local stats in sync for the selected difficulty.
     const local = loadStats(difficulty);
@@ -162,12 +163,12 @@ export default function Game() {
 
     if (!userId) return;
 
+    // Sync local with remote - server is source of truth
     (async () => {
-      const remote = await fetchRemoteStats(userId, difficulty);
-      if (remote) {
-        const pick = (remote.updatedAt ?? 0) >= (local.updatedAt ?? 0) ? remote : local;
-        setStats(pick);
-      }
+      const synced = await syncStats(userId, difficulty, local);
+      setStats(synced);
+      // Also update local cache with synced data
+      saveStats(difficulty, synced);
     })();
   }, [userId, difficulty]);
 
@@ -178,7 +179,8 @@ export default function Game() {
   useEffect(() => {
     if (!solutions.length) return;
 
-    const persisted = loadGameState();
+    // Load user-scoped game state to prevent conflicts between Safari and PWA
+    const persisted = loadGameState(userId);
     if (persisted && persisted.answer && persisted.difficulty === difficulty) {
       setAnswer(persisted.answer);
       setRows(persisted.rows);
@@ -192,7 +194,7 @@ export default function Game() {
 
     newGame();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [solutions.length, difficulty]);
+  }, [solutions.length, difficulty, userId]);
 
   useEffect(() => {
     saveStats(difficulty, stats);
@@ -202,6 +204,7 @@ export default function Game() {
 
   useEffect(() => {
     if (!answer) return;
+    // Save to user-scoped storage to prevent Safari/PWA conflicts
     saveGameState({
       v: 1,
       difficulty,
@@ -211,8 +214,9 @@ export default function Game() {
       startedAtMs,
       endedAtMs,
       hintUsed,
-    });
-  }, [difficulty, answer, rows, current, startedAtMs, endedAtMs, hintUsed]);
+      userId,
+    }, userId);
+  }, [difficulty, answer, rows, current, startedAtMs, endedAtMs, hintUsed, userId]);
 
   useEffect(() => {
     saveDifficulty(difficulty);
@@ -254,6 +258,7 @@ export default function Game() {
   }, [rows, committedCount]);
 
   // Pause timer when page is hidden (tab switch, minimize Safari)
+  // Also sync stats when page becomes visible again for consistency
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
@@ -268,11 +273,22 @@ export default function Game() {
           }
           return null;
         });
+
+        // Sync stats from server when app becomes visible
+        // This ensures Safari and PWA stay in sync
+        if (userId && !gameOver.done) {
+          syncStats(userId, difficulty, stats).then((synced) => {
+            if (synced.played !== stats.played || synced.wins !== stats.wins) {
+              setStats(synced);
+              saveStats(difficulty, synced);
+            }
+          });
+        }
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [startedAtMs, endedAtMs]);
+  }, [startedAtMs, endedAtMs, userId, difficulty, stats, gameOver.done]);
 
   // Timer tick - only runs when visible and game is active
   useEffect(() => {
@@ -348,7 +364,7 @@ export default function Game() {
 
   async function startNewGameInternal() {
     answerLockedRef.current = false;
-    saveGameState(null);
+    saveGameState(null, userId);
 
     if (!solutions.length) return;
 
@@ -464,7 +480,7 @@ export default function Game() {
     await endAnyActiveSession();
 
     setDifficulty(d);
-    saveGameState(null);
+    saveGameState(null, userId);
     setSettingsOpen(false);
   }
 

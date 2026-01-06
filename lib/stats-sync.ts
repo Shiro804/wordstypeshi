@@ -32,28 +32,31 @@ export async function getCurrentUserId(): Promise<string | null> {
   }
 }
 
-export async function fetchRemoteStats(
-  userId: string,
-  difficulty: Difficulty
-): Promise<Stats | null> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("stats")
-    .select(
-      "played,wins,losses,current_streak,max_streak,dist_1,dist_2,dist_3,dist_4,dist_5,dist_6,best_time_sec,avg_time_sec,last_times_sec,updated_at"
-    )
-    .eq("user_id", userId)
-    .eq("difficulty", difficulty)
-    .maybeSingle();
-
-  if (error) return null;
-  if (!data) return null;
-
+/**
+ * Convert remote row data to Stats object.
+ */
+function rowToStats(data: {
+  played?: number | null;
+  wins?: number | null;
+  losses?: number | null;
+  current_streak?: number | null;
+  max_streak?: number | null;
+  dist_1?: number | null;
+  dist_2?: number | null;
+  dist_3?: number | null;
+  dist_4?: number | null;
+  dist_5?: number | null;
+  dist_6?: number | null;
+  best_time_sec?: number | null;
+  avg_time_sec?: number | null;
+  last_times_sec?: number[] | null;
+  updated_at?: string | null;
+}): Stats {
   const updatedAtMs = data.updated_at
     ? Date.parse(data.updated_at)
     : Date.now();
 
-  const stats: Stats = {
+  return {
     played: data.played ?? 0,
     wins: data.wins ?? 0,
     losses: data.losses ?? 0,
@@ -74,10 +77,32 @@ export async function fetchRemoteStats(
       : [],
     updatedAt: Number.isNaN(updatedAtMs) ? Date.now() : updatedAtMs,
   };
-
-  return stats;
 }
 
+export async function fetchRemoteStats(
+  userId: string,
+  difficulty: Difficulty
+): Promise<Stats | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("stats")
+    .select(
+      "played,wins,losses,current_streak,max_streak,dist_1,dist_2,dist_3,dist_4,dist_5,dist_6,best_time_sec,avg_time_sec,last_times_sec,updated_at"
+    )
+    .eq("user_id", userId)
+    .eq("difficulty", difficulty)
+    .maybeSingle();
+
+  if (error) return null;
+  if (!data) return null;
+
+  return rowToStats(data);
+}
+
+/**
+ * Upsert stats to remote database.
+ * This is the source of truth for cross-device/context consistency.
+ */
 export async function upsertRemoteStats(
   userId: string,
   difficulty: Difficulty,
@@ -117,4 +142,81 @@ export async function upsertRemoteStats(
       code: error.code,
     });
   }
+}
+
+/**
+ * Merge strategy: take the maximum of cumulative stats.
+ * This handles cases where localStorage and remote have diverged.
+ */
+export function mergeStats(local: Stats, remote: Stats): Stats {
+  // Use the one with more games played as baseline
+  // If remote has newer timestamp and more games, trust remote
+  // If local has more games (somehow), keep local but merge maxes
+  
+  const remoteNewer = (remote.updatedAt ?? 0) > (local.updatedAt ?? 0);
+  const remoteMoreGames = remote.played > local.played;
+  
+  // If remote is strictly newer and has more games, use remote entirely
+  if (remoteNewer && remoteMoreGames) {
+    return remote;
+  }
+  
+  // If local has more games, it might have offline progress - merge conservatively
+  // Take max of cumulative stats to not lose progress
+  return {
+    played: Math.max(local.played, remote.played),
+    wins: Math.max(local.wins, remote.wins),
+    losses: Math.max(local.losses, remote.losses),
+    // Streak is tricky - take remote if newer, else local
+    currentStreak: remoteNewer ? remote.currentStreak : local.currentStreak,
+    maxStreak: Math.max(local.maxStreak, remote.maxStreak),
+    distribution: {
+      1: Math.max(local.distribution[1] ?? 0, remote.distribution[1] ?? 0),
+      2: Math.max(local.distribution[2] ?? 0, remote.distribution[2] ?? 0),
+      3: Math.max(local.distribution[3] ?? 0, remote.distribution[3] ?? 0),
+      4: Math.max(local.distribution[4] ?? 0, remote.distribution[4] ?? 0),
+      5: Math.max(local.distribution[5] ?? 0, remote.distribution[5] ?? 0),
+      6: Math.max(local.distribution[6] ?? 0, remote.distribution[6] ?? 0),
+    },
+    bestTimeSec: 
+      local.bestTimeSec == null ? remote.bestTimeSec :
+      remote.bestTimeSec == null ? local.bestTimeSec :
+      Math.min(local.bestTimeSec, remote.bestTimeSec),
+    avgTimeSec: remoteNewer ? remote.avgTimeSec : local.avgTimeSec,
+    lastTimesSec: remoteNewer ? remote.lastTimesSec : local.lastTimesSec,
+    updatedAt: Math.max(local.updatedAt ?? 0, remote.updatedAt ?? 0),
+  };
+}
+
+/**
+ * Sync stats between local and remote.
+ * Returns the authoritative stats after sync.
+ * 
+ * Strategy: Server-first
+ * 1. Fetch remote stats
+ * 2. Merge with local (preserving max values)
+ * 3. If merged differs from remote, upsert back
+ * 4. Return merged stats
+ */
+export async function syncStats(
+  userId: string,
+  difficulty: Difficulty,
+  localStats: Stats
+): Promise<Stats> {
+  const remote = await fetchRemoteStats(userId, difficulty);
+  
+  if (!remote) {
+    // No remote stats yet - push local to remote
+    await upsertRemoteStats(userId, difficulty, localStats);
+    return localStats;
+  }
+  
+  const merged = mergeStats(localStats, remote);
+  
+  // If merged has more data than remote, push it back
+  if (merged.played > remote.played || merged.updatedAt > (remote.updatedAt ?? 0)) {
+    await upsertRemoteStats(userId, difficulty, merged);
+  }
+  
+  return merged;
 }

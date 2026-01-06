@@ -80,6 +80,7 @@ export function translatePartOfSpeech(pos: string): string {
 
 /**
  * Translates text from English to German using MyMemory API.
+ * Returns null if translation fails or returns the same text.
  */
 export async function translateToGerman(text: string): Promise<string | null> {
   try {
@@ -96,10 +97,39 @@ export async function translateToGerman(text: string): Promise<string | null> {
     
     if (data?.responseData?.translatedText) {
       const translated = data.responseData.translatedText;
-      // Filter out error messages or empty translations
-      if (translated && !translated.includes("MYMEMORY WARNING") && translated.toUpperCase() !== text.toUpperCase()) {
-        return translated;
+      
+      // Filter out error messages
+      if (!translated || translated.includes("MYMEMORY WARNING")) {
+        return null;
       }
+      
+      // Normalize both texts for comparison
+      const normalizedOriginal = text.toLowerCase().trim();
+      const normalizedTranslated = translated.toLowerCase().trim();
+      
+      // Check if translation is too similar to original (likely not translated)
+      if (normalizedTranslated === normalizedOriginal) {
+        return null;
+      }
+      
+      // Check if translated text contains mostly the same words as original
+      // This catches cases where API returns English instead of German
+      const originalWords = normalizedOriginal.split(/\s+/).filter((w: string) => w.length > 2);
+      const translatedWords = normalizedTranslated.split(/\s+/).filter((w: string) => w.length > 2);
+      
+      // If more than 70% of words are the same, it's probably not translated
+      if (originalWords.length > 0 && translatedWords.length > 0) {
+        const matchingWords = originalWords.filter((word: string) => 
+          translatedWords.some((tw: string) => tw.includes(word) || word.includes(tw))
+        );
+        const similarityRatio = matchingWords.length / originalWords.length;
+        
+        if (similarityRatio > 0.7) {
+          return null;
+        }
+      }
+      
+      return translated;
     }
     return null;
   } catch {

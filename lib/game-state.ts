@@ -15,12 +15,42 @@ export type PersistedGameState = {
   userId?: string | null;
 };
 
-const STORAGE_KEY = "wordstypeshi.game.v1";
+const STORAGE_KEY_BASE = "wordstypeshi.game.v1";
 
-export function loadGameState(): PersistedGameState | null {
+/**
+ * Get the storage key for a specific user.
+ * User-scoped keys prevent conflicts between Safari browser and PWA.
+ */
+function getStorageKey(userId?: string | null): string {
+  if (userId) {
+    return `${STORAGE_KEY_BASE}.${userId}`;
+  }
+  return STORAGE_KEY_BASE;
+}
+
+export function loadGameState(userId?: string | null): PersistedGameState | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    // Try user-scoped key first, then fall back to anonymous key
+    const userKey = getStorageKey(userId);
+    let raw = window.localStorage.getItem(userKey);
+    
+    // If no user-scoped state and we have a userId, also check the anonymous key
+    // This handles migration when a user logs in mid-session
+    if (!raw && userId) {
+      const anonKey = getStorageKey(null);
+      raw = window.localStorage.getItem(anonKey);
+      if (raw) {
+        // Migrate anonymous state to user-scoped storage
+        const parsed = JSON.parse(raw) as PersistedGameState;
+        if (parsed && parsed.v === 1) {
+          // Save to user-scoped key and clear anonymous key
+          window.localStorage.setItem(userKey, raw);
+          window.localStorage.removeItem(anonKey);
+        }
+      }
+    }
+    
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PersistedGameState;
     if (!parsed || parsed.v !== 1) return null;
@@ -31,11 +61,12 @@ export function loadGameState(): PersistedGameState | null {
   }
 }
 
-export function saveGameState(state: PersistedGameState | null) {
+export function saveGameState(state: PersistedGameState | null, userId?: string | null) {
   if (typeof window === "undefined") return;
+  const key = getStorageKey(userId);
   if (!state) {
-    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(key);
     return;
   }
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  window.localStorage.setItem(key, JSON.stringify(state));
 }
