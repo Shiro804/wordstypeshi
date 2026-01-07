@@ -16,9 +16,9 @@ type Props = {
 
 export default function Keyboard({ keyMarks, onKey, disabled }: Props) {
   return (
-    <div className="grid gap-1.5 sm:gap-2">
+    <div className="grid gap-1 sm:gap-1.5 w-full max-w-[100vw] overflow-hidden">
       {KB.map((row, i) => (
-        <div key={i} className="flex w-full justify-center gap-1.5 px-0.5 sm:gap-2 sm:px-0">
+        <div key={i} className="flex w-full justify-center gap-[3px] sm:gap-1.5">
           {row.map((k) => {
             const mark = keyMarks[k];
             const wide = k === "ENTER" || k === "BACKSPACE";
@@ -40,7 +40,7 @@ export default function Keyboard({ keyMarks, onKey, disabled }: Props) {
                 disabled={disabled || isAbsent}
                 onClick={() => onKey(k)}
                 className={
-                  "key inline-flex min-w-0 flex-1 basis-0 items-center justify-center rounded-xl border px-1 py-[clamp(0.72rem,2.2vh,1.05rem)] text-[clamp(0.7rem,1.75vh,1.02rem)] font-semibold uppercase shadow-sm transition active:translate-y-[1px] disabled:cursor-not-allowed disabled:opacity-70 sm:px-2" +
+                  "key inline-flex min-w-0 flex-1 basis-0 items-center justify-center rounded-xl sm:rounded-xl border py-[clamp(0.65rem,2vh,1rem)] text-[clamp(0.65rem,1.6vh,0.95rem)] font-semibold uppercase shadow-sm transition active:translate-y-[1px] disabled:cursor-not-allowed disabled:opacity-70" +
                   (wide ? " flex-[1.5]" : "") +
                   stateCls
                 }

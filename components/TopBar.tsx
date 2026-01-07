@@ -1,6 +1,7 @@
 "use client";
 
 import { Clock3 } from "lucide-react";
+import Link from "next/link";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -124,7 +125,9 @@ export default function TopBar({
     <div className="flex items-center justify-between gap-2 border-b border-[color:var(--border)] bg-[color:var(--bg)]/90 px-3 py-2 backdrop-blur">
       {/* Left: Logo + Timer */}
       <div className="flex items-center gap-2 sm:gap-3">
-        <div className="text-sm font-semibold tracking-tight text-[color:var(--fg)]">BatasWordle</div>
+        <Link href="/" className="text-sm font-semibold tracking-tight text-[color:var(--fg)] hover:text-emerald-400 transition">
+          ← Hub
+        </Link>
 
         {/* Timer badge */}
         <div className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-1 text-xs font-semibold text-[color:var(--fg)]">

@@ -96,12 +96,12 @@ export default function Hint({
       type="button"
       disabled={isDisabled}
       onClick={handleClick}
-      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 text-sm font-bold text-[color:var(--fg)] shadow-sm backdrop-blur transition hover:bg-[color:var(--surface2)] disabled:cursor-not-allowed disabled:opacity-50"
+      className="inline-flex h-7 items-center justify-center gap-1 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] px-2 text-xs font-bold text-[color:var(--fg)] shadow-sm backdrop-blur transition hover:bg-[color:var(--surface2)] disabled:cursor-not-allowed disabled:opacity-50"
       aria-label="Hint"
       title={title}
     >
       <span>💡</span>
-      <span className="text-xs text-[color:var(--muted)]">{remainingHints}</span>
+      <span className="text-[10px] text-[color:var(--muted)]">{remainingHints}</span>
     </button>
   );
 }

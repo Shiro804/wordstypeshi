@@ -1,24 +1,46 @@
 /**
  * Background storage utilities.
- * Manages custom background image stored in localStorage.
+ * Manages custom background images per game stored in localStorage.
  */
 
-const BACKGROUND_KEY = "batas-wordle-custom-background";
+const BACKGROUND_KEY_PREFIX = "puzzlehub.background";
 
 /**
- * Get the custom background URL (base64 data URL or null).
+ * Get the storage key for a specific game.
+ * If no gameId provided, returns global key for backwards compatibility.
  */
-export function getCustomBackground(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(BACKGROUND_KEY);
+function getStorageKey(gameId?: string): string {
+  if (gameId) {
+    return `${BACKGROUND_KEY_PREFIX}.${gameId}`;
+  }
+  return BACKGROUND_KEY_PREFIX;
 }
 
 /**
- * Set custom background from a File.
+ * Get the custom background URL for a specific game (or global fallback).
+ * @param gameId - Optional game identifier (e.g., 'wordle', 'mastermind', 'wordsearch')
+ */
+export function getCustomBackground(gameId?: string): string | null {
+  if (typeof window === "undefined") return null;
+  
+  // First try game-specific background
+  if (gameId) {
+    const gameSpecific = localStorage.getItem(getStorageKey(gameId));
+    if (gameSpecific) return gameSpecific;
+  }
+  
+  // Fallback to global background (legacy compatibility)
+  return localStorage.getItem(BACKGROUND_KEY_PREFIX);
+}
+
+/**
+ * Set custom background from a File for a specific game.
  * Converts to base64 data URL for localStorage storage.
  * Max size: ~2MB (will be compressed if needed).
+ * @param file - The image file to set as background
+ * @param gameId - Optional game identifier for game-specific background
  */
-export async function setCustomBackground(file: File): Promise<string> {
+export async function setCustomBackground(file: File, gameId?: string): Promise<string> {
   return new Promise((resolve, reject) => {
     // Check file size (max 5MB raw, will be resized)
     if (file.size > 5 * 1024 * 1024) {
@@ -61,7 +83,7 @@ export async function setCustomBackground(file: File): Promise<string> {
         const compressed = canvas.toDataURL("image/jpeg", 0.8);
         
         try {
-          localStorage.setItem(BACKGROUND_KEY, compressed);
+          localStorage.setItem(getStorageKey(gameId), compressed);
           resolve(compressed);
         } catch (e) {
           reject(new Error("Image too large for storage. Try a smaller image."));
@@ -76,9 +98,17 @@ export async function setCustomBackground(file: File): Promise<string> {
 }
 
 /**
- * Clear custom background (revert to default).
+ * Clear custom background for a specific game (or global).
+ * @param gameId - Optional game identifier. If not provided, clears global background.
  */
-export function clearCustomBackground(): void {
+export function clearCustomBackground(gameId?: string): void {
   if (typeof window === "undefined") return;
-  localStorage.removeItem(BACKGROUND_KEY);
+  localStorage.removeItem(getStorageKey(gameId));
+}
+
+/**
+ * Check if a game has a custom background set.
+ */
+export function hasCustomBackground(gameId?: string): boolean {
+  return getCustomBackground(gameId) !== null;
 }

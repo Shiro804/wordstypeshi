@@ -19,9 +19,15 @@ import type { Difficulty } from "@/lib/difficulty";
 type Props = {
   open: boolean;
   onClose: () => void;
-  difficulty: Difficulty;
-  onDifficultyChange: (d: Difficulty) => void;
-  onBackgroundChange: (bg: string | null) => void;
+  // Optional: game context
+  gameId?: string;
+  // Optional: current background (to avoid re-fetching)
+  currentBackground?: string | null;
+  // Optional: difficulty (only for games that have it)
+  difficulty?: Difficulty;
+  onDifficultyChange?: (d: Difficulty) => void;
+  // Optional: background change callback
+  onBackgroundChange?: (bg: string | null) => void;
 };
 
 const difficultyColors: Record<Difficulty, string> = {
@@ -30,7 +36,7 @@ const difficultyColors: Record<Difficulty, string> = {
   hard: "bg-rose-500/15 text-rose-300 border-rose-500/30",
 };
 
-export default function Settings({ open, onClose, difficulty, onDifficultyChange, onBackgroundChange }: Props) {
+export default function Settings({ open, onClose, gameId, currentBackground, difficulty, onDifficultyChange, onBackgroundChange }: Props) {
   const [authEmail, setAuthEmail] = useState<string>("");
   const [username, setUsername] = useState("");
   const [avatarPath, setAvatarPath] = useState<string | null>(null);
@@ -65,8 +71,8 @@ export default function Settings({ open, onClose, difficulty, onDifficultyChange
     });
 
     // Load current background
-    setBgPreview(getCustomBackground());
-  }, [open]);
+    setBgPreview(currentBackground ?? getCustomBackground(gameId));
+  }, [open, currentBackground, gameId]);
 
   const canSave = useMemo(() => {
     const u = username.trim();
@@ -233,42 +239,48 @@ export default function Settings({ open, onClose, difficulty, onDifficultyChange
         <hr className="border-[color:var(--border)]" />
 
         {/* ═══ GAMEPLAY SECTION ═══ */}
-        <div>
-          <div className="text-xs uppercase tracking-widest text-[color:var(--muted)] font-bold mb-3">🎮 Gameplay</div>
+        {difficulty && onDifficultyChange && (
+          <>
+            <div>
+              <div className="text-xs uppercase tracking-widest text-[color:var(--muted)] font-bold mb-3">🎮 Gameplay</div>
 
-          <div className="text-xs uppercase tracking-wide text-[color:var(--muted)]">Difficulty</div>
-          <div className="mt-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm transition hover:opacity-80 ${difficultyColors[difficulty]}`}
-                >
-                  <span className="capitalize">{difficulty}</span>
-                  <span className="opacity-60">▾</span>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="min-w-32">
-                {(["easy", "medium", "hard"] as Difficulty[]).map((d) => (
-                  <DropdownMenuItem
-                    key={d}
-                    onClick={() => {
-                      onDifficultyChange(d);
-                      onClose();
-                    }}
-                    className="flex items-center gap-2"
-                  >
-                    <span className={`inline-block w-2 h-2 rounded-full ${d === "easy" ? "bg-emerald-400" : d === "medium" ? "bg-orange-400" : "bg-rose-400"
-                      }`} />
-                    <span className="capitalize">{d}</span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
+              <div className="text-xs uppercase tracking-wide text-[color:var(--muted)]">Difficulty</div>
+              <div className="mt-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm transition hover:opacity-80 ${difficultyColors[difficulty]}`}
+                    >
+                      <span className="capitalize">{difficulty}</span>
+                      <span className="opacity-60">▾</span>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-32">
+                    {(["easy", "medium", "hard"] as Difficulty[]).map((d) => (
+                      <DropdownMenuItem
+                        key={d}
+                        onClick={() => {
+                          onDifficultyChange(d);
+                          onClose();
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <span className={`inline-block w-2 h-2 rounded-full ${d === "easy" ? "bg-emerald-400" : d === "medium" ? "bg-orange-400" : "bg-rose-400"
+                          }`} />
+                        <span className="capitalize">{d}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
 
-        <hr className="border-[color:var(--border)]" />
+            <hr className="border-[color:var(--border)]" />
+
+            <hr className="border-[color:var(--border)]" />
+          </>
+        )}
 
         {/* ═══ APPEARANCE SECTION ═══ */}
         <div>
@@ -277,12 +289,18 @@ export default function Settings({ open, onClose, difficulty, onDifficultyChange
           <div className="text-xs uppercase tracking-wide text-[color:var(--muted)]">Background image</div>
           <div className="mt-2 flex items-start gap-3">
             <div className="h-16 w-24 overflow-hidden rounded-lg border border-[color:var(--border)] bg-[color:var(--surface2)]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={bgPreview || "/game-bg.jpg"}
-                alt="Background"
-                className="h-full w-full object-cover"
-              />
+              {bgPreview ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={bgPreview}
+                  alt="Background"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center text-xs text-[color:var(--muted)]">
+                  Default
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col gap-2">
@@ -301,11 +319,38 @@ export default function Settings({ open, onClose, difficulty, onDifficultyChange
                     setError(null);
                     setBgUploading(true);
                     try {
-                      const dataUrl = await setCustomBackground(file);
+                      let dataUrl: string;
+                      if (authEmail) {
+                        // Authenticated -> Remote Storage
+                        const { uploadRemoteBackground } = await import("@/lib/remote-backgrounds");
+                        // Use gameId or fallback to 'global' if none provided (though code expects per-game now)
+                        const targetId = gameId || "global";
+                        dataUrl = await uploadRemoteBackground(file, targetId);
+                      } else {
+                        // Guest -> Local Storage
+                        dataUrl = await setCustomBackground(file, gameId);
+                      }
+
                       setBgPreview(dataUrl);
-                      onBackgroundChange(dataUrl);
+                      onBackgroundChange?.(dataUrl);
                     } catch (err: unknown) {
-                      setError(err instanceof Error ? err.message : "Failed to set background");
+                      // Parse error for better user messages
+                      let msg = "Failed to upload image";
+                      if (err instanceof Error) {
+                        const errMsg = err.message.toLowerCase();
+                        if (errMsg.includes("bucket") && errMsg.includes("not found")) {
+                          msg = "Storage not configured. Contact admin.";
+                        } else if (errMsg.includes("too large") || errMsg.includes("size")) {
+                          msg = "Image too large. Max 5MB.";
+                        } else if (errMsg.includes("mime") || errMsg.includes("type")) {
+                          msg = "Invalid file type. Use JPG or PNG.";
+                        } else if (errMsg.includes("row-level security") || errMsg.includes("policy")) {
+                          msg = "Permission denied. Storage policy error.";
+                        } else {
+                          msg = err.message;
+                        }
+                      }
+                      setError(msg);
                     } finally {
                       setBgUploading(false);
                     }
@@ -318,16 +363,28 @@ export default function Settings({ open, onClose, difficulty, onDifficultyChange
                 type="button"
                 disabled={!bgPreview}
                 className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-medium text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)] disabled:opacity-50"
-                onClick={() => {
-                  clearCustomBackground();
+                onClick={async () => {
+                  try {
+                    if (authEmail) {
+                      const { clearRemoteBackground } = await import("@/lib/remote-backgrounds");
+                      await clearRemoteBackground(gameId || "global");
+                    } else {
+                      clearCustomBackground(gameId);
+                    }
+                  } catch {
+                    // Ignore errors - still clear preview
+                  }
+
                   setBgPreview(null);
-                  onBackgroundChange(null);
+                  onBackgroundChange?.(null);
                 }}
               >
                 Reset to default
               </button>
 
-              <div className="text-xs text-[color:var(--muted)]">Max 5MB. Will be resized.</div>
+              <div className="text-xs text-[color:var(--muted)]">
+                {authEmail ? "Saved to your account." : "Saved locally (guest)."} Max 5MB.
+              </div>
             </div>
           </div>
         </div>

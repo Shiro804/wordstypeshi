@@ -21,7 +21,7 @@ const STORAGE_KEY_BASE = "wordstypeshi.game.v1";
  * Get the storage key for a specific user.
  * User-scoped keys prevent conflicts between Safari browser and PWA.
  */
-function getStorageKey(userId?: string | null): string {
+export function getStorageKey(userId?: string | null): string {
   if (userId) {
     return `${STORAGE_KEY_BASE}.${userId}`;
   }

@@ -2,7 +2,7 @@
 
 import type { Difficulty } from "@/lib/difficulty";
 
-export type GuessDistribution = Record<1 | 2 | 3 | 4 | 5 | 6, number>;
+export type GuessDistribution = Record<number, number>;
 
 export type Stats = {
   played: number;
@@ -108,7 +108,7 @@ export function saveStats(difficulty: Difficulty, stats: Stats) {
 }
 
 export type GameResult =
-  | { outcome: "win"; guessesUsed: 1 | 2 | 3 | 4 | 5 | 6; durationSec: number }
+  | { outcome: "win"; guessesUsed: number; durationSec: number }
   | { outcome: "lose"; durationSec: number };
 
 function roundSec(sec: number) {

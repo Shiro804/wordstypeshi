@@ -1,4 +1,6 @@
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata, Viewport } from "next";
 import { Manrope } from "next/font/google";
 
@@ -33,7 +35,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/favicon.ico" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className="min-h-dvh bg-[color:var(--bg)] text-[color:var(--fg)]">{children}</body>
+      <body className="min-h-dvh bg-[color:var(--bg)] text-[color:var(--fg)]">
+        {children}
+        <Analytics />
+        <SpeedInsights />
+      </body>
     </html>
   );
 }

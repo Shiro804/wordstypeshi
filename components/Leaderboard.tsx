@@ -25,6 +25,7 @@ export type LeaderboardMetric =
 type Props = {
   open: boolean;
   onClose: () => void;
+  gameId?: string;
 };
 
 type Row = {
@@ -51,6 +52,12 @@ type StatsTableRow = {
   best_time_sec: number | null;
   avg_time_sec: number | null;
   last_times_sec: number[];
+  updated_at: string | null;
+};
+
+type GameStatsTableRow = {
+  user_id: string;
+  stats: Stats;
   updated_at: string | null;
 };
 
@@ -108,7 +115,7 @@ function formatSeconds(sec: number | null) {
   return m > 0 ? `${m}:${String(r).padStart(2, "0")}` : `${r}s`;
 }
 
-export default function Leaderboard({ open, onClose }: Props) {
+export default function Leaderboard({ open, onClose, gameId }: Props) {
   const [metric, setMetric] = useState<LeaderboardMetric>("wins");
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [rows, setRows] = useState<Row[]>([]);
@@ -124,67 +131,123 @@ export default function Leaderboard({ open, onClose }: Props) {
 
       try {
         const supabase = createClient();
+        let statsRows: { user_id: string; stats: Stats; updated_at: string | null }[] = [];
 
-        const SELECT_COLS =
-          "user_id,played,wins,losses,current_streak,max_streak,dist_1,dist_2,dist_3,dist_4,dist_5,dist_6,best_time_sec,avg_time_sec,last_times_sec,updated_at";
+        if (gameId) {
+          // Function 2: Query game_stats (JSONB)
+          // Since it's JSONB, we fetch all (with limit) and sort client-side
+          // Note: In a real large-scale app, we'd want database indexes/views or RPCs
+          const { data, error } = await supabase
+            .from("game_stats")
+            .select("user_id, stats, updated_at")
+            .eq("game_id", gameId)
+            .eq("mode", difficulty)
+            .limit(100);
 
-        // Server-side sorting/limiting for performance.
-        // For winRate (derived), we fetch a reasonable candidate set and sort client-side.
-        const LIMIT = 50;
-        const CANDIDATE_LIMIT = 250;
+          if (error) throw error;
 
-        let statsQuery = supabase.from("stats").select(SELECT_COLS).eq("difficulty", difficulty);
+          statsRows = ((data ?? []) as unknown as GameStatsTableRow[]).map(r => ({
+            user_id: r.user_id,
+            stats: r.stats,
+            updated_at: r.updated_at
+          }));
 
-        switch (metric) {
-          case "wins":
-            statsQuery = statsQuery.order("wins", { ascending: false }).limit(LIMIT);
-            break;
-          case "losses":
-            // lower losses is better (ascending)
-            statsQuery = statsQuery.order("losses", { ascending: true }).limit(LIMIT);
-            break;
-          case "played":
-            statsQuery = statsQuery.order("played", { ascending: false }).limit(LIMIT);
-            break;
-          case "maxStreak":
-            statsQuery = statsQuery.order("max_streak", { ascending: false }).limit(LIMIT);
-            break;
-          case "bestTimeSec":
-            // lower is better; nulls last
-            statsQuery = statsQuery
-              .order("best_time_sec", { ascending: true, nullsFirst: false })
-              .limit(LIMIT);
-            break;
-          case "avgTimeSec":
-            // lower is better; nulls last
-            statsQuery = statsQuery
-              .order("avg_time_sec", { ascending: true, nullsFirst: false })
-              .limit(LIMIT);
-            break;
-          case "winRate":
-            // Can't sort by a derived ratio without a DB view/rpc.
-            // Get candidates (active players) and sort client-side.
-            statsQuery = statsQuery
-              .gte("played", 5)
-              .order("wins", { ascending: false })
-              .limit(CANDIDATE_LIMIT);
-            break;
+          // Client-side Sort
+          statsRows.sort((a, b) => {
+            const sA = a.stats;
+            const sB = b.stats;
+            switch (metric) {
+              case "wins": return sB.wins - sA.wins;
+              case "losses": return sA.losses - sB.losses;
+              case "played": return sB.played - sA.played;
+              case "maxStreak": return sB.maxStreak - sA.maxStreak;
+              case "winRate":
+                const rA = sA.played ? sA.wins / sA.played : 0;
+                const rB = sB.played ? sB.wins / sB.played : 0;
+                return rB - rA;
+              case "bestTimeSec":
+                if (sA.bestTimeSec == null) return 1;
+                if (sB.bestTimeSec == null) return -1;
+                return sA.bestTimeSec - sB.bestTimeSec;
+              case "avgTimeSec":
+                if (sA.avgTimeSec == null) return 1;
+                if (sB.avgTimeSec == null) return -1;
+                return sA.avgTimeSec - sB.avgTimeSec;
+              default: return 0;
+            }
+          });
+
+        } else {
+          // Function 1: Legacy Wordle Mode (stats table)
+          const SELECT_COLS =
+            "user_id,played,wins,losses,current_streak,max_streak,dist_1,dist_2,dist_3,dist_4,dist_5,dist_6,best_time_sec,avg_time_sec,last_times_sec,updated_at";
+
+          // Server-side sorting/limiting for performance.
+          // For winRate (derived), we fetch a reasonable candidate set and sort client-side.
+          const LIMIT = 50;
+          const CANDIDATE_LIMIT = 250;
+
+          let statsQuery = supabase.from("stats").select(SELECT_COLS).eq("difficulty", difficulty);
+
+          switch (metric) {
+            case "wins":
+              statsQuery = statsQuery.order("wins", { ascending: false }).limit(LIMIT);
+              break;
+            case "losses":
+              // lower losses is better (ascending)
+              statsQuery = statsQuery.order("losses", { ascending: true }).limit(LIMIT);
+              break;
+            case "played":
+              statsQuery = statsQuery.order("played", { ascending: false }).limit(LIMIT);
+              break;
+            case "maxStreak":
+              statsQuery = statsQuery.order("max_streak", { ascending: false }).limit(LIMIT);
+              break;
+            case "bestTimeSec":
+              // lower is better; nulls last
+              statsQuery = statsQuery
+                .order("best_time_sec", { ascending: true, nullsFirst: false })
+                .limit(LIMIT);
+              break;
+            case "avgTimeSec":
+              // lower is better; nulls last
+              statsQuery = statsQuery
+                .order("avg_time_sec", { ascending: true, nullsFirst: false })
+                .limit(LIMIT);
+              break;
+            case "winRate":
+              // Can't sort by a derived ratio without a DB view/rpc.
+              // Get candidates (active players) and sort client-side.
+              statsQuery = statsQuery
+                .gte("played", 5)
+                .order("wins", { ascending: false })
+                .limit(CANDIDATE_LIMIT);
+              break;
+          }
+
+          const { data: statsRowsRaw, error: statsError } = await statsQuery;
+          if (statsError) throw statsError;
+
+          let rawRows = (statsRowsRaw ?? []) as unknown as StatsTableRow[];
+
+          if (metric === "winRate") {
+            rawRows = [...rawRows]
+              .sort((a, b) => {
+                const ar = a.played ? a.wins / a.played : 0;
+                const br = b.played ? b.wins / b.played : 0;
+                return br - ar;
+              })
+              .slice(0, LIMIT);
+          }
+
+          statsRows = rawRows.map(r => ({
+            user_id: r.user_id,
+            stats: rowToStats(r),
+            updated_at: r.updated_at
+          }));
         }
 
-        const { data: statsRowsRaw, error: statsError } = await statsQuery;
-        if (statsError) throw statsError;
-
-        let statsRows = (statsRowsRaw ?? []) as unknown as StatsTableRow[];
-
-        if (metric === "winRate") {
-          statsRows = [...statsRows]
-            .sort((a, b) => {
-              const ar = a.played ? a.wins / a.played : 0;
-              const br = b.played ? b.wins / b.played : 0;
-              return br - ar;
-            })
-            .slice(0, LIMIT);
-        }
+        // --- Common User Fetching Logic ---
 
         const ids = Array.from(new Set(statsRows.map((r) => r.user_id).filter(Boolean)));
 
@@ -202,7 +265,7 @@ export default function Leaderboard({ open, onClose }: Props) {
           const u = userById.get(r.user_id);
           return {
             user_id: r.user_id,
-            stats: rowToStats(r),
+            stats: r.stats,
             updated_at: r.updated_at ?? null,
             username: u?.username ?? null,
             avatar_path: (u as any)?.avatar_path ?? null,
@@ -218,7 +281,7 @@ export default function Leaderboard({ open, onClose }: Props) {
     };
 
     void run();
-  }, [open, metric, difficulty]);
+  }, [open, metric, difficulty, gameId]);
 
   const ranked = useMemo(() => {
     // Rows are already ordered/limited by the server for all metrics except winRate.
