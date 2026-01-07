@@ -11,7 +11,6 @@ import { loadGameState, saveGameState } from "@/lib/storage/game-state";
 import Grid, { type GridRow } from "@/components/games/common/Grid";
 import Keyboard from "@/components/games/common/Keyboard";
 import Modal from "@/components/games/common/Modal";
-import Settings from "@/components/games/common/Settings";
 import Leaderboard from "@/components/games/common/Leaderboard";
 import WordHistory from "@/components/games/common/WordHistory";
 import { applyTheme } from "@/lib/theme";
@@ -27,12 +26,11 @@ import { getCurrentUserId, upsertRemoteGameStats, syncGameStats } from "@/lib/sy
 import { createOrReuseActiveSession, endSession, fetchActiveSession, updateSessionAnswer } from "@/lib/sync/sessions-sync";
 import { fetchPlayedWords, trackPlayedWord } from "@/lib/sync/played-words";
 import { consumeHint, getHintNoRemind, setHintNoRemind, getRemainingHints } from "@/lib/storage/hint-storage";
-import { Checkbox } from "@/components/ui/checkbox";
 import { fetchWordDefinition, translatePartOfSpeech, translateToGerman, type WordDefinition } from "@/lib/dictionary";
 import { saveWordDefinition } from "@/lib/word-definitions";
-import { useGameBackground } from "@/lib/hooks/useGameBackground";
 import GameShell from "@/components/shared/GameShell";
 import StatsModal from "@/components/shared/StatsModal";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const MAX_TRIES = 6;
 const GAME_ID = "wordle";
@@ -68,7 +66,6 @@ export default function WordleGame() {
     const [pendingDifficulty, setPendingDifficulty] = useState<Difficulty | null>(null);
     const [sessionId, setSessionId] = useState<string | null>(null);
 
-    const [settingsOpen, setSettingsOpen] = useState(false);
     const [leaderboardOpen, setLeaderboardOpen] = useState(false);
     const [wordHistoryOpen, setWordHistoryOpen] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
@@ -77,7 +74,6 @@ export default function WordleGame() {
     const [hintWarningOpen, setHintWarningOpen] = useState(false);
     const [hintNoRemindChecked, setHintNoRemindChecked] = useState(false);
 
-    const { background: customBackground, setBackground: setCustomBackground, isLoading: backgroundLoading } = useGameBackground(GAME_ID);
     const [wordDefinition, setWordDefinition] = useState<WordDefinition | null>(null);
     const [definitionPopupOpen, setDefinitionPopupOpen] = useState(false);
 
@@ -440,7 +436,7 @@ export default function WordleGame() {
         await endAnyActiveSession();
         setDifficulty(d);
         saveGameState(null, userId);
-        setSettingsOpen(false);
+        requestReset();
     }
 
     function requestDifficultyChange(d: Difficulty) {
@@ -625,16 +621,13 @@ export default function WordleGame() {
         <GameShell
             gameId={GAME_ID}
             gameName="Wordle"
-            isLoading={backgroundLoading}
             onNewGame={requestReset}
             difficulty={difficulty}
             onDifficultyChange={requestDifficultyChange}
             timerText={formatDuration(Math.round(durationSec))}
             onOpenStats={() => setStatsOpen(true)}
             onOpenLeaderboard={() => setLeaderboardOpen(true)}
-            onOpenSettings={() => setSettingsOpen(true)}
             fullHeight={true}
-            customBackground={customBackground}
             hintSlot={
                 !gameOver.done && answer ? (
                     <Hint
@@ -697,7 +690,7 @@ export default function WordleGame() {
                 className="flex flex-col w-full h-full min-w-0 outline-none"
                 onKeyDown={(e) => {
                     const t = e.target as HTMLElement | null;
-                    if ((t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t?.isContentEditable) || settingsOpen || leaderboardOpen || statsOpen) return;
+                    if ((t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t?.isContentEditable) || leaderboardOpen || statsOpen) return;
                     if (e.key === "Enter") onKey("ENTER");
                     else if (e.key === "Backspace") onKey("BACKSPACE");
                     else if (/^[A-Z]$/i.test(e.key)) onKey(e.key.toUpperCase());
@@ -770,18 +763,6 @@ export default function WordleGame() {
                 onLeaderboard={() => { setStatsOpen(false); setLeaderboardOpen(true); }}
             />
 
-            {settingsOpen && (
-                <Settings
-                    open={settingsOpen}
-                    onClose={() => setSettingsOpen(false)}
-                    gameId={GAME_ID}
-                    currentBackground={customBackground}
-                    difficulty={difficulty}
-                    onDifficultyChange={requestDifficultyChange}
-                    onBackgroundChange={(bg) => setCustomBackground(bg)}
-                />
-            )}
-
             <Leaderboard
                 open={leaderboardOpen}
                 onClose={() => setLeaderboardOpen(false)}
@@ -796,17 +777,18 @@ export default function WordleGame() {
             <Modal open={hintWarningOpen} title="Use a hint?" onClose={() => setHintWarningOpen(false)} footer={
                 <div className="flex items-center justify-end gap-2">
                     <button type="button" onClick={() => setHintWarningOpen(false)} className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]">Cancel</button>
-                    <button type="button" onClick={confirmHint} className="rounded-xl border border-[color:var(--border)] bg-amber-500/20 px-3 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/30">Use Hint</button>
+                    <button type="button" onClick={confirmHint} className="rounded-xl border border-[color:var(--border)] bg-emerald-500/20 px-3 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/30">Use Hint</button>
                 </div>
             }>
-                <div className="space-y-4">
+                <div className="flex flex-col gap-3">
                     <div className="text-sm text-[color:var(--fg)]/85">
-                        Using a hint will reveal a letter position. <br /><br />
-                        <strong>Note for Easy Mode:</strong> This game will <strong>not count as a win</strong> in your statistics if you use a hint.
+                        Hints are free in Easy Mode. In other modes, they count as a loss if you win using one.
                     </div>
                     <div className="flex items-center gap-2">
-                        <Checkbox id="hint-no-remind" checked={hintNoRemindChecked} onCheckedChange={(c) => setHintNoRemindChecked(c === true)} />
-                        <label htmlFor="hint-no-remind" className="text-sm text-[color:var(--muted)] cursor-pointer">Don&apos;t remind me again</label>
+                        <Checkbox id="hintNoRemind" checked={hintNoRemindChecked} onCheckedChange={(c) => setHintNoRemindChecked(!!c)} />
+                        <label htmlFor="hintNoRemind" className="text-sm text-[color:var(--muted)] cursor-pointer select-none">
+                            Don&apos;t ask again
+                        </label>
                     </div>
                 </div>
             </Modal>
@@ -814,45 +796,45 @@ export default function WordleGame() {
             <Modal open={confirmResetOpen} title="Reset game?" onClose={() => setConfirmResetOpen(false)} footer={
                 <div className="flex items-center justify-end gap-2">
                     <button type="button" onClick={() => setConfirmResetOpen(false)} className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]">Cancel</button>
-                    <button type="button" onClick={() => { setConfirmResetOpen(false); forfeitCurrentGameAndReset(); }} className="rounded-xl border border-[color:var(--border)] bg-rose-500/20 px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-rose-500/30">Reset (counts as loss)</button>
+                    <button type="button" onClick={forfeitCurrentGameAndReset} className="rounded-xl border border-[color:var(--border)] bg-rose-500/20 px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-rose-500/30">Reset (counts as loss)</button>
                 </div>
             }>
-                <div className="text-sm text-[color:var(--fg)]/85">You already made guesses. Resetting now will count as a loss.</div>
+                <div className="text-sm text-[color:var(--fg)]/85">You have active guesses. Resetting now will count as a loss.</div>
             </Modal>
 
             <Modal open={confirmDifficultyOpen} title="Change difficulty?" onClose={() => { setConfirmDifficultyOpen(false); setPendingDifficulty(null); }} footer={
                 <div className="flex items-center justify-end gap-2">
                     <button type="button" onClick={() => { setConfirmDifficultyOpen(false); setPendingDifficulty(null); }} className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]">Cancel</button>
-                    <button type="button" onClick={() => { const next = pendingDifficulty; setConfirmDifficultyOpen(false); setPendingDifficulty(null); void (async () => { await forfeitCurrentGame(); if (next) await applyDifficultyChange(next); })(); }} className="rounded-xl border border-[color:var(--border)] bg-rose-500/20 px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-rose-500/30">Switch (counts as loss)</button>
+                    <button type="button" onClick={() => { const next = pendingDifficulty; setConfirmDifficultyOpen(false); setPendingDifficulty(null); if (next) void applyDifficultyChange(next); }} className="rounded-xl border border-[color:var(--border)] bg-rose-500/20 px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-rose-500/30">Switch (counts as loss)</button>
                 </div>
             }>
-                <div className="text-sm text-[color:var(--fg)]/85">You already made guesses. Switching difficulty now will forfeit this game and count as a loss.</div>
+                <div className="text-sm text-[color:var(--fg)]/85">You have active guesses. Switching difficulty now will forfeit this game and count as a loss.</div>
             </Modal>
 
-            {/* Mobile Definition Popup */}
-            <Modal open={definitionPopupOpen} title="Word Definition" onClose={() => setDefinitionPopupOpen(false)}>
+            <Modal open={definitionPopupOpen} title="Word Definition" onClose={() => setDefinitionPopupOpen(false)} footer={
+                <div className="flex justify-end">
+                    <button type="button" onClick={() => setDefinitionPopupOpen(false)} className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]">Close</button>
+                </div>
+            }>
                 {wordDefinition && (
-                    <div className="space-y-3">
-                        <div className="text-xl font-bold uppercase tracking-widest text-center text-[color:var(--fg)]">{answer}</div>
-                        <div className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)]/50 p-3">
-                            {wordDefinition.partOfSpeech && (
-                                <div className="text-[10px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">
-                                    {translatePartOfSpeech(wordDefinition.partOfSpeech)}
-                                    <span className="mx-1 opacity-50">•</span>
-                                    <span className="lowercase italic opacity-75">{wordDefinition.partOfSpeech}</span>
-                                </div>
-                            )}
-                            <div className="text-sm text-[color:var(--fg)]/90 leading-relaxed mt-1">{wordDefinition.meaning}</div>
-                            {wordDefinition.meaningGerman && (
-                                <div className="text-sm text-[color:var(--muted)] leading-relaxed mt-1 pt-1 border-t border-[color:var(--border)]/50 italic">
-                                    🇩🇪 {wordDefinition.meaningGerman}
-                                </div>
-                            )}
-                        </div>
+                    <div className="flex flex-col gap-2">
+                        <div className="text-2xl font-bold text-center uppercase tracking-widest mb-2">{answer}</div>
+                        {wordDefinition.partOfSpeech && (
+                            <div className="text-xs font-semibold uppercase tracking-wide text-[color:var(--muted)]">
+                                {translatePartOfSpeech(wordDefinition.partOfSpeech)}
+                                <span className="mx-1 opacity-50">•</span>
+                                <span className="lowercase italic opacity-75">{wordDefinition.partOfSpeech}</span>
+                            </div>
+                        )}
+                        <div className="text-base text-[color:var(--fg)]/90 leading-relaxed">{wordDefinition.meaning}</div>
+                        {wordDefinition.meaningGerman && (
+                            <div className="text-sm text-[color:var(--muted)] leading-relaxed mt-2 pt-2 border-t border-[color:var(--border)]/50 italic">
+                                🇩🇪 {wordDefinition.meaningGerman}
+                            </div>
+                        )}
                     </div>
                 )}
             </Modal>
-
         </GameShell>
     );
 }

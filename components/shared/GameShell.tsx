@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Difficulty } from "@/lib/difficulty";
 import Settings from "@/components/games/common/Settings";
-import { getCustomBackground } from "@/lib/storage/background-storage";
+import { useGamePreferences } from "@/lib/hooks/useGamePreferences";
 
 // ============================================================================
 // Types
@@ -45,11 +45,7 @@ interface GameShellProps {
     hintSlot?: React.ReactNode;
     /** Optional: Use full viewport height with grid layout (for games with keyboard) */
     fullHeight?: boolean;
-    /** Optional: Callback when background changes (from Settings) */
-    onBackgroundChange?: (bg: string | null) => void;
-    /** Optional: Is loading preferences? */
-    isLoading?: boolean;
-    /** Game content */
+    /** Content */
     children: React.ReactNode;
 }
 
@@ -197,25 +193,14 @@ export default function GameShell({
     actionsSlot,
     hintSlot,
     fullHeight = false,
-    onBackgroundChange,
-    customBackground: externalBackground,
-    isLoading = false,
     children,
-}: GameShellProps & { customBackground?: string | null }) {
+}: GameShellProps) {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [howToPlayOpen, setHowToPlayOpen] = useState(false);
-    const [internalBackground, setInternalBackground] = useState<string | null>(null);
     const [isMounted, setIsMounted] = useState(false);
 
-    // Get the correct background URL based on gameId (legacy, for custom backgrounds)
-    const getBackgroundUrl = () => {
-        switch (gameId) {
-            case 'wordle': return '/BatasWordle.html';
-            case 'mastermind': return '/BatasMastermind.html';
-            case 'wordsearch': return '/BatasSearch.html';
-            default: return '/BataGames.html';
-        }
-    };
+    // Use preferences
+    const { preferences, updatePreferences } = useGamePreferences(gameId);
 
     // Get the background title based on gameId
     const getBackgroundTitle = () => {
@@ -232,23 +217,6 @@ export default function GameShell({
         setIsMounted(true);
     }, []);
 
-    // Use external background if provided, otherwise internal
-    const customBackground = externalBackground !== undefined ? externalBackground : internalBackground;
-
-    // Load background on mount if not provided externally (or to init internal)
-    useEffect(() => {
-        if (externalBackground === undefined) {
-            setInternalBackground(getCustomBackground(gameId));
-        }
-    }, [gameId, externalBackground]);
-
-    const handleBackgroundChange = (bg: string | null) => {
-        if (externalBackground === undefined) {
-            setInternalBackground(bg);
-        }
-        onBackgroundChange?.(bg);
-    };
-
     const containerClasses = fullHeight
         ? "relative h-[100dvh] w-full max-w-[100vw] overflow-hidden text-[color:var(--fg)]"
         : "min-h-screen w-full overflow-x-hidden text-[color:var(--fg)]";
@@ -260,21 +228,27 @@ export default function GameShell({
     return (
         <div className={containerClasses} style={gridStyle}>
             {/* Background & Loading State */}
-            {/* Background & Loading State */}
             <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
                 {/* Visual Background - only render client-side to avoid hydration mismatch */}
-                {isMounted && !isLoading && (
+                {isMounted && (
                     <>
-                        {customBackground ? (
+                        {preferences.backgroundImage ? (
                             <div
                                 className="absolute inset-0 bg-cover bg-center transition-opacity duration-500"
                                 style={{
-                                    backgroundColor: "#09090b",
-                                    backgroundImage: `radial-gradient(1200px 700px at 20% 10%, rgba(255,255,255,0.08), transparent 55%), radial-gradient(900px 600px at 80% 20%, rgba(16,185,129,0.10), transparent 60%), url(${customBackground})`
+                                    backgroundColor: preferences.backgroundColor || "#09090b",
+                                    backgroundImage: `radial-gradient(1200px 700px at 20% 10%, rgba(255,255,255,0.08), transparent 55%), radial-gradient(900px 600px at 80% 20%, rgba(16,185,129,0.10), transparent 60%), url(${preferences.backgroundImage})`
                                 }}
                             />
                         ) : (
-                            <DuckBackground title={getBackgroundTitle()} />
+                            <DuckBackground
+                                title={getBackgroundTitle()}
+                                bgColor={preferences.backgroundColor}
+                                duckColor={preferences.duckColor}
+                                duckBellyColor={preferences.duckBellyColor}
+                                beakColor={preferences.beakColor}
+                                eyeColor={preferences.eyeColor}
+                            />
                         )}
                         {/* Overlay to ensure text readability */}
                         <div className="absolute inset-0 bg-black/35" />
@@ -283,13 +257,6 @@ export default function GameShell({
 
                 {/* Background base color (always visible) */}
                 <div className="absolute inset-0 bg-[#09090b] -z-10" />
-
-                {/* Background Loader (visible only when isLoading is true) */}
-                <div
-                    className={`absolute inset-0 flex items-center justify-center bg-[#09090b] transition-opacity duration-300 ${isLoading ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-                >
-                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500/30 border-t-emerald-500" />
-                </div>
             </div>
 
             {/* Header */}
@@ -344,7 +311,8 @@ export default function GameShell({
                     gameId={gameId}
                     difficulty={difficulty}
                     onDifficultyChange={onDifficultyChange}
-                    onBackgroundChange={handleBackgroundChange}
+                    preferences={preferences}
+                    onPreferencesChange={updatePreferences}
                 />
             )}
 

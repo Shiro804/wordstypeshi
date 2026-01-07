@@ -15,9 +15,7 @@ import { wordSearchUIAdapter, type WordSearchRenderModel } from "@/lib/games/wor
 import type { Difficulty } from "@/lib/difficulty";
 import { useGameTimer } from "@/lib/hooks/useGameTimer";
 import { useGameStats } from "@/lib/hooks/useGameStats";
-import { useGameBackground } from "@/lib/hooks/useGameBackground";
 import { createOrReuseActiveSession, endSession } from "@/lib/sync/sessions-sync";
-import Settings from "@/components/games/common/Settings";
 import Modal from "@/components/games/common/Modal";
 import { loadDifficulty, saveDifficulty } from "@/lib/storage/settings-storage";
 
@@ -125,12 +123,10 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
     // UI state
     const [leaderboardOpen, setLeaderboardOpen] = useState(false);
     const [statsOpen, setStatsOpen] = useState(false);
-    const [settingsOpen, setSettingsOpen] = useState(false);
     const [confirmResetOpen, setConfirmResetOpen] = useState(false);
     const [confirmDifficultyOpen, setConfirmDifficultyOpen] = useState(false);
     const [pendingDifficulty, setPendingDifficulty] = useState<Difficulty | null>(null);
     const [sessionId, setSessionId] = useState<string | null>(null);
-    const { background: customBackground, setBackground: setCustomBackground, isLoading: backgroundLoading } = useGameBackground(GAME_ID);
 
     // Use shared hooks
     const timer = useGameTimer({ pauseOnHidden: true });
@@ -371,15 +367,12 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
         <GameShell
             gameId={GAME_ID}
             gameName="Word Search"
-            isLoading={backgroundLoading}
             onNewGame={requestReset}
             difficulty={difficulty}
             onDifficultyChange={requestDifficultyChange}
             timerText={timer.timerText}
-            customBackground={customBackground}
             onOpenStats={() => setStatsOpen(true)}
             onOpenLeaderboard={() => setLeaderboardOpen(true)}
-            onOpenSettings={() => setSettingsOpen(true)}
             actionsSlot={
                 isInProgress ? (
                     <button
@@ -499,16 +492,6 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
                 open={leaderboardOpen}
                 onClose={() => setLeaderboardOpen(false)}
                 gameId={GAME_ID}
-            />
-
-            <Settings
-                open={settingsOpen}
-                onClose={() => setSettingsOpen(false)}
-                gameId={GAME_ID}
-                currentBackground={customBackground}
-                difficulty={difficulty}
-                onDifficultyChange={requestDifficultyChange}
-                onBackgroundChange={(bg) => setCustomBackground(bg)}
             />
 
             {/* Confirm Reset Modal */}

@@ -17,12 +17,10 @@ import type { Difficulty } from "@/lib/difficulty";
 import { getCurrentUserId, upsertRemoteGameStats, syncGameStats, loadLocalStats, saveLocalStats } from "@/lib/sync/game-stats-sync";
 import { createOrReuseActiveSession, endSession } from "@/lib/sync/sessions-sync";
 import Leaderboard from "@/components/games/common/Leaderboard";
-import Settings from "@/components/games/common/Settings";
 import StatsModal from "@/components/shared/StatsModal";
-import Modal from "@/components/games/common/Modal";
 import { type Stats, applyGameResult, formatDuration } from "@/lib/storage/storage";
-import { getCustomBackground } from "@/lib/storage/background-storage";
-import { useGameBackground } from "@/lib/hooks/useGameBackground";
+import { useGameTimer } from "@/lib/hooks/useGameTimer";
+import Modal from "../common/Modal";
 
 // ============================================================================
 // Constants & Mapping
@@ -114,6 +112,7 @@ function AttemptRow({
     isActive = false,
     currentInput = [],
     onSlotClick,
+    selectedSlot,
 }: {
     guess: number[];
     feedback?: { black: number; white: number };
@@ -122,6 +121,7 @@ function AttemptRow({
     isActive?: boolean;
     currentInput?: number[];
     onSlotClick?: (index: number) => void;
+    selectedSlot?: number | null;
 }) {
     const displayGuess = isActive ? currentInput : guess;
 
@@ -139,6 +139,7 @@ function AttemptRow({
                             colorHex={isEmpty ? "" : colors[colorIndex]}
                             empty={isEmpty}
                             onClick={isActive && onSlotClick ? () => onSlotClick(i) : undefined}
+                            selected={isActive && selectedSlot === i}
                             size="md"
                         />
                     );
@@ -198,7 +199,7 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
     const [difficulty, setDifficulty] = useState<Difficulty>(() => loadDifficulty());
     const [gameState, setGameState] = useState<MastermindState | null>(null);
     const [currentInput, setCurrentInput] = useState<number[]>([]);
-    const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+    // selectedSlot is now derived from currentInput
     const [selectedColor, setSelectedColor] = useState<number | null>(null);
 
     // Confirmation State
@@ -209,14 +210,12 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
     // UI State
     const [leaderboardOpen, setLeaderboardOpen] = useState(false);
     const [statsOpen, setStatsOpen] = useState(false);
-    const [settingsOpen, setSettingsOpen] = useState(false);
     const [stats, setStats] = useState<Stats>(() => loadLocalStats(GAME_ID, difficulty));
     const [userId, setUserId] = useState<string | null>(null);
     const [sessionId, setSessionId] = useState<string | null>(null);
-    const { background: customBackground, setBackground: setCustomBackground, isLoading: backgroundLoading } = useGameBackground(GAME_ID);
 
     // Timer state
-    const [nowMs, setNowMs] = useState<number>(() => Date.now());
+    const timer = useGameTimer();
 
     // Derived
     const mode = (initialMode as MastermindModeId) || DIFFICULTY_TO_MODE[difficulty];
@@ -244,7 +243,13 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
             // Restore existing game with matching params
             setGameState(active);
             setCurrentInput(Array(params.codeLength).fill(-1));
-            setSelectedSlot(0);
+            setCurrentInput(Array(params.codeLength).fill(-1));
+
+            // Restore timer
+            timer.setStartedAt(active.startedAtMs);
+            if (active.endedAtMs) {
+                timer.setEndedAt(active.endedAtMs);
+            }
         } else {
             // Start new game (params changed or no valid saved game)
             const newSeed = mode === "daily"
@@ -253,9 +258,10 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
             const state = mastermindEngine.init(newSeed, params);
             setGameState(state);
             setCurrentInput(Array(params.codeLength).fill(-1));
-            setSelectedSlot(0);
             setSelectedColor(null);
             saveActiveGame(GAME_ID, state, userId);
+
+            timer.reset();
         }
         hasInitialized.current = true;
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -281,20 +287,6 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
         }
     }, [userId, difficulty]);
 
-    // Timer tick
-    useEffect(() => {
-        if (!gameState || mastermindEngine.isTerminal(gameState)) return;
-        const interval = setInterval(() => setNowMs(Date.now()), 1000);
-        return () => clearInterval(interval);
-    }, [gameState]);
-
-    // Timer text
-    const timerText = useMemo(() => {
-        if (!gameState) return "0:00";
-        const elapsed = Math.max(0, Math.floor((nowMs - gameState.startedAtMs) / 1000));
-        return formatDuration(elapsed);
-    }, [gameState, nowMs]);
-
     const initGame = useCallback(async () => {
         const newSeed = mode === "daily"
             ? generateDailySeed("mastermind", mode, new Date())
@@ -303,9 +295,9 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
         const state = mastermindEngine.init(newSeed, params);
         setGameState(state);
         setCurrentInput(Array(params.codeLength).fill(-1));
-        setSelectedSlot(0);
         setSelectedColor(null);
         saveActiveGame(GAME_ID, state, userId);
+        timer.reset();
 
         // Create session for logged-in users
         if (userId) {
@@ -317,10 +309,11 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
             });
             setSessionId(session?.id ?? null);
         }
-    }, [mode, params, userId, difficulty]);
+    }, [mode, params, userId, difficulty, timer]);
 
     const forfeitCurrentGame = useCallback(async () => {
         if (!gameState) return;
+        timer.stop();
         const durationSec = Math.max(0, (Date.now() - gameState.startedAtMs) / 1000);
         const newStats = applyGameResult(stats, { outcome: "lose", durationSec });
         setStats(newStats);
@@ -342,12 +335,11 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
         }
 
         saveActiveGame(GAME_ID, null, userId); // Clear active game
-    }, [gameState, stats, difficulty, userId, sessionId]);
+    }, [gameState, stats, difficulty, userId, sessionId, timer]);
 
     const applyDifficultyChange = useCallback((d: Difficulty) => {
         setDifficulty(d);
         saveDifficulty(d);
-        setSettingsOpen(false);
     }, []);
 
     const requestDifficultyChange = useCallback((d: Difficulty) => {
@@ -376,35 +368,37 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
     }, [isInProgress, initGame]);
 
     const handleColorSelect = useCallback((color: number) => {
-        setSelectedColor(color);
-        if (selectedSlot !== null) {
-            setCurrentInput(prev => {
-                const next = [...prev];
-                next[selectedSlot] = color;
-                return next;
-            });
-            setSelectedSlot(prev => {
-                if (prev === null) return null;
-                const next = prev + 1;
-                if (next >= params.codeLength) return null;
-                return next;
-            });
+        if (!timer.startedAtMs) {
+            timer.start();
         }
-    }, [selectedSlot, params.codeLength]);
+        setCurrentInput(prev => {
+            const firstEmptyIndex = prev.indexOf(-1);
+            if (firstEmptyIndex !== -1) {
+                const next = [...prev];
+                next[firstEmptyIndex] = color;
+                return next;
+            }
+            return prev; // Row is full
+        });
+    }, [timer]);
 
     const isGuessComplete = useMemo(() => {
         return currentInput.every(c => c !== -1);
     }, [currentInput]);
 
     const handleSlotClick = useCallback((index: number) => {
-        if (currentInput[index] !== -1) {
-            setCurrentInput(prev => {
-                const next = [...prev];
-                next[index] = -1;
-                return next;
-            });
-        }
-        setSelectedSlot(index);
+        // Always delete/clear the clicked slot
+        setCurrentInput(prev => {
+            const next = [...prev];
+            next[index] = -1;
+            return next;
+        });
+    }, []);
+
+    // Derived selectedSlot logic (first empty slot)
+    const selectedSlot = useMemo(() => {
+        const idx = currentInput.indexOf(-1);
+        return idx === -1 ? null : idx;
     }, [currentInput]);
 
     const renderModel = useMemo((): MastermindRenderModel | null => {
@@ -424,10 +418,10 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
         if (!result.invalidReason) {
             setGameState(result.state);
             setCurrentInput(Array(params.codeLength).fill(-1));
-            setSelectedSlot(0);
 
             // Check completion
             if (mastermindEngine.isTerminal(result.state)) {
+                timer.stop();
                 const isWin = result.state.status === "won";
                 const durationSec = (result.state.endedAtMs! - result.state.startedAtMs) / 1000;
 
@@ -457,11 +451,10 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
                 }
             }
         }
-    }, [gameState, currentInput, isGuessComplete, params.codeLength, stats, difficulty, userId, sessionId]);
+    }, [gameState, currentInput, isGuessComplete, params.codeLength, stats, difficulty, userId, sessionId, timer]);
 
     const handleClear = useCallback(() => {
         setCurrentInput(Array(params.codeLength).fill(-1));
-        setSelectedSlot(0);
     }, [params.codeLength]);
 
     if (!renderModel) {
@@ -482,15 +475,12 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
         <GameShell
             gameId={GAME_ID}
             gameName="Mastermind"
-            isLoading={backgroundLoading}
             onNewGame={requestReset}
             onOpenLeaderboard={() => setLeaderboardOpen(true)}
-            onOpenSettings={() => setSettingsOpen(true)}
             onOpenStats={() => setStatsOpen(true)}
             difficulty={difficulty}
             onDifficultyChange={requestDifficultyChange}
-            timerText={timerText}
-            customBackground={customBackground}
+            timerText={timer.timerText}
             actionsSlot={
                 isInProgress ? (
                     <button
@@ -570,6 +560,7 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
                             isActive
                             currentInput={currentInput}
                             onSlotClick={handleSlotClick}
+                            selectedSlot={selectedSlot}
                         />
                     )}
                 </div>
@@ -643,16 +634,6 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
                 open={leaderboardOpen}
                 onClose={() => setLeaderboardOpen(false)}
                 gameId={GAME_ID}
-            />
-
-            <Settings
-                open={settingsOpen}
-                onClose={() => setSettingsOpen(false)}
-                gameId={GAME_ID}
-                currentBackground={customBackground}
-                difficulty={difficulty}
-                onDifficultyChange={requestDifficultyChange}
-                onBackgroundChange={(bg) => setCustomBackground(bg)}
             />
 
             <Modal open={confirmResetOpen} title="Reset game?" onClose={() => setConfirmResetOpen(false)} footer={

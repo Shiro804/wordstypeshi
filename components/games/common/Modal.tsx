@@ -8,9 +8,10 @@ type Props = {
   children: ReactNode;
   onClose: () => void;
   footer?: ReactNode;
+  transparent?: boolean;
 };
 
-export default function Modal({ open, title, children, onClose, footer }: Props) {
+export default function Modal({ open, title, children, onClose, footer, transparent }: Props) {
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -25,12 +26,12 @@ export default function Modal({ open, title, children, onClose, footer }: Props)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overscroll-contain">
       <button
-        className="absolute inset-0 bg-[color:var(--modal-overlay)] backdrop-blur-sm"
+        className={`absolute inset-0 bg-[color:var(--modal-overlay)] backdrop-blur-sm transition-opacity duration-300 ${transparent ? "opacity-0" : ""}`}
         aria-label="Close modal"
         onClick={onClose}
       />
 
-      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-[color:var(--border)] bg-[color:var(--modal-bg)] shadow-2xl">
+      <div className={`relative w-full max-w-lg overflow-hidden rounded-2xl border border-[color:var(--border)] bg-[color:var(--modal-bg)] shadow-2xl transition-all duration-300 ${transparent ? "opacity-0 translate-y-4 scale-95" : "opacity-100"}`}>
         {/* mobile: keep modal within viewport */}
         <div className="flex items-center justify-between gap-4 border-b border-[color:var(--border)] px-5 py-4">
           <div className="text-base font-semibold text-[color:var(--fg)]">{title}</div>

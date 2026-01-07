@@ -12,8 +12,8 @@ import { LogoutButton } from "@/components/auth/logout-button";
 import { createClient } from "@/lib/supabase/client";
 import { getMyProfile, upsertMyProfile } from "@/lib/auth/profile";
 import { deleteMyAvatarObject, getAvatarPublicUrl, uploadMyAvatar } from "@/lib/auth/avatar";
-import { getCustomBackground, setCustomBackground, clearCustomBackground } from "@/lib/storage/background-storage";
-
+import BackgroundCustomizer from "@/components/games/common/BackgroundCustomizer";
+import type { GamePreferences } from "@/lib/storage/preferences-storage";
 import type { Difficulty } from "@/lib/difficulty";
 
 type Props = {
@@ -21,13 +21,14 @@ type Props = {
   onClose: () => void;
   // Optional: game context
   gameId?: string;
-  // Optional: current background (to avoid re-fetching)
-  currentBackground?: string | null;
+
+  // Preferences
+  preferences: GamePreferences;
+  onPreferencesChange: (prefs: GamePreferences) => void;
+
   // Optional: difficulty (only for games that have it)
   difficulty?: Difficulty;
   onDifficultyChange?: (d: Difficulty) => void;
-  // Optional: background change callback
-  onBackgroundChange?: (bg: string | null) => void;
 };
 
 const difficultyColors: Record<Difficulty, string> = {
@@ -36,7 +37,15 @@ const difficultyColors: Record<Difficulty, string> = {
   hard: "bg-rose-500/15 text-rose-300 border-rose-500/30",
 };
 
-export default function Settings({ open, onClose, gameId, currentBackground, difficulty, onDifficultyChange, onBackgroundChange }: Props) {
+export default function Settings({
+  open,
+  onClose,
+  gameId,
+  preferences,
+  onPreferencesChange,
+  difficulty,
+  onDifficultyChange
+}: Props) {
   const [authEmail, setAuthEmail] = useState<string>("");
   const [username, setUsername] = useState("");
   const [avatarPath, setAvatarPath] = useState<string | null>(null);
@@ -47,16 +56,11 @@ export default function Settings({ open, onClose, gameId, currentBackground, dif
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Background state
-  const [bgPreview, setBgPreview] = useState<string | null>(null);
-  const [bgUploading, setBgUploading] = useState(false);
-
   useEffect(() => {
     if (!open) return;
     setError(null);
     setSaving(false);
     setAvatarUploading(false);
-    setBgUploading(false);
 
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => setAuthEmail(data.user?.email ?? ""));
@@ -69,10 +73,7 @@ export default function Settings({ open, onClose, gameId, currentBackground, dif
       setAvatarPath(ap);
       setAvatarPreviewUrl(getAvatarPublicUrl(ap));
     });
-
-    // Load current background
-    setBgPreview(currentBackground ?? getCustomBackground(gameId));
-  }, [open, currentBackground, gameId]);
+  }, [open]);
 
   const canSave = useMemo(() => {
     const u = username.trim();
@@ -80,11 +81,14 @@ export default function Settings({ open, onClose, gameId, currentBackground, dif
     return usernameOk && !avatarUploading;
   }, [username, avatarUploading]);
 
+  const [isTransparent, setIsTransparent] = useState(false);
+
   return (
     <Modal
       open={open}
       onClose={onClose}
       title="Settings"
+      transparent={isTransparent}
       footer={
         <div className="flex items-center justify-between gap-2">
           <LogoutButton />
@@ -277,7 +281,6 @@ export default function Settings({ open, onClose, gameId, currentBackground, dif
             </div>
 
             <hr className="border-[color:var(--border)]" />
-
             <hr className="border-[color:var(--border)]" />
           </>
         )}
@@ -285,108 +288,12 @@ export default function Settings({ open, onClose, gameId, currentBackground, dif
         {/* ═══ APPEARANCE SECTION ═══ */}
         <div>
           <div className="text-xs uppercase tracking-widest text-[color:var(--muted)] font-bold mb-3">🎨 Appearance</div>
-
-          <div className="text-xs uppercase tracking-wide text-[color:var(--muted)]">Background image</div>
-          <div className="mt-2 flex items-start gap-3">
-            <div className="h-16 w-24 overflow-hidden rounded-lg border border-[color:var(--border)] bg-[color:var(--surface2)]">
-              {bgPreview ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={bgPreview}
-                  alt="Background"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="h-full w-full flex items-center justify-center text-xs text-[color:var(--muted)]">
-                  Default
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <label
-                className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)] ${bgUploading ? "opacity-60 pointer-events-none" : ""}`}
-              >
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = "";
-                    if (!file) return;
-
-                    setError(null);
-                    setBgUploading(true);
-                    try {
-                      let dataUrl: string;
-                      if (authEmail) {
-                        // Authenticated -> Remote Storage
-                        const { uploadRemoteBackground } = await import("@/lib/remote-backgrounds");
-                        // Use gameId or fallback to 'global' if none provided (though code expects per-game now)
-                        const targetId = gameId || "global";
-                        dataUrl = await uploadRemoteBackground(file, targetId);
-                      } else {
-                        // Guest -> Local Storage
-                        dataUrl = await setCustomBackground(file, gameId);
-                      }
-
-                      setBgPreview(dataUrl);
-                      onBackgroundChange?.(dataUrl);
-                    } catch (err: unknown) {
-                      // Parse error for better user messages
-                      let msg = "Failed to upload image";
-                      if (err instanceof Error) {
-                        const errMsg = err.message.toLowerCase();
-                        if (errMsg.includes("bucket") && errMsg.includes("not found")) {
-                          msg = "Storage not configured. Contact admin.";
-                        } else if (errMsg.includes("too large") || errMsg.includes("size")) {
-                          msg = "Image too large. Max 5MB.";
-                        } else if (errMsg.includes("mime") || errMsg.includes("type")) {
-                          msg = "Invalid file type. Use JPG or PNG.";
-                        } else if (errMsg.includes("row-level security") || errMsg.includes("policy")) {
-                          msg = "Permission denied. Storage policy error.";
-                        } else {
-                          msg = err.message;
-                        }
-                      }
-                      setError(msg);
-                    } finally {
-                      setBgUploading(false);
-                    }
-                  }}
-                />
-                <span>{bgUploading ? "Uploading..." : "Upload"}</span>
-              </label>
-
-              <button
-                type="button"
-                disabled={!bgPreview}
-                className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-medium text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)] disabled:opacity-50"
-                onClick={async () => {
-                  try {
-                    if (authEmail) {
-                      const { clearRemoteBackground } = await import("@/lib/remote-backgrounds");
-                      await clearRemoteBackground(gameId || "global");
-                    } else {
-                      clearCustomBackground(gameId);
-                    }
-                  } catch {
-                    // Ignore errors - still clear preview
-                  }
-
-                  setBgPreview(null);
-                  onBackgroundChange?.(null);
-                }}
-              >
-                Reset to default
-              </button>
-
-              <div className="text-xs text-[color:var(--muted)]">
-                {authEmail ? "Saved to your account." : "Saved locally (guest)."} Max 5MB.
-              </div>
-            </div>
-          </div>
+          <BackgroundCustomizer
+            preferences={preferences}
+            onChange={onPreferencesChange}
+            onInteractionStart={() => setIsTransparent(true)}
+            onInteractionEnd={() => setIsTransparent(false)}
+          />
         </div>
 
         {error ? <div className="text-sm text-rose-300">{error}</div> : null}

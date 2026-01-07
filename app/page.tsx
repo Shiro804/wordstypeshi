@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Palette, Type, Bird, Search } from "lucide-react";
+import DuckBackground from "@/components/shared/DuckBackground";
 
 export const dynamic = "force-dynamic";
 
@@ -45,9 +46,11 @@ export default async function Page() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-900 text-white">
+    <div className="min-h-screen text-white relative">
+      <DuckBackground title="BataGames" bgColor="#09090b" />
+
       {/* Header */}
-      <header className="p-6 border-b border-zinc-800">
+      <header className="p-6 border-b border-zinc-800 relative z-10">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Bird className="w-8 h-8 text-emerald-400" />
@@ -57,7 +60,7 @@ export default async function Page() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto p-6">
+      <main className="max-w-4xl mx-auto p-6 relative z-10">
         <div className="mb-8">
           <h2 className="text-xl text-zinc-400 mb-2">Choose a game</h2>
           <p className="text-zinc-500">
