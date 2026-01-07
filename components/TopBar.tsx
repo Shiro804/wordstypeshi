@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock3 } from "lucide-react";
+import { Clock3, HelpCircle } from "lucide-react";
 import Link from "next/link";
 import {
   DropdownMenu,
@@ -19,6 +19,7 @@ type Props = {
   onOpenLeaderboard: () => void;
   onOpenWordHistory: () => void;
   onOpenSettings: () => void;
+  onOpenHowToPlay: () => void;
   difficulty: Difficulty;
   onDifficultyChange: (d: Difficulty) => void;
   // Timer
@@ -109,6 +110,7 @@ export default function TopBar({
   onOpenLeaderboard,
   onOpenWordHistory,
   onOpenSettings,
+  onOpenHowToPlay,
   difficulty,
   onDifficultyChange,
   timerText,
@@ -205,6 +207,11 @@ export default function TopBar({
             <DropdownMenuItem onClick={onOpenWordHistory} className="flex items-center gap-2">
               <span className="text-lg">📚</span>
               <span>Worthistorie</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onOpenHowToPlay} className="flex items-center gap-2">
+              <HelpCircle size={18} />
+              <span>How to Play</span>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onOpenSettings} className="flex items-center gap-2">
               <GearIcon />

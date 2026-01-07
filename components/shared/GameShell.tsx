@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { RotateCcw, Settings as SettingsIcon, BarChart3, Trophy, Menu } from "lucide-react";
+import { RotateCcw, Settings as SettingsIcon, BarChart3, Trophy, Menu, HelpCircle } from "lucide-react";
+import HowToPlay from "@/components/HowToPlay";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -109,11 +110,13 @@ function GameMenu({
     onOpenStats,
     onOpenLeaderboard,
     onOpenSettings,
+    onOpenHowToPlay,
 }: {
     onNewGame: () => void;
     onOpenStats?: () => void;
     onOpenLeaderboard?: () => void;
     onOpenSettings: () => void;
+    onOpenHowToPlay: () => void;
 }) {
     return (
         <DropdownMenu>
@@ -149,6 +152,11 @@ function GameMenu({
                 )}
 
                 <DropdownMenuSeparator />
+
+                <DropdownMenuItem onClick={onOpenHowToPlay} className="flex items-center gap-2">
+                    <HelpCircle size={14} />
+                    How to Play
+                </DropdownMenuItem>
 
                 <DropdownMenuItem onClick={onOpenSettings} className="flex items-center gap-2">
                     <SettingsIcon size={14} />
@@ -194,6 +202,7 @@ export default function GameShell({
     children,
 }: GameShellProps & { customBackground?: string | null }) {
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [howToPlayOpen, setHowToPlayOpen] = useState(false);
     const [internalBackground, setInternalBackground] = useState<string | null>(null);
     const [isMounted, setIsMounted] = useState(false);
 
@@ -317,6 +326,7 @@ export default function GameShell({
                         onOpenStats={onOpenStats}
                         onOpenLeaderboard={onOpenLeaderboard}
                         onOpenSettings={onOpenSettings ?? (() => setSettingsOpen(true))}
+                        onOpenHowToPlay={() => setHowToPlayOpen(true)}
                     />
                 </div>
             </header>
@@ -337,6 +347,13 @@ export default function GameShell({
                     onBackgroundChange={handleBackgroundChange}
                 />
             )}
+
+            {/* How to Play Modal (shared across all games) */}
+            <HowToPlay
+                gameId={gameId as "wordle" | "mastermind" | "wordsearch"}
+                isOpen={howToPlayOpen}
+                onClose={() => setHowToPlayOpen(false)}
+            />
         </div>
     );
 }

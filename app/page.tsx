@@ -74,7 +74,7 @@ export default async function Page() {
                 key={game.id}
                 href={game.href}
                 className={`
-                  group relative overflow-hidden rounded-2xl p-6
+                  group relative overflow-hidden rounded-2xl p-4
                   bg-gradient-to-br ${game.color}
                   hover:scale-[1.02] transition-all duration-300
                   shadow-lg hover:shadow-2xl
