@@ -28,7 +28,7 @@ export default function Modal({ open, title, children, onClose, footer, transpar
       <button
         className={`absolute inset-0 bg-[color:var(--modal-overlay)] backdrop-blur-sm transition-opacity duration-300 ${transparent ? "opacity-0" : ""}`}
         aria-label="Close modal"
-        onClick={() => !transparent && onClose()}
+        onClick={onClose}
       />
 
       <div className={`relative w-full max-w-lg overflow-hidden rounded-2xl border border-[color:var(--border)] bg-[color:var(--modal-bg)] shadow-2xl transition-all duration-300 ${transparent ? "opacity-0 translate-y-4 scale-95" : "opacity-100"}`}>

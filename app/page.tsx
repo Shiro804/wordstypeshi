@@ -50,7 +50,7 @@ export default async function Page() {
       <DuckBackground title="BataGames" bgColor="#09090b" />
 
       {/* Header */}
-      <header className="p-6 border-b border-zinc-800 relative z-10">
+      <header className="p-6 pt-6 safe-top border-b border-zinc-800 relative z-10">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Bird className="w-8 h-8 text-emerald-400" />

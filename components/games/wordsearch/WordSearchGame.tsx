@@ -8,6 +8,7 @@ import StatsModal from "@/components/shared/StatsModal";
 import {
     wordSearchEngine,
     getModeParams,
+    BASE_WORDS,
     type WordSearchState,
     type SelectPathAction,
 } from "@/lib/games/wordsearch/engine";
@@ -16,6 +17,7 @@ import type { Difficulty } from "@/lib/difficulty";
 import { useGameTimer } from "@/lib/hooks/useGameTimer";
 import { useGameStats } from "@/lib/hooks/useGameStats";
 import { createOrReuseActiveSession, endSession } from "@/lib/sync/sessions-sync";
+import { fetchPlayedWords, trackPlayedWord } from "@/lib/sync/played-words";
 import Modal from "@/components/games/common/Modal";
 import { loadDifficulty, saveDifficulty } from "@/lib/storage/settings-storage";
 
@@ -59,7 +61,7 @@ function Cell({ letter, row, col, isSelected, isFound, onMouseDown, onMouseEnter
         text-sm sm:text-base font-bold uppercase
         rounded-md transition-all select-none cursor-pointer touch-none
         ${isFound
-                    ? 'bg-emerald-500/30 text-emerald-300 border-2 border-emerald-500/60'
+                    ? 'bg-emerald-500/30 text-emerald-300 border-2 border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]'
                     : isSelected
                         ? 'bg-blue-500/40 text-blue-200 scale-105 border-2 border-blue-500/60'
                         : 'bg-[color:var(--surface)] text-[color:var(--fg)] hover:bg-[color:var(--surface2)] border border-transparent'
@@ -127,6 +129,7 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
     const [confirmDifficultyOpen, setConfirmDifficultyOpen] = useState(false);
     const [pendingDifficulty, setPendingDifficulty] = useState<Difficulty | null>(null);
     const [sessionId, setSessionId] = useState<string | null>(null);
+    const [playedWords, setPlayedWords] = useState<Set<string>>(new Set());
 
     // Use shared hooks
     const timer = useGameTimer({ pauseOnHidden: true });
@@ -138,10 +141,28 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
     // Get params for current difficulty
     const params = useMemo(() => getModeParams(difficulty), [difficulty]);
 
+    // Fetch played words when userId or difficulty changes
+    useEffect(() => {
+        if (!userId) return;
+        fetchPlayedWords(userId, difficulty, GAME_ID).then(setPlayedWords);
+    }, [userId, difficulty]);
+
     // Initialize game
     const initGame = useCallback(async () => {
         const seed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        const state = wordSearchEngine.init(seed, params);
+
+        // Filter out already played words from dictionary
+        const sourceDictionary = params.dictionary ?? BASE_WORDS;
+        const availableWords = sourceDictionary.filter(w => !playedWords.has(w.toUpperCase()));
+
+        // If all words are exhausted, reset (should rarely happen with 80+ words)
+        const finalDictionary = availableWords.length >= params.wordCount
+            ? availableWords
+            : sourceDictionary;
+
+        const paramsWithFilteredDict = { ...params, dictionary: finalDictionary };
+
+        const state = wordSearchEngine.init(seed, paramsWithFilteredDict);
         setGameState(state);
         setFoundCells(new Set());
         setSelectionStart(null);
@@ -154,13 +175,14 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
         if (userId) {
             const session = await createOrReuseActiveSession({
                 userId,
+                gameId: GAME_ID,
                 difficulty,
                 answer: state.words.map(w => w.text).join(","), // Serialize words as comma-separated
                 startedAtMs: state.startedAtMs,
             });
             setSessionId(session?.id ?? null);
         }
-    }, [params, timer, userId, difficulty]);
+    }, [params, timer, userId, difficulty, playedWords]);
 
     // Initialize on mount or difficulty change
     useEffect(() => {
@@ -208,7 +230,20 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
             });
             setSessionId(null);
         }
-    }, [renderModel?.isTerminal, renderModel?.status, gameCompletedTracked, timer, recordGameResult, gameState?.foundCount, sessionId]);
+
+        // Track all words from this game as played
+        if (userId && gameState) {
+            gameState.words.forEach(word => {
+                void trackPlayedWord(userId, difficulty, word.text, GAME_ID);
+            });
+            // Update local state to include new words
+            setPlayedWords(prev => {
+                const next = new Set(prev);
+                gameState.words.forEach(w => next.add(w.text.toUpperCase()));
+                return next;
+            });
+        }
+    }, [renderModel?.isTerminal, renderModel?.status, gameCompletedTracked, timer, recordGameResult, gameState?.foundCount, sessionId, userId, difficulty, gameState]);
 
     // Get selected cells
     const selectedCells = useMemo(() => {

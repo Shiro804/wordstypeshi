@@ -713,6 +713,19 @@ export default function WordleGame() {
                     <Grid rows={viewRows} activeRowIndex={activeRowIndex} shakeRowNonce={shakeNonce} onDeleteChar={onDeleteChar} />
                 </div>
 
+                {/* New Game Button - shown after win or lose */}
+                {gameOver.done && (
+                    <div className="flex justify-center py-3 shrink-0">
+                        <button
+                            type="button"
+                            onClick={newGame}
+                            className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition text-white shadow-lg"
+                        >
+                            New Game
+                        </button>
+                    </div>
+                )}
+
                 {/* Word definition - centered */}
                 {gameOver.done && committedCount > 0 && (
                     <div className="pt-2 pb-4 text-center max-w-md mx-auto px-4 shrink-0">

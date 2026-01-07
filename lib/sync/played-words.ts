@@ -2,17 +2,19 @@ import { createClient } from "@/lib/supabase/client";
 import type { Difficulty } from "@/lib/difficulty";
 
 /**
- * Fetch all words the user has already played in a specific difficulty
+ * Fetch all words the user has already played in a specific game and difficulty
  */
 export async function fetchPlayedWords(
   userId: string,
-  difficulty: Difficulty
+  difficulty: Difficulty,
+  gameId: string = "wordle"
 ): Promise<Set<string>> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("played_words")
     .select("word")
     .eq("user_id", userId)
+    .eq("game_id", gameId)
     .eq("difficulty", difficulty);
 
   if (error) {
@@ -30,12 +32,14 @@ export async function fetchPlayedWords(
 export async function trackPlayedWord(
   userId: string,
   difficulty: Difficulty,
-  word: string
+  word: string,
+  gameId: string = "wordle"
 ): Promise<boolean> {
   const supabase = createClient();
 
   const { error } = await supabase.from("played_words").insert({
     user_id: userId,
+    game_id: gameId,
     difficulty,
     word: word.toUpperCase(),
   });

@@ -16,6 +16,7 @@ import { loadDifficulty, saveDifficulty } from "@/lib/storage/settings-storage";
 import type { Difficulty } from "@/lib/difficulty";
 import { getCurrentUserId, upsertRemoteGameStats, syncGameStats, loadLocalStats, saveLocalStats } from "@/lib/sync/game-stats-sync";
 import { createOrReuseActiveSession, endSession } from "@/lib/sync/sessions-sync";
+import { trackGuess } from "@/lib/sync/game-guesses-sync";
 import Leaderboard from "@/components/games/common/Leaderboard";
 import StatsModal from "@/components/shared/StatsModal";
 import { type Stats, applyGameResult, formatDuration } from "@/lib/storage/storage";
@@ -303,6 +304,7 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
         if (userId) {
             const session = await createOrReuseActiveSession({
                 userId,
+                gameId: GAME_ID,
                 difficulty,
                 answer: state.secret.join(","), // Serialize code as comma-separated
                 startedAtMs: state.startedAtMs,
@@ -368,9 +370,6 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
     }, [isInProgress, initGame]);
 
     const handleColorSelect = useCallback((color: number) => {
-        if (!timer.startedAtMs) {
-            timer.start();
-        }
         setCurrentInput(prev => {
             const firstEmptyIndex = prev.indexOf(-1);
             if (firstEmptyIndex !== -1) {
@@ -380,7 +379,7 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
             }
             return prev; // Row is full
         });
-    }, [timer]);
+    }, []);
 
     const isGuessComplete = useMemo(() => {
         return currentInput.every(c => c !== -1);
@@ -416,8 +415,24 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
 
         const result = mastermindEngine.applyAction(gameState, action);
         if (!result.invalidReason) {
+            // Start timer on first guess
+            if (!timer.startedAtMs) {
+                timer.start();
+            }
+
             setGameState(result.state);
             setCurrentInput(Array(params.codeLength).fill(-1));
+
+            // Track guess in database
+            if (sessionId) {
+                const lastAttempt = result.state.attempts[result.state.attempts.length - 1];
+                void trackGuess({
+                    sessionId,
+                    guessNumber: result.state.attempts.length,
+                    guessData: { colors: lastAttempt.guess },
+                    feedback: lastAttempt.feedback,
+                });
+            }
 
             // Check completion
             if (mastermindEngine.isTerminal(result.state)) {

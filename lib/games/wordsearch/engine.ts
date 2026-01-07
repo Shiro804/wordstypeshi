@@ -79,8 +79,8 @@ export type WordSearchAction = SelectPathAction | HintAction;
 // Word List (Reusing from Wordle)
 // ============================================================================
 
-// Base word lists - will be imported from shared location
-const BASE_WORDS = [
+// Base word lists - exported for use in game component
+export const BASE_WORDS = [
   'APPLE', 'BRAIN', 'CRANE', 'DRIVE', 'EAGLE', 'FLAME', 'GRAPE', 'HOUSE',
   'IMAGE', 'JUICE', 'KNIFE', 'LEMON', 'MANGO', 'NOBLE', 'OCEAN', 'PIANO',
   'QUEEN', 'RIVER', 'STORM', 'TIGER', 'UNCLE', 'VIOLA', 'WHALE', 'XENON',

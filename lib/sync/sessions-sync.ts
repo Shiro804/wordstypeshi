@@ -6,6 +6,7 @@ export type SessionOutcome = "win" | "lose" | "forfeit";
 export type GameSessionRow = {
   id: string;
   user_id: string;
+  game_id: string;
   difficulty: Difficulty;
   answer: string;
   status: "active" | "ended";
@@ -18,12 +19,16 @@ export type GameSessionRow = {
   updated_at: string;
 };
 
-export async function fetchActiveSession(userId: string): Promise<GameSessionRow | null> {
+export async function fetchActiveSession(
+  userId: string,
+  gameId: string = "wordle"
+): Promise<GameSessionRow | null> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("game_sessions")
     .select("*")
     .eq("user_id", userId)
+    .eq("game_id", gameId)
     .eq("status", "active")
     .maybeSingle();
 
@@ -33,17 +38,20 @@ export async function fetchActiveSession(userId: string): Promise<GameSessionRow
 
 export async function createOrReuseActiveSession(params: {
   userId: string;
+  gameId?: string;
   difficulty: Difficulty;
   answer: string;
   startedAtMs: number;
 }): Promise<GameSessionRow | null> {
   const supabase = createClient();
+  const gameId = params.gameId ?? "wordle";
 
   // Try to reuse an existing active session for this user (prevents reload cheating).
   const existing = await supabase
     .from("game_sessions")
     .select("*")
     .eq("user_id", params.userId)
+    .eq("game_id", gameId)
     .eq("status", "active")
     .maybeSingle();
 
@@ -55,6 +63,7 @@ export async function createOrReuseActiveSession(params: {
     .from("game_sessions")
     .insert({
       user_id: params.userId,
+      game_id: gameId,
       difficulty: params.difficulty,
       answer: params.answer,
       status: "active",
