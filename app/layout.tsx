@@ -11,9 +11,9 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "BatasWordle",
+  title: "BataGames",
   description: "Clean, ad-free word puzzle.",
-  applicationName: "BatasWordle",
+  applicationName: "BataGames",
   manifest: "/manifest.webmanifest",
 };
 
@@ -31,9 +31,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* iOS home screen (Safari → Add to Home Screen) */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="BatasWordle" />
+        <meta name="apple-mobile-web-app-title" content="BataGames" />
         <link rel="apple-touch-icon" href="/favicon.ico" />
         <meta name="mobile-web-app-capable" content="yes" />
+
+        {/* Prefetch background HTML files to eliminate loading flash */}
+        <link rel="prefetch" href="/BatasWordle.html" />
+        <link rel="prefetch" href="/BatasMastermind.html" />
+        <link rel="prefetch" href="/BatasSearch.html" />
+        <link rel="prefetch" href="/BataGames.html" />
       </head>
       <body className="min-h-dvh bg-[color:var(--bg)] text-[color:var(--fg)]">
         {children}

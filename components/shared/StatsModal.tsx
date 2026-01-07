@@ -1,8 +1,8 @@
 "use client";
 
-import Modal from "@/components/Modal";
-import type { Stats } from "@/lib/storage";
-import { formatDuration } from "@/lib/storage";
+import Modal from "@/components/games/common/Modal";
+import type { Stats } from "@/lib/storage/storage";
+import { formatDuration } from "@/lib/storage/storage";
 
 function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
     return (

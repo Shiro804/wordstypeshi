@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Modal from "@/components/Modal";
+import Modal from "@/components/games/common/Modal";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,9 +9,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
-import type { Stats } from "@/lib/storage";
+import type { Stats } from "@/lib/storage/storage";
 import type { Difficulty } from "@/lib/difficulty";
-import { getAvatarPublicUrl } from "@/lib/avatar";
+import { getAvatarPublicUrl } from "@/lib/auth/avatar";
 
 export type LeaderboardMetric =
   | "wins"

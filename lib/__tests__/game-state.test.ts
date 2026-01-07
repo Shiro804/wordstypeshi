@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import type { PersistedGameState } from '../game-state';
+import type { PersistedGameState } from '@/lib/storage/game-state';
 
 // Create a proper localStorage mock
 function createLocalStorageMock() {
@@ -22,7 +22,7 @@ vi.stubGlobal('window', {
 });
 
 // Dynamic import after mocking
-const gameStateModule = await import('../game-state');
+const gameStateModule = await import('@/lib/storage/game-state');
 const { loadGameState, saveGameState } = gameStateModule;
 
 describe('game-state', () => {

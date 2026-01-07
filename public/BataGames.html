@@ -3,16 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>BatasSearch Background</title>
+  <title>BataGames Background</title>
   <style>
     :root{
-      /* You can tweak these later */
-      --bg: #7d8c98;           /* single background color */
-      --duck: #FFD86B;         /* main duck */
-      --duck-belly: #FFF3C9;   /* belly */
-      --beak: #FF8B4A;         /* beak */
-      --eye: #1E2430;          /* eye */
-      --text: #1E2430;         /* text color */
+      --bg: #7d8c98;
+      --duck: #FFD86B;
+      --duck-belly: #FFF3C9;
+      --beak: #FF8B4A;
+      --eye: #1E2430;
+      --text: #1E2430;
     }
 
     html, body {
@@ -22,13 +21,12 @@
       overflow: hidden;
     }
 
-    /* Fixed, full-screen background layer */
     .bg {
       position: fixed;
       inset: 0;
       display: grid;
       place-items: center;
-      pointer-events: none; /* so your game UI remains clickable */
+      pointer-events: none;
     }
 
     .logo {
@@ -54,18 +52,15 @@
       color: var(--text);
       line-height: 1;
       text-align: center;
-      /* soft “cute” depth without adding extra objects */
       text-shadow: 0 6px 0 rgba(0,0,0,0.06);
       user-select: none;
     }
 
-    /* ---- Animations (very subtle + cute) ---- */
     .duck {
       transform-origin: center;
       animation: bob 2.7s ease-in-out infinite;
     }
 
-    /* SVG transform-origin helpers */
     .wing, .eyeL, .eyeR, .spark {
       transform-box: fill-box;
       transform-origin: center;
@@ -80,7 +75,6 @@
       animation: blink 4.6s infinite;
     }
 
-    /* occasional tiny “sparkle” bounce (still part of the mascot) */
     .spark {
       transform-origin: center;
       animation: pop 3.8s ease-in-out infinite;
@@ -111,7 +105,6 @@
       50%      { transform: translateY(-4px) scale(1.03); }
     }
 
-    /* Respect accessibility */
     @media (prefers-reduced-motion: reduce) {
       .duck, .wing, .eyeL, .eyeR, .spark { animation: none !important; }
     }
@@ -121,34 +114,26 @@
 <body>
   <div class="bg" aria-hidden="true">
     <div class="logo">
-      <!-- Text -->
-      <div class="title">BataSearch</div>
+      <div class="title">BataGames</div>
 
-      <!-- Duck mascot (inline SVG so it animates everywhere) -->
       <svg class="duckWrap" viewBox="0 0 320 320" role="img" aria-label="Cute duck mascot">
         <g class="duck">
-          <!-- tiny sparkle (still part of mascot) -->
           <g class="spark">
             <path d="M252 62c6 10 6 22 0 32c-10 6-22 6-32 0c-6-10-6-22 0-32c10-6 22-6 32 0z"
                   fill="rgba(255,255,255,0.75)"/>
           </g>
 
-          <!-- body -->
           <ellipse cx="160" cy="192" rx="118" ry="88" fill="var(--duck)"/>
-          <!-- belly -->
           <ellipse cx="160" cy="210" rx="68" ry="52" fill="var(--duck-belly)"/>
 
-          <!-- head -->
           <circle cx="160" cy="120" r="72" fill="var(--duck)"/>
 
-          <!-- wing (animated) -->
           <g class="wing">
             <ellipse cx="86" cy="198" rx="44" ry="34" fill="rgba(0,0,0,0.06)"/>
             <ellipse cx="92" cy="190" rx="48" ry="36" fill="var(--duck)"/>
             <ellipse cx="105" cy="194" rx="28" ry="22" fill="var(--duck-belly)"/>
           </g>
 
-          <!-- beak -->
           <path d="M160 140
                    c26 0 44 10 44 24
                    c0 14-18 24-44 24
@@ -156,11 +141,9 @@
                    c0-14 18-24 44-24z"
                 fill="var(--beak)"/>
 
-          <!-- cheeks -->
           <circle cx="120" cy="158" r="10" fill="rgba(255,120,150,0.18)"/>
           <circle cx="200" cy="158" r="10" fill="rgba(255,120,150,0.18)"/>
 
-          <!-- eyes -->
           <g class="eyeL">
             <circle cx="136" cy="118" r="10" fill="var(--eye)"/>
             <circle cx="132" cy="114" r="3.2" fill="rgba(255,255,255,0.9)"/>
@@ -174,7 +157,5 @@
       </svg>
     </div>
   </div>
-
-  <!-- Your game UI would go here (above the background) -->
 </body>
 </html>

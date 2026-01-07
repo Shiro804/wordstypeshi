@@ -269,3 +269,54 @@ button {
     font-size: 0.9rem !important;
   }
 }
+
+/* Duck Background Animations */
+@keyframes duck-bob {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-10px) rotate(1deg); }
+}
+
+@keyframes duck-flap {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  50% { transform: rotate(-12deg) translateY(-2px); }
+}
+
+@keyframes duck-blink {
+  0%, 6%, 100% { transform: scaleY(1); }
+  2% { transform: scaleY(0.12); }
+  4% { transform: scaleY(1); }
+  70% { transform: scaleY(1); }
+  72% { transform: scaleY(0.12); }
+  74% { transform: scaleY(1); }
+}
+
+@keyframes duck-pop {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-4px) scale(1.03); }
+}
+
+.animate-duck-bob {
+  animation: duck-bob 2.7s ease-in-out infinite;
+}
+
+.animate-duck-flap {
+  animation: duck-flap 1.35s ease-in-out infinite;
+}
+
+.animate-duck-blink {
+  animation: duck-blink 4.6s infinite;
+}
+
+.animate-duck-pop {
+  animation: duck-pop 3.8s ease-in-out infinite;
+  opacity: 0.9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-duck-bob,
+  .animate-duck-flap,
+  .animate-duck-blink,
+  .animate-duck-pop {
+    animation: none !important;
+  }
+}

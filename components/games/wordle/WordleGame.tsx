@@ -6,27 +6,27 @@ import { RotateCcw, Skull, CheckCircle2, Book } from "lucide-react";
 import { marksToEmoji, pickRandom, scoreGuess } from "@/lib/game";
 import { loadWordLists } from "@/lib/words";
 import type { Difficulty } from "@/lib/difficulty";
-import { loadDifficulty, saveDifficulty } from "@/lib/settings-storage";
-import { loadGameState, saveGameState } from "@/lib/game-state";
-import Grid, { type GridRow } from "@/components/Grid";
-import Keyboard from "@/components/Keyboard";
-import Modal from "@/components/Modal";
-import Settings from "@/components/Settings";
-import Leaderboard from "@/components/Leaderboard";
-import WordHistory from "@/components/WordHistory";
+import { loadDifficulty, saveDifficulty } from "@/lib/storage/settings-storage";
+import { loadGameState, saveGameState } from "@/lib/storage/game-state";
+import Grid, { type GridRow } from "@/components/games/common/Grid";
+import Keyboard from "@/components/games/common/Keyboard";
+import Modal from "@/components/games/common/Modal";
+import Settings from "@/components/games/common/Settings";
+import Leaderboard from "@/components/games/common/Leaderboard";
+import WordHistory from "@/components/games/common/WordHistory";
 import { applyTheme } from "@/lib/theme";
-import Hint, { type HintResult } from "@/components/Hint";
+import Hint, { type HintResult } from "@/components/games/common/Hint";
 import {
     applyGameResult,
     formatDuration,
     loadStats,
     saveStats,
     type Stats,
-} from "@/lib/storage";
-import { fetchRemoteStats, getCurrentUserId, upsertRemoteStats, syncStats } from "@/lib/stats-sync";
-import { createOrReuseActiveSession, endSession, fetchActiveSession, updateSessionAnswer } from "@/lib/sessions-sync";
-import { fetchPlayedWords, trackPlayedWord } from "@/lib/played-words";
-import { consumeHint, getHintNoRemind, setHintNoRemind, getRemainingHints } from "@/lib/hint-storage";
+} from "@/lib/storage/storage";
+import { getCurrentUserId, upsertRemoteGameStats, syncGameStats } from "@/lib/sync/game-stats-sync";
+import { createOrReuseActiveSession, endSession, fetchActiveSession, updateSessionAnswer } from "@/lib/sync/sessions-sync";
+import { fetchPlayedWords, trackPlayedWord } from "@/lib/sync/played-words";
+import { consumeHint, getHintNoRemind, setHintNoRemind, getRemainingHints } from "@/lib/storage/hint-storage";
 import { Checkbox } from "@/components/ui/checkbox";
 import { fetchWordDefinition, translatePartOfSpeech, translateToGerman, type WordDefinition } from "@/lib/dictionary";
 import { saveWordDefinition } from "@/lib/word-definitions";
@@ -155,7 +155,7 @@ export default function WordleGame() {
         if (!userId) return;
 
         (async () => {
-            const synced = await syncStats(userId, difficulty, local);
+            const synced = await syncGameStats(userId, GAME_ID, difficulty, local);
             setStats(synced);
             saveStats(difficulty, synced);
         })();
@@ -185,7 +185,7 @@ export default function WordleGame() {
     useEffect(() => {
         saveStats(difficulty, stats);
         if (!userId) return;
-        void upsertRemoteStats(userId, difficulty, stats);
+        void upsertRemoteGameStats(userId, GAME_ID, difficulty, stats);
     }, [difficulty, stats, userId]);
 
     useEffect(() => {
@@ -255,7 +255,7 @@ export default function WordleGame() {
                 });
 
                 if (userId && !gameOver.done) {
-                    syncStats(userId, difficulty, stats).then((synced) => {
+                    syncGameStats(userId, GAME_ID, difficulty, stats).then((synced) => {
                         if (synced.played !== stats.played || synced.wins !== stats.wins) {
                             setStats(synced);
                             saveStats(difficulty, synced);
@@ -785,6 +785,7 @@ export default function WordleGame() {
             <Leaderboard
                 open={leaderboardOpen}
                 onClose={() => setLeaderboardOpen(false)}
+                gameId={GAME_ID}
             />
 
             <WordHistory

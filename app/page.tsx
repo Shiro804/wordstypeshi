@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { Palette, Type, Gamepad2, Search } from "lucide-react";
+import { Palette, Type, Bird, Search } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -50,8 +50,8 @@ export default async function Page() {
       <header className="p-6 border-b border-zinc-800">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Gamepad2 className="w-8 h-8 text-emerald-400" />
-            <h1 className="text-2xl font-bold">BatasHub</h1>
+            <Bird className="w-8 h-8 text-emerald-400" />
+            <h1 className="text-2xl font-bold">BataGames</h1>
           </div>
         </div>
       </header>

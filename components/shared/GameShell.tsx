@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { RotateCcw, Settings as SettingsIcon, BarChart3, Trophy, Menu, HelpCircle } from "lucide-react";
-import HowToPlay from "@/components/HowToPlay";
+import HowToPlay from "@/components/games/common/HowToPlay";
+import DuckBackground from "@/components/shared/DuckBackground";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -12,8 +13,8 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Difficulty } from "@/lib/difficulty";
-import Settings from "@/components/Settings";
-import { getCustomBackground } from "@/lib/background-storage";
+import Settings from "@/components/games/common/Settings";
+import { getCustomBackground } from "@/lib/storage/background-storage";
 
 // ============================================================================
 // Types
@@ -206,13 +207,23 @@ export default function GameShell({
     const [internalBackground, setInternalBackground] = useState<string | null>(null);
     const [isMounted, setIsMounted] = useState(false);
 
-    // Get the correct background URL based on gameId
+    // Get the correct background URL based on gameId (legacy, for custom backgrounds)
     const getBackgroundUrl = () => {
         switch (gameId) {
             case 'wordle': return '/BatasWordle.html';
             case 'mastermind': return '/BatasMastermind.html';
             case 'wordsearch': return '/BatasSearch.html';
-            default: return '/BatasWordle.html';
+            default: return '/BataGames.html';
+        }
+    };
+
+    // Get the background title based on gameId
+    const getBackgroundTitle = () => {
+        switch (gameId) {
+            case 'wordle': return 'BatasWordle';
+            case 'mastermind': return 'BatasMastermind';
+            case 'wordsearch': return 'BatasSearch';
+            default: return 'BataGames';
         }
     };
 
@@ -263,13 +274,7 @@ export default function GameShell({
                                 }}
                             />
                         ) : (
-                            <iframe
-                                src={getBackgroundUrl()}
-                                className="absolute inset-0 border-none pointer-events-none opacity-80 transition-opacity duration-500"
-                                style={{ width: '100%', height: '100%', overflow: 'hidden' }}
-                                scrolling="no"
-                                title="Background"
-                            />
+                            <DuckBackground title={getBackgroundTitle()} />
                         )}
                         {/* Overlay to ensure text readability */}
                         <div className="absolute inset-0 bg-black/35" />
@@ -295,7 +300,7 @@ export default function GameShell({
                         href="/"
                         className="text-sm font-semibold tracking-tight text-[color:var(--fg)] hover:text-emerald-400 transition"
                     >
-                        ← Hub
+                        ←
                     </Link>
 
                     {/* Timer */}
@@ -312,11 +317,6 @@ export default function GameShell({
                         />
                     )}
                 </div>
-
-                {/* Center: Game name */}
-                <h1 className="text-sm font-semibold tracking-tight text-[color:var(--fg)]">
-                    {gameName}
-                </h1>
 
                 {/* Right: Actions + Menu */}
                 <div className="flex items-center gap-2">

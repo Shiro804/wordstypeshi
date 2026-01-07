@@ -11,16 +11,17 @@ import {
 } from "@/lib/games/mastermind/engine";
 import { mastermindUIAdapter, type MastermindRenderModel } from "@/lib/games/mastermind/ui-adapter";
 import { generateDailySeed } from "@/lib/games/sdk";
-import { loadActiveGame, saveActiveGame } from "@/lib/games/active-game-storage";
-import { loadDifficulty, saveDifficulty } from "@/lib/settings-storage";
+import { loadActiveGame, saveActiveGame } from "@/lib/storage/active-game-storage";
+import { loadDifficulty, saveDifficulty } from "@/lib/storage/settings-storage";
 import type { Difficulty } from "@/lib/difficulty";
-import { getCurrentUserId, upsertRemoteGameStats, syncGameStats, loadLocalStats, saveLocalStats } from "@/lib/game-stats-sync";
-import Leaderboard from "@/components/Leaderboard";
-import Settings from "@/components/Settings";
+import { getCurrentUserId, upsertRemoteGameStats, syncGameStats, loadLocalStats, saveLocalStats } from "@/lib/sync/game-stats-sync";
+import { createOrReuseActiveSession, endSession } from "@/lib/sync/sessions-sync";
+import Leaderboard from "@/components/games/common/Leaderboard";
+import Settings from "@/components/games/common/Settings";
 import StatsModal from "@/components/shared/StatsModal";
-import Modal from "@/components/Modal";
-import { type Stats, applyGameResult, formatDuration } from "@/lib/storage";
-import { getCustomBackground } from "@/lib/background-storage";
+import Modal from "@/components/games/common/Modal";
+import { type Stats, applyGameResult, formatDuration } from "@/lib/storage/storage";
+import { getCustomBackground } from "@/lib/storage/background-storage";
 import { useGameBackground } from "@/lib/hooks/useGameBackground";
 
 // ============================================================================
@@ -211,6 +212,7 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [stats, setStats] = useState<Stats>(() => loadLocalStats(GAME_ID, difficulty));
     const [userId, setUserId] = useState<string | null>(null);
+    const [sessionId, setSessionId] = useState<string | null>(null);
     const { background: customBackground, setBackground: setCustomBackground, isLoading: backgroundLoading } = useGameBackground(GAME_ID);
 
     // Timer state
@@ -293,7 +295,7 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
         return formatDuration(elapsed);
     }, [gameState, nowMs]);
 
-    const initGame = useCallback(() => {
+    const initGame = useCallback(async () => {
         const newSeed = mode === "daily"
             ? generateDailySeed("mastermind", mode, new Date())
             : `${Date.now()} -${Math.random().toString(36).slice(2)} `;
@@ -304,9 +306,20 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
         setSelectedSlot(0);
         setSelectedColor(null);
         saveActiveGame(GAME_ID, state, userId);
-    }, [mode, params, userId]);
 
-    const forfeitCurrentGame = useCallback(() => {
+        // Create session for logged-in users
+        if (userId) {
+            const session = await createOrReuseActiveSession({
+                userId,
+                difficulty,
+                answer: state.secret.join(","), // Serialize code as comma-separated
+                startedAtMs: state.startedAtMs,
+            });
+            setSessionId(session?.id ?? null);
+        }
+    }, [mode, params, userId, difficulty]);
+
+    const forfeitCurrentGame = useCallback(async () => {
         if (!gameState) return;
         const durationSec = Math.max(0, (Date.now() - gameState.startedAtMs) / 1000);
         const newStats = applyGameResult(stats, { outcome: "lose", durationSec });
@@ -315,8 +328,21 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
         if (userId) {
             upsertRemoteGameStats(userId, GAME_ID, difficulty, newStats);
         }
+
+        // End session as forfeit
+        if (sessionId) {
+            await endSession({
+                sessionId,
+                outcome: "forfeit",
+                guessesUsed: gameState.attempts.length,
+                durationSec,
+                endedAtMs: Date.now(),
+            });
+            setSessionId(null);
+        }
+
         saveActiveGame(GAME_ID, null, userId); // Clear active game
-    }, [gameState, stats, difficulty, userId]);
+    }, [gameState, stats, difficulty, userId, sessionId]);
 
     const applyDifficultyChange = useCallback((d: Difficulty) => {
         setDifficulty(d);
@@ -386,7 +412,7 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
         return mastermindUIAdapter.toRenderModel(gameState) as MastermindRenderModel;
     }, [gameState]);
 
-    const handleSubmit = useCallback(() => {
+    const handleSubmit = useCallback(async () => {
         if (!gameState || !isGuessComplete) return;
 
         const action: MastermindAction = {
@@ -416,11 +442,22 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
 
                 if (userId) {
                     upsertRemoteGameStats(userId, GAME_ID, difficulty, newStats);
-                    // Also generic played game tracking if we wanted
+                }
+
+                // End session
+                if (sessionId) {
+                    await endSession({
+                        sessionId,
+                        outcome: isWin ? "win" : "lose",
+                        guessesUsed: result.state.attempts.length,
+                        durationSec,
+                        endedAtMs: result.state.endedAtMs!,
+                    });
+                    setSessionId(null);
                 }
             }
         }
-    }, [gameState, currentInput, isGuessComplete, params.codeLength, stats, difficulty, userId]);
+    }, [gameState, currentInput, isGuessComplete, params.codeLength, stats, difficulty, userId, sessionId]);
 
     const handleClear = useCallback(() => {
         setCurrentInput(Array(params.codeLength).fill(-1));

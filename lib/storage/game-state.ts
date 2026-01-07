@@ -1,5 +1,5 @@
 import type { Difficulty } from "@/lib/difficulty";
-import type { GridRow } from "@/components/Grid";
+import type { GridRow } from "@/components/games/common/Grid";
 
 export type PersistedGameState = {
   v: 1;

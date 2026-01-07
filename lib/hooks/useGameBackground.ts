@@ -1,42 +1,32 @@
 import { useState, useEffect } from "react";
-import { getCustomBackground } from "@/lib/background-storage";
+import { getCustomBackground } from "@/lib/storage/background-storage";
 import { fetchRemoteBackground } from "@/lib/remote-backgrounds";
-import { getCurrentUserId } from "@/lib/game-stats-sync"; 
+import { getCurrentUserId } from "@/lib/sync/game-stats-sync"; 
 
 export function useGameBackground(gameId: string) {
-  const [background, setBackground] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Start with local background immediately (no loading state)
+  const [background, setBackground] = useState<string | null>(() => getCustomBackground(gameId));
+  const [isLoading, setIsLoading] = useState(false); // Default false - show DuckBackground immediately
 
   useEffect(() => {
     let mounted = true;
 
-    async function load() {
-      // 1. Try Remote first (if logged in)
+    async function loadRemote() {
+      // Only fetch remote if logged in
       const userId = await getCurrentUserId();
-      if (userId) {
-        try {
-          const remote = await fetchRemoteBackground(gameId);
-          if (remote) {
-            if (mounted) {
-                setBackground(remote);
-                setIsLoading(false);
-            }
-            return;
-          }
-        } catch (e) {
-          // ignore error, fall back to local
+      if (!userId || !mounted) return;
+      
+      try {
+        const remote = await fetchRemoteBackground(gameId);
+        if (remote && mounted) {
+          setBackground(remote);
         }
-      }
-
-      // 2. Fall back to Local
-      const local = getCustomBackground(gameId);
-      if (mounted) {
-          setBackground(local);
-          setIsLoading(false);
+      } catch (e) {
+        // ignore error, keep local/default
       }
     }
 
-    load();
+    loadRemote();
 
     return () => { mounted = false; };
   }, [gameId]);

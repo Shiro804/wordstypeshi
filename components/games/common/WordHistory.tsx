@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Modal from "@/components/Modal";
+import Modal from "@/components/games/common/Modal";
 import {
     DropdownMenu,
     DropdownMenuContent,

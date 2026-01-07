@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import { getMyProfile, upsertMyProfile } from "@/lib/profile";
+import { getMyProfile, upsertMyProfile } from "@/lib/auth/profile";
 
 const BUCKET = "user-content";
 

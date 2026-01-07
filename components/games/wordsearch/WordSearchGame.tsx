@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Trophy, Search, RotateCcw } from "lucide-react";
 import GameShell from "@/components/shared/GameShell";
-import Leaderboard from "@/components/Leaderboard";
+import Leaderboard from "@/components/games/common/Leaderboard";
 import StatsModal from "@/components/shared/StatsModal";
 import {
     wordSearchEngine,
@@ -16,9 +16,10 @@ import type { Difficulty } from "@/lib/difficulty";
 import { useGameTimer } from "@/lib/hooks/useGameTimer";
 import { useGameStats } from "@/lib/hooks/useGameStats";
 import { useGameBackground } from "@/lib/hooks/useGameBackground";
-import Settings from "@/components/Settings";
-import Modal from "@/components/Modal";
-import { loadDifficulty, saveDifficulty } from "@/lib/settings-storage";
+import { createOrReuseActiveSession, endSession } from "@/lib/sync/sessions-sync";
+import Settings from "@/components/games/common/Settings";
+import Modal from "@/components/games/common/Modal";
+import { loadDifficulty, saveDifficulty } from "@/lib/storage/settings-storage";
 
 // ============================================================================
 // Constants
@@ -60,10 +61,10 @@ function Cell({ letter, row, col, isSelected, isFound, onMouseDown, onMouseEnter
         text-sm sm:text-base font-bold uppercase
         rounded-md transition-all select-none cursor-pointer touch-none
         ${isFound
-                    ? 'bg-emerald-500/30 text-emerald-300'
+                    ? 'bg-emerald-500/30 text-emerald-300 border-2 border-emerald-500/60'
                     : isSelected
-                        ? 'bg-blue-500/40 text-blue-200 scale-105'
-                        : 'bg-[color:var(--surface)] text-[color:var(--fg)] hover:bg-[color:var(--surface2)]'
+                        ? 'bg-blue-500/40 text-blue-200 scale-105 border-2 border-blue-500/60'
+                        : 'bg-[color:var(--surface)] text-[color:var(--fg)] hover:bg-[color:var(--surface2)] border border-transparent'
                 }
       `}
             onMouseDown={() => onMouseDown(row, col)}
@@ -128,6 +129,7 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
     const [confirmResetOpen, setConfirmResetOpen] = useState(false);
     const [confirmDifficultyOpen, setConfirmDifficultyOpen] = useState(false);
     const [pendingDifficulty, setPendingDifficulty] = useState<Difficulty | null>(null);
+    const [sessionId, setSessionId] = useState<string | null>(null);
     const { background: customBackground, setBackground: setCustomBackground, isLoading: backgroundLoading } = useGameBackground(GAME_ID);
 
     // Use shared hooks
@@ -141,7 +143,7 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
     const params = useMemo(() => getModeParams(difficulty), [difficulty]);
 
     // Initialize game
-    const initGame = useCallback(() => {
+    const initGame = useCallback(async () => {
         const seed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const state = wordSearchEngine.init(seed, params);
         setGameState(state);
@@ -151,7 +153,18 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
         setGameCompletedTracked(false);
         timer.reset();
         timer.start();
-    }, [params, timer]);
+
+        // Create session for logged-in users
+        if (userId) {
+            const session = await createOrReuseActiveSession({
+                userId,
+                difficulty,
+                answer: state.words.map(w => w.text).join(","), // Serialize words as comma-separated
+                startedAtMs: state.startedAtMs,
+            });
+            setSessionId(session?.id ?? null);
+        }
+    }, [params, timer, userId, difficulty]);
 
     // Initialize on mount or difficulty change
     useEffect(() => {
@@ -165,26 +178,41 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
         return wordSearchUIAdapter.toRenderModel(gameState) as WordSearchRenderModel;
     }, [gameState]);
 
-    // Handle game completion - record stats
+    // Handle game completion - record stats and end session
     useEffect(() => {
         if (!renderModel?.isTerminal || gameCompletedTracked) return;
 
         setGameCompletedTracked(true);
         timer.stop();
 
-        if (renderModel.status === 'won') {
+        const isWin = renderModel.status === 'won';
+        const durationSec = timer.elapsedSec;
+
+        if (isWin) {
             recordGameResult({
                 outcome: 'win',
                 guessesUsed: gameState?.foundCount ?? 0,
-                durationSec: timer.elapsedSec,
+                durationSec,
             });
         } else {
             recordGameResult({
                 outcome: 'lose',
-                durationSec: timer.elapsedSec,
+                durationSec,
             });
         }
-    }, [renderModel?.isTerminal, renderModel?.status, gameCompletedTracked, timer, recordGameResult, gameState?.foundCount]);
+
+        // End session
+        if (sessionId) {
+            endSession({
+                sessionId,
+                outcome: isWin ? 'win' : 'lose',
+                guessesUsed: gameState?.foundCount ?? null,
+                durationSec,
+                endedAtMs: Date.now(),
+            });
+            setSessionId(null);
+        }
+    }, [renderModel?.isTerminal, renderModel?.status, gameCompletedTracked, timer, recordGameResult, gameState?.foundCount, sessionId]);
 
     // Get selected cells
     const selectedCells = useMemo(() => {
@@ -274,12 +302,25 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
     }, [gameState, renderModel?.isTerminal]);
 
     // Forfeit current game
-    const forfeitCurrentGame = useCallback(() => {
+    const forfeitCurrentGame = useCallback(async () => {
+        const durationSec = timer.elapsedSec;
         recordGameResult({
             outcome: 'lose',
-            durationSec: timer.elapsedSec,
+            durationSec,
         });
-    }, [recordGameResult, timer.elapsedSec]);
+
+        // End session as forfeit
+        if (sessionId) {
+            await endSession({
+                sessionId,
+                outcome: 'forfeit',
+                guessesUsed: gameState?.foundCount ?? null,
+                durationSec,
+                endedAtMs: Date.now(),
+            });
+            setSessionId(null);
+        }
+    }, [recordGameResult, timer.elapsedSec, sessionId, gameState?.foundCount]);
 
     // Apply difficulty change
     const applyDifficultyChange = useCallback((d: Difficulty) => {

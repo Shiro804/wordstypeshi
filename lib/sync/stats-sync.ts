@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import type { Stats } from "@/lib/storage";
+import type { Stats } from "@/lib/storage/storage";
 import type { Difficulty } from "@/lib/difficulty";
 
 export type RemoteStatsRow = {

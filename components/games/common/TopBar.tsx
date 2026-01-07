@@ -128,7 +128,7 @@ export default function TopBar({
       {/* Left: Logo + Timer */}
       <div className="flex items-center gap-2 sm:gap-3">
         <Link href="/" className="text-sm font-semibold tracking-tight text-[color:var(--fg)] hover:text-emerald-400 transition">
-          ← Hub
+          ←
         </Link>
 
         {/* Timer badge */}

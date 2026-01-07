@@ -2,7 +2,7 @@
  * Hint storage utilities.
  * Manages daily hint limits per difficulty and "don't remind" preference.
  */
-import type { Difficulty } from "./difficulty";
+import type { Difficulty } from "@/lib/difficulty";
 
 const HINT_DATE_KEY = "batas-wordle-hint-date";
 const HINT_NO_REMIND_KEY = "batas-wordle-hint-no-remind";

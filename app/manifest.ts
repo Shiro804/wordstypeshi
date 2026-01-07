@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "BatasWordle",
-    short_name: "BatasWordle",
+    name: "BataGames",
+    short_name: "BataGames",
     description: "Clean, ad-free word puzzle.",
     start_url: "/",
     scope: "/",

@@ -6,15 +6,15 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Stats } from "@/lib/storage";
-import { applyGameResult, type GameResult } from "@/lib/storage";
+import type { Stats } from "@/lib/storage/storage";
+import { applyGameResult, type GameResult } from "@/lib/storage/storage";
 import {
   getCurrentUserId,
   loadLocalStats,
   saveLocalStats,
   syncGameStats,
   upsertRemoteGameStats,
-} from "@/lib/game-stats-sync";
+} from "@/lib/sync/game-stats-sync";
 
 export interface UseGameStatsOptions {
   /** Game identifier (e.g., 'wordle', 'mastermind', 'wordsearch') */

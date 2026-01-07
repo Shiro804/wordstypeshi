@@ -5,7 +5,7 @@ import {
   defaultStats,
   type Stats, 
   type GameResult 
-} from '../storage';
+} from '@/lib/storage/storage';
 
 describe('defaultStats', () => {
   it('returns zeroed stats', () => {

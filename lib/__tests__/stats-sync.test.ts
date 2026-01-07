@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mergeStats } from '../stats-sync';
-import type { Stats } from '../storage';
+import { mergeStats } from '@/lib/sync/stats-sync';
+import type { Stats } from '@/lib/storage/storage';
 
 function createStats(overrides: Partial<Stats> = {}): Stats {
   return {

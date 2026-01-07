@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Modal from "@/components/Modal";
+import Modal from "@/components/games/common/Modal";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogoutButton } from "@/components/logout-button";
+import { LogoutButton } from "@/components/auth/logout-button";
 import { createClient } from "@/lib/supabase/client";
-import { getMyProfile, upsertMyProfile } from "@/lib/profile";
-import { deleteMyAvatarObject, getAvatarPublicUrl, uploadMyAvatar } from "@/lib/avatar";
-import { getCustomBackground, setCustomBackground, clearCustomBackground } from "@/lib/background-storage";
+import { getMyProfile, upsertMyProfile } from "@/lib/auth/profile";
+import { deleteMyAvatarObject, getAvatarPublicUrl, uploadMyAvatar } from "@/lib/auth/avatar";
+import { getCustomBackground, setCustomBackground, clearCustomBackground } from "@/lib/storage/background-storage";
 
 import type { Difficulty } from "@/lib/difficulty";
 
