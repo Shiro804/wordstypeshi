@@ -388,6 +388,48 @@ function BlastEffect({ active }: { active: boolean }) {
     );
 }
 
+/** Animated score popup */
+function FloatingScore({ value }: { value: number }) {
+    const [stage, setStage] = useState<'start' | 'active' | 'end'>('start');
+
+    useEffect(() => {
+        // Trigger animation sequence
+        const raf = requestAnimationFrame(() => {
+            setStage('active');
+            const timer = setTimeout(() => {
+                setStage('end');
+            }, 600); // Start fading out after 600ms
+            return () => clearTimeout(timer);
+        });
+        return () => cancelAnimationFrame(raf);
+    }, []);
+
+    const getClasses = () => {
+        switch (stage) {
+            case 'start': return 'opacity-0 scale-50 translate-y-8';
+            case 'active': return 'opacity-100 scale-100 translate-y-0'; // Pop in
+            case 'end': return 'opacity-0 scale-150 -translate-y-24'; // Float up and fade
+        }
+    };
+
+    return (
+        <div
+            className={`
+                absolute z-50 pointer-events-none select-none
+                text-5xl font-black text-amber-500 
+                drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]
+                transition-all duration-500 ease-out
+                ${getClasses()}
+            `}
+            style={{
+                textShadow: '0 0 20px rgba(245, 158, 11, 0.6), 0 0 10px rgba(245, 158, 11, 0.4)'
+            }}
+        >
+            +{value}
+        </div>
+    );
+}
+
 // ============================================================================
 // Main Game Component
 // ============================================================================
@@ -410,6 +452,9 @@ export default function BatasBlastGame() {
     // Cells that are about to be cleared (for animation)
     const [blastingCells, setBlastingCells] = useState<Set<string>>(new Set());
     const [blastColor, setBlastColor] = useState<number>(0);
+
+    // Score Popups
+    const [scorePopups, setScorePopups] = useState<Array<{ id: number; value: number }>>([]);
 
     // Refs
     const boardRef = useRef<HTMLDivElement>(null);
@@ -539,6 +584,15 @@ export default function BatasBlastGame() {
         const result = batasBlastEngine.applyAction(gameState, action);
 
         if (!result.invalidReason) {
+            const scoreGained = result.state.score - gameState.score;
+            if (scoreGained > 0) {
+                const id = Date.now();
+                setScorePopups(prev => [...prev, { id, value: scoreGained }]);
+                setTimeout(() => {
+                    setScorePopups(prev => prev.filter(p => p.id !== id));
+                }, 1200); // Remove after animation
+            }
+
             const newLinesCleared = result.state.totalLinesCleared - prevLinesCleared;
 
             if (newLinesCleared > 0) {
@@ -1040,6 +1094,13 @@ export default function BatasBlastGame() {
                 onClose={() => setLeaderboardOpen(false)}
                 gameId={GAME_ID}
             />
+
+            {/* Floating Score Popups */}
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden">
+                {scorePopups.map((popup) => (
+                    <FloatingScore key={popup.id} value={popup.value} />
+                ))}
+            </div>
 
             {/* Game Result Overlay */}
             <GameResultOverlay
