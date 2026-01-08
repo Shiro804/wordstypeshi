@@ -276,6 +276,76 @@ export const PIECE_CATALOG: PieceDefinition[] = [
     ],
     weight: 3,
   },
+
+  // ==========================================================================
+  // New Shapes (v1.1)
+  // ==========================================================================
+  
+  // Diagonals - "Stairs"
+  {
+    id: 'diag_2_dr',
+    name: 'Diagonal 2 DR',
+    cells: [{ dr: 0, dc: 0 }, { dr: 1, dc: 1 }],
+    weight: 6,
+  },
+  {
+    id: 'diag_2_dl',
+    name: 'Diagonal 2 DL',
+    cells: [{ dr: 0, dc: 1 }, { dr: 1, dc: 0 }],
+    weight: 6,
+  },
+  {
+    id: 'diag_3_dr',
+    name: 'Stairs 3 DR',
+    cells: [{ dr: 0, dc: 0 }, { dr: 1, dc: 1 }, { dr: 2, dc: 2 }],
+    weight: 4,
+  },
+  {
+    id: 'diag_3_dl',
+    name: 'Stairs 3 DL',
+    cells: [{ dr: 0, dc: 2 }, { dr: 1, dc: 1 }, { dr: 2, dc: 0 }],
+    weight: 4,
+  },
+  
+  // Pentomino U-Shapes (3x2)
+  {
+    id: 'pento_u_up',
+    name: 'U-Shape Up',
+    cells: [
+      { dr: 0, dc: 0 }, { dr: 0, dc: 2 }, 
+      { dr: 1, dc: 0 }, { dr: 1, dc: 1 }, { dr: 1, dc: 2 },
+    ],
+    weight: 4,
+  },
+  {
+    id: 'pento_u_down',
+    name: 'U-Shape Down',
+    cells: [
+      { dr: 0, dc: 0 }, { dr: 0, dc: 1 }, { dr: 0, dc: 2 },
+      { dr: 1, dc: 0 }, { dr: 1, dc: 2 },
+    ],
+    weight: 4,
+  },
+  {
+    id: 'pento_u_left',
+    name: 'U-Shape Left',
+    cells: [
+      { dr: 0, dc: 0 }, { dr: 0, dc: 1 },
+      { dr: 1, dc: 0 },
+      { dr: 2, dc: 0 }, { dr: 2, dc: 1 },
+    ],
+    weight: 4,
+  },
+  {
+    id: 'pento_u_right',
+    name: 'U-Shape Right',
+    cells: [
+      { dr: 0, dc: 0 }, { dr: 0, dc: 1 },
+      { dr: 1, dc: 1 },
+      { dr: 2, dc: 0 }, { dr: 2, dc: 1 },
+    ],
+    weight: 4,
+  },
 ];
 
 // Create lookup map for fast access
