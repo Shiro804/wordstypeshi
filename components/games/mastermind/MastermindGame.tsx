@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Trophy, X, CheckCircle2, RotateCcw } from "lucide-react";
 import GameShell from "@/components/shared/GameShell";
+import GameResultOverlay from "@/components/games/common/GameResultOverlay";
 import {
     mastermindEngine,
     getModeParams,
@@ -515,51 +516,6 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
             }
         >
             <div className="max-w-md mx-auto p-4 space-y-6">
-                {/* Status Banner */}
-                {renderModel.isTerminal && (
-                    <div className={`
-            rounded-xl p-6 text-center
-            ${renderModel.status === "won"
-                            ? "bg-emerald-500/10 border border-emerald-500/30"
-                            : "bg-rose-500/10 border border-rose-500/30"
-                        }
-`}>
-                        {renderModel.status === "won" ? (
-                            <>
-                                <div className="flex items-center justify-center gap-2 mb-2">
-                                    <Trophy className="w-8 h-8 text-emerald-400" />
-                                </div>
-                                <div className="text-2xl font-bold text-emerald-400 mb-1">
-                                    Geknackt!
-                                </div>
-                                <div className="text-[color:var(--muted)]">
-                                    Du hast den Code in {data.currentAttempt - 1} Versuchen gelöst
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <div className="flex items-center justify-center gap-2 mb-2">
-                                    <X className="w-8 h-8 text-rose-400" />
-                                </div>
-                                <div className="text-2xl font-bold text-rose-400 mb-1">
-                                    Game Over
-                                </div>
-                                <div className="text-[color:var(--muted)] mb-4">
-                                    Der Code war:
-                                </div>
-                            </>
-                        )}
-
-                        {data.secret && (
-                            <div className="flex gap-2 justify-center mt-4">
-                                {data.secret.map((c, i) => (
-                                    <ColorPeg key={i} color={c} colorHex={data.colors[c]} size="md" />
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-
                 {/* Grid */}
                 <div className="space-y-2">
                     {data.attempts.map((attempt, i) => (
@@ -625,22 +581,7 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
                     </div>
                 )}
 
-                {renderModel.isTerminal && (
-                    <div className="flex gap-3">
-                        <button
-                            onClick={initGame}
-                            className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition text-white"
-                        >
-                            Nochmal spielen
-                        </button>
-                        <button
-                            onClick={() => setStatsOpen(true)}
-                            className="px-4 py-4 bg-[color:var(--surface)] hover:bg-[color:var(--surface2)] border border-[color:var(--border)] rounded-xl font-bold transition"
-                        >
-                            Stats
-                        </button>
-                    </div>
-                )}
+
             </div>
 
             <StatsModal
@@ -655,6 +596,27 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
                 onClose={() => setLeaderboardOpen(false)}
                 gameId={GAME_ID}
             />
+
+            {/* Game Result Overlay */}
+            <GameResultOverlay
+                open={renderModel.isTerminal}
+                outcome={renderModel.status === 'won' ? 'win' : 'lose'}
+                title={renderModel.status === 'won' ? 'Geknackt!' : 'Game Over'}
+                subtitle={renderModel.status === 'won'
+                    ? `Code in ${data.currentAttempt - 1} Versuchen gelöst`
+                    : 'Der Code war:'}
+                onPlayAgain={initGame}
+                onOpenStats={() => setStatsOpen(true)}
+            >
+                {/* Secret code display */}
+                {data.secret && (
+                    <div className="flex gap-2 justify-center">
+                        {data.secret.map((c, i) => (
+                            <ColorPeg key={i} color={c} colorHex={data.colors[c]} size="md" />
+                        ))}
+                    </div>
+                )}
+            </GameResultOverlay>
 
             <Modal open={confirmResetOpen} title="Reset game?" onClose={() => setConfirmResetOpen(false)} footer={
                 <div className="flex items-center justify-end gap-2">
@@ -679,6 +641,6 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
             }>
                 <div className="text-sm text-[color:var(--fg)]/85">You already made guesses. Switching difficulty now will forfeit this game and count as a loss.</div>
             </Modal>
-        </GameShell>
+        </GameShell >
     );
 }

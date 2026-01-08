@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import { Trophy, X, RotateCcw, Flame, Zap, Sparkles } from "lucide-react";
+import { RotateCcw, Flame, Zap, Sparkles, X } from "lucide-react";
 import GameShell from "@/components/shared/GameShell";
+import GameResultOverlay from "@/components/games/common/GameResultOverlay";
 import {
     batasBlastEngine,
     type BatasBlastState,
@@ -70,8 +71,8 @@ function Cell({
                     ? `bg-gradient-to-br ${colors.from} ${colors.to} shadow-lg shadow-orange-500/20`
                     : "bg-zinc-800/60 border border-zinc-700/50"
                 }
-        ${preview && !filled ? `bg-gradient-to-br ${colors.from}/70 ${colors.to}/70 border-2 border-dashed border-white/60 shadow-md shadow-white/20` : ""}
-        ${invalid ? "bg-red-500/30 border-2 border-red-500/70 shadow-md shadow-red-500/30" : ""}
+        ${preview && !filled ? `bg-gradient-to-br ${colors.from}/80 ${colors.to}/80 border-2 border-emerald-400/90 shadow-[0_0_15px_rgba(52,211,153,0.4)] animate-pulse` : ""}
+        ${invalid ? "bg-red-500/40 border-2 border-red-500/90 shadow-[0_0_15px_rgba(239,68,68,0.4)]" : ""}
         ${blasting ? "animate-pulse scale-110 brightness-150" : ""}
       `}
             style={{
@@ -383,117 +384,6 @@ export default function BatasBlastGame() {
         }
     }, [userId]);
 
-    // Pointer move handler for drag preview
-    useEffect(() => {
-        if (draggingTrayIndex === null) return;
-
-        const handlePointerMove = (e: PointerEvent) => {
-            setGhostPosition({ x: e.clientX, y: e.clientY });
-
-            // Calculate grid position from cursor
-            if (boardRef.current) {
-                const rect = boardRef.current.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                const cellTotal = CELL_SIZE + CELL_GAP;
-                const col = Math.floor(x / cellTotal);
-                const row = Math.floor(y / cellTotal);
-
-                if (row >= 0 && row < BOARD.rows && col >= 0 && col < BOARD.cols) {
-                    setHoverOrigin({ r: row, c: col });
-                } else {
-                    setHoverOrigin(null);
-                }
-            }
-        };
-
-        const handlePointerUp = (e: PointerEvent) => {
-            // Try to place piece at current hover position
-            if (hoverOrigin && gameState && draggingTrayIndex !== null) {
-                const trayPiece = gameState.tray[draggingTrayIndex];
-                if (!trayPiece.used && canPlacePiece(gameState.board, trayPiece.pieceId, hoverOrigin)) {
-                    placePiece(draggingTrayIndex, hoverOrigin);
-                }
-            }
-
-            setDraggingTrayIndex(null);
-            setGhostPosition(null);
-            setHoverOrigin(null);
-        };
-
-        window.addEventListener('pointermove', handlePointerMove);
-        window.addEventListener('pointerup', handlePointerUp);
-
-        return () => {
-            window.removeEventListener('pointermove', handlePointerMove);
-            window.removeEventListener('pointerup', handlePointerUp);
-        };
-    }, [draggingTrayIndex, hoverOrigin, gameState]);
-
-    const initGame = useCallback(async () => {
-        const newSeed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        const state = batasBlastEngine.init(newSeed, params);
-        setGameState(state);
-        setSelectedTrayIndex(null);
-        setDraggingTrayIndex(null);
-        setHoverOrigin(null);
-        setGhostPosition(null);
-        setShowBlast(false);
-        setLastClearedLines(0);
-        saveActiveGame(GAME_ID, state, userId);
-        timer.reset();
-
-        if (userId) {
-            const session = await createOrReuseActiveSession({
-                userId,
-                gameId: GAME_ID,
-                difficulty: 'medium',
-                answer: '',
-                startedAtMs: state.startedAtMs,
-            });
-            setSessionId(session?.id ?? null);
-        }
-    }, [params, userId, timer]);
-
-    const forfeitCurrentGame = useCallback(async () => {
-        if (!gameState) return;
-        timer.stop();
-        const durationSec = Math.max(0, (Date.now() - gameState.startedAtMs) / 1000);
-        const newStats = applyGameResult(stats, { outcome: "lose", durationSec });
-        setStats(newStats);
-        saveLocalStats(GAME_ID, 'medium', newStats);
-        if (userId) {
-            upsertRemoteGameStats(userId, GAME_ID, 'medium', newStats);
-        }
-
-        if (sessionId) {
-            await endSession({
-                sessionId,
-                outcome: "forfeit",
-                guessesUsed: gameState.moveCount,
-                durationSec,
-                endedAtMs: Date.now(),
-            });
-            setSessionId(null);
-        }
-
-        saveActiveGame(GAME_ID, null, userId);
-    }, [gameState, stats, userId, sessionId, timer]);
-
-    const requestReset = useCallback(() => {
-        if (isInProgress) {
-            setConfirmResetOpen(true);
-            return;
-        }
-        initGame();
-    }, [isInProgress, initGame]);
-
-    const forfeitAndReset = useCallback(() => {
-        forfeitCurrentGame();
-        initGame();
-        setConfirmResetOpen(false);
-    }, [forfeitCurrentGame, initGame]);
-
     // Place piece helper
     const placePiece = useCallback((trayIndex: number, origin: { r: number; c: number }) => {
         if (!gameState) return;
@@ -559,6 +449,150 @@ export default function BatasBlastGame() {
             }
         }
     }, [gameState, stats, userId, sessionId, timer]);
+
+    // Pointer move handler for drag preview
+    useEffect(() => {
+        if (draggingTrayIndex === null) return;
+
+        const handlePointerMove = (e: PointerEvent) => {
+            e.preventDefault(); // Prevent scrolling on touch
+
+            // Offset for touch to make piece visible above finger
+            const isTouch = e.pointerType === 'touch';
+            const offsetY = isTouch ? -100 : 0;
+
+            const clientX = e.clientX;
+            const clientY = e.clientY + offsetY;
+
+            setGhostPosition({ x: clientX, y: clientY });
+
+            // Calculate grid position from offset cursor
+            if (boardRef.current) {
+                const rect = boardRef.current.getBoundingClientRect();
+                const x = clientX - rect.left;
+                const y = clientY - rect.top;
+                const cellTotal = CELL_SIZE + CELL_GAP;
+                const col = Math.floor(x / cellTotal);
+                const row = Math.floor(y / cellTotal);
+
+                if (row >= 0 && row < BOARD.rows && col >= 0 && col < BOARD.cols) {
+                    setHoverOrigin({ r: row, c: col });
+                } else {
+                    setHoverOrigin(null);
+                }
+            }
+        };
+
+        const handlePointerUp = (e: PointerEvent) => {
+            // Re-calculate target to ensure sync with move logic
+            const isTouch = e.pointerType === 'touch';
+            const offsetY = isTouch ? -100 : 0;
+            const clientX = e.clientX;
+            const clientY = e.clientY + offsetY;
+
+            let targetOrigin = hoverOrigin;
+
+            // Double check target in case of race condition or slight movement
+            if (boardRef.current && draggingTrayIndex !== null) {
+                const rect = boardRef.current.getBoundingClientRect();
+                const x = clientX - rect.left;
+                const y = clientY - rect.top;
+                const cellTotal = CELL_SIZE + CELL_GAP;
+                const col = Math.floor(x / cellTotal);
+                const row = Math.floor(y / cellTotal);
+
+                if (row >= 0 && row < BOARD.rows && col >= 0 && col < BOARD.cols) {
+                    targetOrigin = { r: row, c: col };
+                }
+            }
+
+            // Try to place piece at current hover position
+            if (targetOrigin && gameState && draggingTrayIndex !== null) {
+                const trayPiece = gameState.tray[draggingTrayIndex];
+                if (!trayPiece.used && canPlacePiece(gameState.board, trayPiece.pieceId, targetOrigin)) {
+                    placePiece(draggingTrayIndex, targetOrigin);
+                }
+            }
+
+            setDraggingTrayIndex(null);
+            setGhostPosition(null);
+            setHoverOrigin(null);
+        };
+
+        window.addEventListener('pointermove', handlePointerMove, { passive: false });
+        window.addEventListener('pointerup', handlePointerUp);
+
+        return () => {
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+        };
+    }, [draggingTrayIndex, hoverOrigin, gameState, placePiece]);
+
+    const initGame = useCallback(async () => {
+        const newSeed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const state = batasBlastEngine.init(newSeed, params);
+        setGameState(state);
+        setSelectedTrayIndex(null);
+        setDraggingTrayIndex(null);
+        setHoverOrigin(null);
+        setGhostPosition(null);
+        setShowBlast(false);
+        setLastClearedLines(0);
+        saveActiveGame(GAME_ID, state, userId);
+        timer.reset();
+
+        if (userId) {
+            const session = await createOrReuseActiveSession({
+                userId,
+                gameId: GAME_ID,
+                difficulty: 'medium',
+                answer: '',
+                startedAtMs: state.startedAtMs,
+            });
+            setSessionId(session?.id ?? null);
+        }
+    }, [params, userId, timer]);
+
+    const forfeitCurrentGame = useCallback(async () => {
+        if (!gameState) return;
+        timer.stop();
+        const durationSec = Math.max(0, (Date.now() - gameState.startedAtMs) / 1000);
+        const newStats = applyGameResult(stats, { outcome: "lose", durationSec });
+        setStats(newStats);
+        saveLocalStats(GAME_ID, 'medium', newStats);
+        if (userId) {
+            upsertRemoteGameStats(userId, GAME_ID, 'medium', newStats);
+        }
+
+        if (sessionId) {
+            await endSession({
+                sessionId,
+                outcome: "forfeit",
+                guessesUsed: gameState.moveCount,
+                durationSec,
+                endedAtMs: Date.now(),
+            });
+            setSessionId(null);
+        }
+
+        saveActiveGame(GAME_ID, null, userId);
+    }, [gameState, stats, userId, sessionId, timer]);
+
+    const requestReset = useCallback(() => {
+        if (isInProgress) {
+            setConfirmResetOpen(true);
+            return;
+        }
+        initGame();
+    }, [isInProgress, initGame]);
+
+    const forfeitAndReset = useCallback(() => {
+        forfeitCurrentGame();
+        initGame();
+        setConfirmResetOpen(false);
+    }, [forfeitCurrentGame, initGame]);
+
+
 
     // Handle cell click (for tap-to-place mode)
     const handleCellClick = useCallback((r: number, c: number) => {
@@ -665,82 +699,56 @@ export default function BatasBlastGame() {
                     </div>
                 )}
 
-                {/* Board with Game Over Overlay */}
-                <div className="relative">
-                    {/* Game Over Overlay */}
-                    {renderModel.isTerminal && (
-                        <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-                            <div className="px-6 py-4 rounded-2xl backdrop-blur-md bg-zinc-900/90 border border-rose-500/40 shadow-2xl text-center">
-                                <div className="flex items-center justify-center gap-2 mb-2">
-                                    <Trophy className="w-8 h-8 text-amber-400" />
-                                </div>
-                                <div className="text-xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
-                                    Game Over!
-                                </div>
-                                <div className="text-xs text-[color:var(--muted)] mt-1 mb-3">
-                                    Keine Züge mehr möglich
-                                </div>
-                                <div className="text-2xl font-bold text-white">
-                                    {data.score.toLocaleString()}
-                                </div>
-                                <div className="text-xs text-[color:var(--muted)] mt-2 flex gap-3 justify-center">
-                                    <span>{data.totalLinesCleared} Lines</span>
-                                    <span>•</span>
-                                    <span>{data.maxComboStreak}x Max Combo</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
 
-                    {/* Board */}
+
+                {/* Board */}
+                <div
+                    ref={boardRef}
+                    className={`bg-zinc-900/80 p-3 rounded-2xl border border-zinc-700/50 shadow-xl touch-none ${renderModel.isTerminal ? 'opacity-60' : ''}`}
+                    onMouseLeave={() => {
+                        if (!draggingTrayIndex) setHoverOrigin(null);
+                    }}
+                >
                     <div
-                        ref={boardRef}
-                        className={`bg-zinc-900/80 p-3 rounded-2xl border border-zinc-700/50 shadow-xl touch-none ${renderModel.isTerminal ? 'opacity-60' : ''}`}
-                        onMouseLeave={() => {
-                            if (!draggingTrayIndex) setHoverOrigin(null);
+                        className="relative"
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: `repeat(${BOARD.cols}, ${CELL_SIZE}px)`,
+                            gap: CELL_GAP,
                         }}
                     >
-                        <div
-                            className="relative"
-                            style={{
-                                display: 'grid',
-                                gridTemplateColumns: `repeat(${BOARD.cols}, ${CELL_SIZE}px)`,
-                                gap: CELL_GAP,
-                            }}
-                        >
-                            {data.board.map((row, r) =>
-                                row.map((filled, c) => {
-                                    const key = `${r},${c}`;
-                                    const previewInfo = previewCells?.get(key);
-                                    const isPreview = previewInfo !== undefined;
-                                    const isValid = previewInfo === true;
+                        {data.board.map((row, r) =>
+                            row.map((filled, c) => {
+                                const key = `${r},${c}`;
+                                const previewInfo = previewCells?.get(key);
+                                const isPreview = previewInfo !== undefined;
+                                const isValid = previewInfo === true;
 
-                                    return (
-                                        <div
-                                            key={key}
-                                            onClick={() => handleCellClick(r, c)}
-                                            onMouseEnter={() => {
-                                                if (selectedTrayIndex !== null && !draggingTrayIndex) {
-                                                    setHoverOrigin({ r, c });
-                                                }
-                                            }}
-                                            className="cursor-pointer"
-                                        >
-                                            <Cell
-                                                filled={filled}
-                                                preview={isPreview && isValid && !filled}
-                                                invalid={isPreview && !isValid && !filled}
-                                                colorIndex={
-                                                    isPreview && !filled
-                                                        ? (activeTrayIndex ?? 0)
-                                                        : (r + c) % BLOCK_COLORS.length
-                                                }
-                                            />
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
+                                return (
+                                    <div
+                                        key={key}
+                                        onClick={() => handleCellClick(r, c)}
+                                        onMouseEnter={() => {
+                                            if (selectedTrayIndex !== null && !draggingTrayIndex) {
+                                                setHoverOrigin({ r, c });
+                                            }
+                                        }}
+                                        className="cursor-pointer"
+                                    >
+                                        <Cell
+                                            filled={filled}
+                                            preview={isPreview && isValid && !filled}
+                                            invalid={isPreview && !isValid && !filled}
+                                            colorIndex={
+                                                isPreview && !filled
+                                                    ? (activeTrayIndex ?? 0)
+                                                    : (r + c) % BLOCK_COLORS.length
+                                            }
+                                        />
+                                    </div>
+                                );
+                            })
+                        )}
                     </div>
                 </div>
 
@@ -759,23 +767,6 @@ export default function BatasBlastGame() {
                     ))}
                 </div>
 
-                {/* Play Again / Stats Buttons */}
-                {renderModel.isTerminal && (
-                    <div className="flex gap-3 w-full max-w-md">
-                        <button
-                            onClick={initGame}
-                            className="flex-1 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-xl font-bold transition text-white shadow-lg shadow-emerald-500/20"
-                        >
-                            Play Again
-                        </button>
-                        <button
-                            onClick={() => setStatsOpen(true)}
-                            className="px-6 py-4 bg-[color:var(--surface)] hover:bg-[color:var(--surface2)] border border-[color:var(--border)] rounded-xl font-bold transition"
-                        >
-                            Stats
-                        </button>
-                    </div>
-                )}
 
                 {/* Instructions */}
                 {!renderModel.isTerminal && selectedTrayIndex === null && draggingTrayIndex === null && (
@@ -833,6 +824,28 @@ export default function BatasBlastGame() {
                 gameId={GAME_ID}
             />
 
+            {/* Game Result Overlay */}
+            <GameResultOverlay
+                open={renderModel.isTerminal}
+                outcome="lose"
+                title="Game Over!"
+                subtitle="Keine Züge mehr möglich"
+                onPlayAgain={initGame}
+                onOpenStats={() => setStatsOpen(true)}
+            >
+                {/* Score display */}
+                <div className="text-center">
+                    <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent mb-2">
+                        {data.score.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-[color:var(--muted)] flex gap-3 justify-center">
+                        <span>{data.totalLinesCleared} Lines</span>
+                        <span>•</span>
+                        <span>{data.maxComboStreak}x Max Combo</span>
+                    </div>
+                </div>
+            </GameResultOverlay>
+
             <Modal
                 open={confirmResetOpen}
                 title="Neues Spiel?"
@@ -860,6 +873,6 @@ export default function BatasBlastGame() {
                     Dein aktuelles Spiel wird beendet. Fortfahren?
                 </div>
             </Modal>
-        </GameShell>
+        </GameShell >
     );
 }

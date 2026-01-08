@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Trophy, Search, RotateCcw } from "lucide-react";
 import GameShell from "@/components/shared/GameShell";
+import GameResultOverlay from "@/components/games/common/GameResultOverlay";
 import Leaderboard from "@/components/games/common/Leaderboard";
 import StatsModal from "@/components/shared/StatsModal";
 import {
@@ -495,23 +496,6 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
                     </div>
                 </div>
 
-                {/* Play Again Button */}
-                {renderModel.isTerminal && (
-                    <div className="flex gap-3">
-                        <button
-                            onClick={initGame}
-                            className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition text-white"
-                        >
-                            Nochmal spielen
-                        </button>
-                        <button
-                            onClick={() => setStatsOpen(true)}
-                            className="px-4 py-4 bg-[color:var(--surface)] hover:bg-[color:var(--surface2)] border border-[color:var(--border)] rounded-xl font-bold transition"
-                        >
-                            Stats
-                        </button>
-                    </div>
-                )}
             </div>
 
             {/* Modals */}
@@ -527,6 +511,16 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
                 open={leaderboardOpen}
                 onClose={() => setLeaderboardOpen(false)}
                 gameId={GAME_ID}
+            />
+
+            {/* Game Result Overlay */}
+            <GameResultOverlay
+                open={renderModel.isTerminal}
+                outcome="win"
+                title="Geschafft!"
+                subtitle={`Alle ${data?.totalWords ?? 0} Wörter gefunden`}
+                onPlayAgain={initGame}
+                onOpenStats={() => setStatsOpen(true)}
             />
 
             {/* Confirm Reset Modal */}

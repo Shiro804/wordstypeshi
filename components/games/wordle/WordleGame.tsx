@@ -29,6 +29,7 @@ import { consumeHint, getHintNoRemind, setHintNoRemind, getRemainingHints } from
 import { fetchWordDefinition, translatePartOfSpeech, translateToGerman, type WordDefinition } from "@/lib/dictionary";
 import { saveWordDefinition } from "@/lib/word-definitions";
 import GameShell from "@/components/shared/GameShell";
+import GameResultOverlay from "@/components/games/common/GameResultOverlay";
 import StatsModal from "@/components/shared/StatsModal";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -75,6 +76,7 @@ export default function WordleGame() {
     const [hintNoRemindChecked, setHintNoRemindChecked] = useState(false);
 
     const [wordDefinition, setWordDefinition] = useState<WordDefinition | null>(null);
+    const [isWordDefinitionLoading, setIsWordDefinitionLoading] = useState(false);
     const [definitionPopupOpen, setDefinitionPopupOpen] = useState(false);
 
     const theme = "dark" as const;
@@ -285,30 +287,40 @@ export default function WordleGame() {
     useEffect(() => {
         if (!gameOver.done || !answer) {
             setWordDefinition(null);
+            setIsWordDefinitionLoading(false);
             return;
         }
-        fetchWordDefinition(answer).then(async (def) => {
-            if (def?.meaning) {
-                const germanTranslation = await translateToGerman(def.meaning);
-                const fullDef = { ...def, meaningGerman: germanTranslation ?? undefined };
-                setWordDefinition(fullDef);
 
-                if (userId) {
-                    void saveWordDefinition(
-                        userId,
-                        answer,
-                        {
-                            partOfSpeech: def.partOfSpeech,
-                            meaning: def.meaning,
-                            meaningGerman: germanTranslation ?? undefined,
-                        },
-                        difficulty
-                    );
+        setIsWordDefinitionLoading(true);
+        fetchWordDefinition(answer)
+            .then(async (def) => {
+                if (def?.meaning) {
+                    const germanTranslation = await translateToGerman(def.meaning);
+                    const fullDef = { ...def, meaningGerman: germanTranslation ?? undefined };
+                    setWordDefinition(fullDef);
+
+                    if (userId) {
+                        void saveWordDefinition(
+                            userId,
+                            answer,
+                            {
+                                partOfSpeech: def.partOfSpeech,
+                                meaning: def.meaning,
+                                meaningGerman: germanTranslation ?? undefined,
+                            },
+                            difficulty
+                        );
+                    }
+                } else {
+                    setWordDefinition(def);
                 }
-            } else {
-                setWordDefinition(def);
-            }
-        });
+            })
+            .catch(() => {
+                setWordDefinition(null);
+            })
+            .finally(() => {
+                setIsWordDefinitionLoading(false);
+            });
     }, [gameOver.done, answer, userId, difficulty]);
 
     const durationSec = useMemo(() => {
@@ -674,62 +686,8 @@ export default function WordleGame() {
 
                 {/* Grid area - centered with max-width */}
                 <div className="max-w-md mx-auto w-full flex-1 flex flex-col items-center justify-center py-2 overflow-hidden relative">
-                    {gameOver.done && (
-                        <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-                            <div className={`px-6 py-3 rounded-2xl backdrop-blur-md shadow-xl ${gameOver.won ? "bg-emerald-500/20 border border-emerald-400/40" : "bg-rose-500/20 border border-rose-400/40"}`}>
-                                <div className={`text-xl sm:text-2xl font-extrabold tracking-[0.12em] drop-shadow ${gameOver.won ? "text-emerald-300" : "text-rose-400"}`}>
-                                    {gameOver.won ? "YOU WON" : "GAME OVER"}
-                                </div>
-                            </div>
-                        </div>
-                    )}
                     <Grid rows={viewRows} activeRowIndex={activeRowIndex} shakeRowNonce={shakeNonce} onDeleteChar={onDeleteChar} />
                 </div>
-
-                {/* New Game Button - shown after win or lose */}
-                {gameOver.done && (
-                    <div className="flex justify-center py-3 shrink-0">
-                        <button
-                            type="button"
-                            onClick={newGame}
-                            className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition text-white shadow-lg"
-                        >
-                            New Game
-                        </button>
-                    </div>
-                )}
-
-                {/* Word definition - centered */}
-                {gameOver.done && committedCount > 0 && (
-                    <div className="pt-2 pb-4 text-center max-w-md mx-auto px-4 shrink-0">
-                        <div className="text-xs text-[color:var(--muted)]">{gameOver.won ? "The word:" : "The word was:"}</div>
-                        <div className="text-xl font-bold text-[color:var(--fg)] uppercase tracking-widest">{answer}</div>
-                        {wordDefinition && (
-                            <>
-                                <div className="hidden sm:block mt-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)]/80 backdrop-blur-sm px-3 py-2">
-                                    {wordDefinition.partOfSpeech && (
-                                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">
-                                            {translatePartOfSpeech(wordDefinition.partOfSpeech)}
-                                            <span className="mx-1 opacity-50">•</span>
-                                            <span className="lowercase italic opacity-75">{wordDefinition.partOfSpeech}</span>
-                                        </div>
-                                    )}
-                                    <div className="text-sm text-[color:var(--fg)]/90 leading-snug mt-1">{wordDefinition.meaning}</div>
-                                    {wordDefinition.meaningGerman && (
-                                        <div className="text-sm text-[color:var(--muted)] leading-snug mt-1 pt-1 border-t border-[color:var(--border)]/50 italic">
-                                            🇩🇪 {wordDefinition.meaningGerman}
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="sm:hidden mt-2">
-                                    <button type="button" onClick={() => setDefinitionPopupOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)]/80 backdrop-blur-sm px-3 py-2 text-sm text-[color:var(--fg)] hover:bg-[color:var(--surface2)] transition">
-                                        <span>📖</span><span>Definition anzeigen</span>
-                                    </button>
-                                </div>
-                            </>
-                        )}
-                    </div>
-                )}
 
                 {/* Keyboard - constrained to parent width with iPhone safe areas */}
                 <div className="shrink-0 pb-safe mb-1 w-full px-2 sm:px-4" ref={keyboardRef}>
@@ -819,6 +777,57 @@ export default function WordleGame() {
                 open={wordHistoryOpen}
                 onClose={() => setWordHistoryOpen(false)}
             />
+
+            {/* Game Result Overlay */}
+            <GameResultOverlay
+                open={gameOver.done}
+                outcome={gameOver.won ? 'win' : 'lose'}
+                title={gameOver.won ? 'You Won!' : 'Game Over'}
+                subtitle={gameOver.won ? `Solved in ${committedCount} tries` : undefined}
+                onPlayAgain={newGame}
+                onOpenStats={() => setStatsOpen(true)}
+                playAgainLabel="New Game"
+            >
+                {/* Answer */}
+                <div className="text-center">
+                    <div className="text-2xl font-bold text-[color:var(--fg)] uppercase tracking-widest mb-1">{answer}</div>
+                    {/* Loading State */}
+                    {isWordDefinitionLoading && (
+                        <div className="py-2 space-y-2 animate-pulse">
+                            <div className="h-4 bg-zinc-500/20 rounded-md w-3/4 mx-auto" />
+                            <div className="h-4 bg-zinc-500/20 rounded-md w-1/2 mx-auto" />
+                        </div>
+                    )}
+
+                    {/* Loaded State */}
+                    {!isWordDefinitionLoading && wordDefinition && (
+                        <div className="text-sm text-[color:var(--muted)] space-y-1">
+                            <div>
+                                {wordDefinition.partOfSpeech && (
+                                    <span className="italic">{translatePartOfSpeech(wordDefinition.partOfSpeech)}: </span>
+                                )}
+                                {wordDefinition.meaning}
+                            </div>
+                            {wordDefinition.meaningGerman ? (
+                                <div className="pt-1 border-t border-[color:var(--border)]/50 italic">
+                                    🇩🇪 {wordDefinition.meaningGerman}
+                                </div>
+                            ) : (
+                                <div className="pt-1 border-t border-[color:var(--border)]/50 italic opacity-50 text-xs">
+                                    Keine deutsche Übersetzung verfügbar
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Failed / Empty State */}
+                    {!isWordDefinitionLoading && !wordDefinition && (
+                        <div className="text-xs text-[color:var(--muted)] italic opacity-50 py-2">
+                            (Definition nicht verfügbar)
+                        </div>
+                    )}
+                </div>
+            </GameResultOverlay>
 
             <Modal open={hintWarningOpen} title="Use a hint?" onClose={() => setHintWarningOpen(false)} footer={
                 <div className="flex items-center justify-end gap-2">
