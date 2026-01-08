@@ -357,20 +357,20 @@ function ScoreDisplay({
             </div>
 
             {/* Center: Score */}
-            <div className="relative flex flex-col items-center justify-center px-8 py-2 rounded-xl bg-zinc-800/50 border border-zinc-700/50 min-w-[140px]">
-                <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
-                    {score.toLocaleString()}
+            <div className="flex flex-col items-center justify-center px-8 py-2 rounded-xl bg-zinc-800/50 border border-zinc-700/50 min-w-[140px]">
+                {/* Score number with popup anchor */}
+                <div className="relative flex items-center">
+                    <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
+                        {score.toLocaleString()}
+                    </div>
+                    {/* Popups positioned right next to the number */}
+                    <div className="absolute left-full top-0 pl-2 pointer-events-none">
+                        {popups.map((popup) => (
+                            <FloatingScore key={popup.id} value={popup.value} />
+                        ))}
+                    </div>
                 </div>
                 <div className="text-xs text-zinc-500 uppercase tracking-wider font-medium">Score</div>
-
-                {/* Popups next to score */}
-                <div className="absolute top-0 right-0 h-full translate-x-full pl-3 flex flex-col justify-center pointer-events-none w-20">
-                    {popups.map((popup) => (
-                        <div key={popup.id} className="relative w-full h-0 flex items-center">
-                            <FloatingScore value={popup.value} />
-                        </div>
-                    ))}
-                </div>
             </div>
 
             {/* Right: Round Streak */}
