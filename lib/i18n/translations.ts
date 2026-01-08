@@ -95,6 +95,20 @@ export const translations = {
       medium: "Medium",
       hard: "Hard",
       saving: "Saving...",
+      close: "Close",
+      // Duck customizer
+      image: "Image",
+      uploadImage: "Upload Image",
+      removeImage: "Remove Image",
+      none: "None",
+      colors: "Colors",
+      background: "Background",
+      body: "Body",
+      belly: "Belly",
+      beak: "Beak",
+      eyes: "Eyes",
+      reset: "Reset",
+      logout: "Logout",
     },
 
     // Games shared
@@ -156,6 +170,30 @@ export const translations = {
       noMovesLeft: "No moves left!",
       finalScore: "Final Score",
       gameOver: "Game Over",
+      score: "Score",
+      best: "Best",
+      highScore: "High Score",
+      tapOrDrag: "Tap or drag a piece, then place it on the board",
+      totalLines: "Total Lines",
+      bestCombo: "Best Combo",
+    },
+
+    // Leaderboard
+    leaderboard: {
+      title: "Leaderboard",
+      difficulty: "Difficulty",
+      sortBy: "Sort by",
+      loading: "Loading...",
+      noStats: "No stats yet.",
+      // Metrics
+      wins: "Wins",
+      losses: "Losses",
+      winRate: "Win rate",
+      played: "Played",
+      maxStreak: "Max streak",
+      bestTime: "Best time",
+      avgTime: "Avg time",
+      highScore: "Highscore",
     },
 
     // Modals
@@ -260,6 +298,20 @@ export const translations = {
       medium: "Mittel",
       hard: "Schwer",
       saving: "Speichern...",
+      close: "Schließen",
+      // Duck customizer
+      image: "Bild",
+      uploadImage: "Bild hochladen",
+      removeImage: "Bild entfernen",
+      none: "Keins",
+      colors: "Farben",
+      background: "Hintergrund",
+      body: "Körper",
+      belly: "Bauch",
+      beak: "Schnabel",
+      eyes: "Augen",
+      reset: "Zurücksetzen",
+      logout: "Abmelden",
     },
 
     // Games shared
@@ -321,6 +373,30 @@ export const translations = {
       noMovesLeft: "Keine Züge mehr!",
       finalScore: "Endpunktzahl",
       gameOver: "Spiel vorbei",
+      score: "Punkte",
+      best: "Bester",
+      highScore: "Highscore",
+      tapOrDrag: "Tippe oder ziehe ein Teil, dann platziere es auf dem Feld",
+      totalLines: "Reihen gesamt",
+      bestCombo: "Beste Kombo",
+    },
+
+    // Leaderboard
+    leaderboard: {
+      title: "Bestenliste",
+      difficulty: "Schwierigkeit",
+      sortBy: "Sortieren nach",
+      loading: "Laden...",
+      noStats: "Noch keine Statistiken.",
+      // Metrics
+      wins: "Siege",
+      losses: "Niederlagen",
+      winRate: "Siegesrate",
+      played: "Gespielt",
+      maxStreak: "Max Serie",
+      bestTime: "Beste Zeit",
+      avgTime: "Ø Zeit",
+      highScore: "Highscore",
     },
 
     // Modals
