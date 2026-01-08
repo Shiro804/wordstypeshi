@@ -1,0 +1,865 @@
+"use client";
+
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { Trophy, X, RotateCcw, Flame, Zap, Sparkles } from "lucide-react";
+import GameShell from "@/components/shared/GameShell";
+import {
+    batasBlastEngine,
+    type BatasBlastState,
+    type BatasBlastAction,
+    type BatasBlastParams,
+    canPlacePiece,
+    PIECE_BY_ID,
+    BOARD,
+} from "@/lib/games/batasblast";
+import { batasBlastUIAdapter, type BatasBlastRenderModel, type TrayPieceRender } from "@/lib/games/batasblast/ui-adapter";
+import { loadActiveGame, saveActiveGame } from "@/lib/storage/active-game-storage";
+import { getCurrentUserId, upsertRemoteGameStats, syncGameStats, loadLocalStats, saveLocalStats } from "@/lib/sync/game-stats-sync";
+import { createOrReuseActiveSession, endSession } from "@/lib/sync/sessions-sync";
+import Leaderboard from "@/components/games/common/Leaderboard";
+import StatsModal from "@/components/shared/StatsModal";
+import { type Stats, applyGameResult } from "@/lib/storage/storage";
+import { useGameTimer } from "@/lib/hooks/useGameTimer";
+import Modal from "../common/Modal";
+import type { CellOffset } from "@/lib/games/batasblast/ruleset";
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+const GAME_ID = "batasblast";
+const CELL_SIZE = 38; // px
+const CELL_GAP = 3; // px
+const TRAY_CELL_SIZE = 18;
+const TRAY_CELL_GAP = 2;
+
+// Color palette for blocks
+const BLOCK_COLORS = [
+    { from: "from-amber-400", to: "to-orange-500", hex: "#f59e0b" },
+    { from: "from-emerald-400", to: "to-teal-500", hex: "#34d399" },
+    { from: "from-violet-400", to: "to-purple-500", hex: "#a78bfa" },
+    { from: "from-rose-400", to: "to-pink-500", hex: "#fb7185" },
+    { from: "from-cyan-400", to: "to-blue-500", hex: "#22d3ee" },
+];
+
+// ============================================================================
+// Sub-components
+// ============================================================================
+
+/** Single cell on the board */
+function Cell({
+    filled,
+    preview,
+    invalid,
+    blasting,
+    colorIndex = 0,
+}: {
+    filled: boolean;
+    preview?: boolean;
+    invalid?: boolean;
+    blasting?: boolean;
+    colorIndex?: number;
+}) {
+    const colors = BLOCK_COLORS[colorIndex % BLOCK_COLORS.length];
+
+    return (
+        <div
+            className={`
+        rounded-lg transition-all duration-150 relative overflow-hidden
+        ${filled
+                    ? `bg-gradient-to-br ${colors.from} ${colors.to} shadow-lg shadow-orange-500/20`
+                    : "bg-zinc-800/60 border border-zinc-700/50"
+                }
+        ${preview && !filled ? `bg-gradient-to-br ${colors.from}/70 ${colors.to}/70 border-2 border-dashed border-white/60 shadow-md shadow-white/20` : ""}
+        ${invalid ? "bg-red-500/30 border-2 border-red-500/70 shadow-md shadow-red-500/30" : ""}
+        ${blasting ? "animate-pulse scale-110 brightness-150" : ""}
+      `}
+            style={{
+                width: CELL_SIZE,
+                height: CELL_SIZE,
+            }}
+        >
+            {filled && (
+                <div className="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent rounded-lg" />
+            )}
+        </div>
+    );
+}
+
+/** Floating ghost piece that follows cursor/touch */
+function GhostPiece({
+    cells,
+    colorIndex,
+    position,
+}: {
+    cells: CellOffset[];
+    colorIndex: number;
+    position: { x: number; y: number } | null;
+}) {
+    if (!position || cells.length === 0) return null;
+
+    const minR = Math.min(...cells.map(c => c.dr));
+    const maxR = Math.max(...cells.map(c => c.dr));
+    const minC = Math.min(...cells.map(c => c.dc));
+    const maxC = Math.max(...cells.map(c => c.dc));
+    const rows = maxR - minR + 1;
+    const cols = maxC - minC + 1;
+
+    const ghostCellSize = 32;
+    const ghostGap = 2;
+    const colors = BLOCK_COLORS[colorIndex % BLOCK_COLORS.length];
+
+    // Offset to center the ghost under the cursor
+    const offsetX = (cols * (ghostCellSize + ghostGap)) / 2;
+    const offsetY = (rows * (ghostCellSize + ghostGap)) / 2;
+
+    return (
+        <div
+            className="fixed pointer-events-none z-[100] opacity-80"
+            style={{
+                left: position.x - offsetX,
+                top: position.y - offsetY,
+            }}
+        >
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${cols}, ${ghostCellSize}px)`,
+                    gridTemplateRows: `repeat(${rows}, ${ghostCellSize}px)`,
+                    gap: ghostGap,
+                }}
+            >
+                {Array.from({ length: rows * cols }).map((_, i) => {
+                    const r = Math.floor(i / cols);
+                    const c = i % cols;
+                    const isFilled = cells.some(
+                        cell => cell.dr - minR === r && cell.dc - minC === c
+                    );
+                    return (
+                        <div
+                            key={i}
+                            className={`
+                rounded-md shadow-lg
+                ${isFilled
+                                    ? `bg-gradient-to-br ${colors.from} ${colors.to}`
+                                    : "bg-transparent"
+                                }
+              `}
+                            style={{ width: ghostCellSize, height: ghostCellSize }}
+                        />
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+/** A piece in the tray - draggable */
+function TrayPieceDisplay({
+    piece,
+    selected,
+    isDragging,
+    onSelect,
+    onDragStart,
+    colorIndex,
+}: {
+    piece: TrayPieceRender;
+    selected: boolean;
+    isDragging: boolean;
+    onSelect: () => void;
+    onDragStart: (e: React.PointerEvent) => void;
+    colorIndex: number;
+}) {
+    if (piece.used) {
+        return (
+            <div className="w-24 h-24 rounded-xl bg-zinc-800/30 border border-zinc-700/30 flex items-center justify-center">
+                <X className="w-6 h-6 text-zinc-600" />
+            </div>
+        );
+    }
+
+    const minR = Math.min(...piece.cells.map(c => c.dr));
+    const maxR = Math.max(...piece.cells.map(c => c.dr));
+    const minC = Math.min(...piece.cells.map(c => c.dc));
+    const maxC = Math.max(...piece.cells.map(c => c.dc));
+    const rows = maxR - minR + 1;
+    const cols = maxC - minC + 1;
+    const colors = BLOCK_COLORS[colorIndex % BLOCK_COLORS.length];
+
+    return (
+        <button
+            type="button"
+            onClick={onSelect}
+            onPointerDown={onDragStart}
+            disabled={!piece.canPlace}
+            className={`
+        p-3 rounded-xl transition-all duration-200 min-w-[96px] min-h-[96px]
+        flex items-center justify-center touch-none select-none
+        ${selected
+                    ? "bg-emerald-500/20 ring-2 ring-emerald-400 scale-105 shadow-lg shadow-emerald-500/20"
+                    : "bg-zinc-800/50 hover:bg-zinc-700/50 border border-zinc-700/50"
+                }
+        ${isDragging ? "opacity-50 scale-95" : ""}
+        ${!piece.canPlace ? "opacity-40 cursor-not-allowed" : "cursor-grab active:cursor-grabbing"}
+      `}
+        >
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${cols}, ${TRAY_CELL_SIZE}px)`,
+                    gridTemplateRows: `repeat(${rows}, ${TRAY_CELL_SIZE}px)`,
+                    gap: TRAY_CELL_GAP,
+                }}
+            >
+                {Array.from({ length: rows * cols }).map((_, i) => {
+                    const r = Math.floor(i / cols);
+                    const c = i % cols;
+                    const isFilled = piece.cells.some(
+                        cell => cell.dr - minR === r && cell.dc - minC === c
+                    );
+                    return (
+                        <div
+                            key={i}
+                            className={`
+                rounded-sm
+                ${isFilled
+                                    ? `bg-gradient-to-br ${colors.from} ${colors.to} shadow-sm`
+                                    : "bg-transparent"
+                                }
+              `}
+                            style={{ width: TRAY_CELL_SIZE, height: TRAY_CELL_SIZE }}
+                        />
+                    );
+                })}
+            </div>
+        </button>
+    );
+}
+
+/** Score display */
+function ScoreDisplay({
+    score,
+    comboStreak,
+    roundStreak,
+}: {
+    score: number;
+    comboStreak: number;
+    roundStreak: number;
+}) {
+    return (
+        <div className="flex items-center justify-center gap-4">
+            <div className="text-center px-6 py-2 rounded-xl bg-zinc-800/50 border border-zinc-700/50">
+                <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
+                    {score.toLocaleString()}
+                </div>
+                <div className="text-xs text-zinc-500 uppercase tracking-wider font-medium">Score</div>
+            </div>
+
+            {comboStreak > 0 && (
+                <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-orange-500/20 border border-orange-500/30 text-orange-400 animate-pulse">
+                    <Flame className="w-5 h-5" />
+                    <span className="font-bold text-lg">{comboStreak}x</span>
+                </div>
+            )}
+
+            {roundStreak > 0 && (
+                <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-400">
+                    <Zap className="w-5 h-5" />
+                    <span className="font-bold text-lg">{roundStreak}</span>
+                </div>
+            )}
+        </div>
+    );
+}
+
+/** Blast effect overlay */
+function BlastEffect({ active }: { active: boolean }) {
+    if (!active) return null;
+
+    return (
+        <div className="absolute inset-0 pointer-events-none z-50 flex items-center justify-center">
+            <div className="animate-ping">
+                <Sparkles className="w-16 h-16 text-amber-400" />
+            </div>
+        </div>
+    );
+}
+
+// ============================================================================
+// Main Game Component
+// ============================================================================
+
+export default function BatasBlastGame() {
+    // State
+    const [gameState, setGameState] = useState<BatasBlastState | null>(null);
+    const [selectedTrayIndex, setSelectedTrayIndex] = useState<number | null>(null);
+    const [draggingTrayIndex, setDraggingTrayIndex] = useState<number | null>(null);
+    const [hoverOrigin, setHoverOrigin] = useState<{ r: number; c: number } | null>(null);
+    const [ghostPosition, setGhostPosition] = useState<{ x: number; y: number } | null>(null);
+    const [showBlast, setShowBlast] = useState(false);
+    const [lastClearedLines, setLastClearedLines] = useState<number>(0);
+
+    // Refs
+    const boardRef = useRef<HTMLDivElement>(null);
+
+    // Confirmation State
+    const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+
+    // UI State
+    const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+    const [statsOpen, setStatsOpen] = useState(false);
+    const [stats, setStats] = useState<Stats>(() => loadLocalStats(GAME_ID, 'medium'));
+    const [userId, setUserId] = useState<string | null>(null);
+    const [sessionId, setSessionId] = useState<string | null>(null);
+
+    // Timer
+    const timer = useGameTimer();
+
+    // Derived
+    const params: BatasBlastParams = useMemo(() => ({ mode: 'classic_endless' }), []);
+
+    const activeTrayIndex = draggingTrayIndex ?? selectedTrayIndex;
+
+    // Check if game is in progress
+    const isInProgress = useMemo(() => {
+        return gameState && !batasBlastEngine.isTerminal(gameState) && gameState.moveCount > 0;
+    }, [gameState]);
+
+    // Get active piece cells for ghost
+    const activePieceCells = useMemo(() => {
+        if (activeTrayIndex === null || !gameState) return [];
+        const trayPiece = gameState.tray[activeTrayIndex];
+        if (trayPiece.used) return [];
+        const piece = PIECE_BY_ID.get(trayPiece.pieceId);
+        return piece?.cells ?? [];
+    }, [activeTrayIndex, gameState]);
+
+    // Initial Load
+    useEffect(() => {
+        getCurrentUserId().then(uid => setUserId(uid));
+    }, []);
+
+    // Load active game or init new one
+    const hasInitialized = useRef(false);
+    useEffect(() => {
+        if (hasInitialized.current) return;
+
+        const active = loadActiveGame<BatasBlastState>(GAME_ID, userId);
+
+        if (active && !batasBlastEngine.isTerminal(active)) {
+            setGameState(active);
+            timer.setStartedAt(active.startedAtMs);
+            if (active.endedAtMs) {
+                timer.setEndedAt(active.endedAtMs);
+            }
+        } else {
+            const newSeed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            const state = batasBlastEngine.init(newSeed, params);
+            setGameState(state);
+            saveActiveGame(GAME_ID, state, userId);
+            timer.reset();
+        }
+        hasInitialized.current = true;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId]);
+
+    // Save active game
+    useEffect(() => {
+        if (gameState) {
+            saveActiveGame(GAME_ID, batasBlastEngine.isTerminal(gameState) ? null : gameState, userId);
+        }
+    }, [gameState, userId]);
+
+    // Sync stats
+    useEffect(() => {
+        const local = loadLocalStats(GAME_ID, 'medium');
+        setStats(local);
+
+        if (userId) {
+            syncGameStats(userId, GAME_ID, 'medium', local).then(synced => {
+                setStats(synced);
+                saveLocalStats(GAME_ID, 'medium', synced);
+            });
+        }
+    }, [userId]);
+
+    // Pointer move handler for drag preview
+    useEffect(() => {
+        if (draggingTrayIndex === null) return;
+
+        const handlePointerMove = (e: PointerEvent) => {
+            setGhostPosition({ x: e.clientX, y: e.clientY });
+
+            // Calculate grid position from cursor
+            if (boardRef.current) {
+                const rect = boardRef.current.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const cellTotal = CELL_SIZE + CELL_GAP;
+                const col = Math.floor(x / cellTotal);
+                const row = Math.floor(y / cellTotal);
+
+                if (row >= 0 && row < BOARD.rows && col >= 0 && col < BOARD.cols) {
+                    setHoverOrigin({ r: row, c: col });
+                } else {
+                    setHoverOrigin(null);
+                }
+            }
+        };
+
+        const handlePointerUp = (e: PointerEvent) => {
+            // Try to place piece at current hover position
+            if (hoverOrigin && gameState && draggingTrayIndex !== null) {
+                const trayPiece = gameState.tray[draggingTrayIndex];
+                if (!trayPiece.used && canPlacePiece(gameState.board, trayPiece.pieceId, hoverOrigin)) {
+                    placePiece(draggingTrayIndex, hoverOrigin);
+                }
+            }
+
+            setDraggingTrayIndex(null);
+            setGhostPosition(null);
+            setHoverOrigin(null);
+        };
+
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+
+        return () => {
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+        };
+    }, [draggingTrayIndex, hoverOrigin, gameState]);
+
+    const initGame = useCallback(async () => {
+        const newSeed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const state = batasBlastEngine.init(newSeed, params);
+        setGameState(state);
+        setSelectedTrayIndex(null);
+        setDraggingTrayIndex(null);
+        setHoverOrigin(null);
+        setGhostPosition(null);
+        setShowBlast(false);
+        setLastClearedLines(0);
+        saveActiveGame(GAME_ID, state, userId);
+        timer.reset();
+
+        if (userId) {
+            const session = await createOrReuseActiveSession({
+                userId,
+                gameId: GAME_ID,
+                difficulty: 'medium',
+                answer: '',
+                startedAtMs: state.startedAtMs,
+            });
+            setSessionId(session?.id ?? null);
+        }
+    }, [params, userId, timer]);
+
+    const forfeitCurrentGame = useCallback(async () => {
+        if (!gameState) return;
+        timer.stop();
+        const durationSec = Math.max(0, (Date.now() - gameState.startedAtMs) / 1000);
+        const newStats = applyGameResult(stats, { outcome: "lose", durationSec });
+        setStats(newStats);
+        saveLocalStats(GAME_ID, 'medium', newStats);
+        if (userId) {
+            upsertRemoteGameStats(userId, GAME_ID, 'medium', newStats);
+        }
+
+        if (sessionId) {
+            await endSession({
+                sessionId,
+                outcome: "forfeit",
+                guessesUsed: gameState.moveCount,
+                durationSec,
+                endedAtMs: Date.now(),
+            });
+            setSessionId(null);
+        }
+
+        saveActiveGame(GAME_ID, null, userId);
+    }, [gameState, stats, userId, sessionId, timer]);
+
+    const requestReset = useCallback(() => {
+        if (isInProgress) {
+            setConfirmResetOpen(true);
+            return;
+        }
+        initGame();
+    }, [isInProgress, initGame]);
+
+    const forfeitAndReset = useCallback(() => {
+        forfeitCurrentGame();
+        initGame();
+        setConfirmResetOpen(false);
+    }, [forfeitCurrentGame, initGame]);
+
+    // Place piece helper
+    const placePiece = useCallback((trayIndex: number, origin: { r: number; c: number }) => {
+        if (!gameState) return;
+
+        const trayPiece = gameState.tray[trayIndex];
+        if (trayPiece.used) return;
+
+        if (!canPlacePiece(gameState.board, trayPiece.pieceId, origin)) {
+            return;
+        }
+
+        if (!timer.startedAtMs) {
+            timer.start();
+        }
+
+        const action: BatasBlastAction = {
+            type: 'place',
+            trayIndex,
+            origin,
+        };
+
+        const prevLinesCleared = gameState.totalLinesCleared;
+        const result = batasBlastEngine.applyAction(gameState, action);
+
+        if (!result.invalidReason) {
+            setGameState(result.state);
+            setSelectedTrayIndex(null);
+            setHoverOrigin(null);
+
+            const newLinesCleared = result.state.totalLinesCleared - prevLinesCleared;
+            if (newLinesCleared > 0) {
+                setLastClearedLines(newLinesCleared);
+                setShowBlast(true);
+                setTimeout(() => setShowBlast(false), 500);
+            }
+
+            if (batasBlastEngine.isTerminal(result.state)) {
+                timer.stop();
+                const durationSec = (result.state.endedAtMs! - result.state.startedAtMs) / 1000;
+
+                const newStats = applyGameResult(stats, {
+                    outcome: "lose",
+                    durationSec,
+                });
+
+                setStats(newStats);
+                saveLocalStats(GAME_ID, 'medium', newStats);
+
+                if (userId) {
+                    upsertRemoteGameStats(userId, GAME_ID, 'medium', newStats);
+                }
+
+                if (sessionId) {
+                    endSession({
+                        sessionId,
+                        outcome: "lose",
+                        guessesUsed: result.state.moveCount,
+                        durationSec,
+                        endedAtMs: result.state.endedAtMs!,
+                    });
+                    setSessionId(null);
+                }
+            }
+        }
+    }, [gameState, stats, userId, sessionId, timer]);
+
+    // Handle cell click (for tap-to-place mode)
+    const handleCellClick = useCallback((r: number, c: number) => {
+        if (!gameState || selectedTrayIndex === null) return;
+        placePiece(selectedTrayIndex, { r, c });
+    }, [gameState, selectedTrayIndex, placePiece]);
+
+    // Handle drag start
+    const handleDragStart = useCallback((trayIndex: number, e: React.PointerEvent) => {
+        if (!gameState) return;
+        const trayPiece = gameState.tray[trayIndex];
+        if (trayPiece.used || !trayPiece) return;
+
+        e.preventDefault();
+        setDraggingTrayIndex(trayIndex);
+        setGhostPosition({ x: e.clientX, y: e.clientY });
+    }, [gameState]);
+
+    // Compute preview cells for board display
+    const previewCells = useMemo(() => {
+        if (!gameState || activeTrayIndex === null || !hoverOrigin) {
+            return undefined;
+        }
+
+        const trayPiece = gameState.tray[activeTrayIndex];
+        if (trayPiece.used) return undefined;
+
+        const piece = PIECE_BY_ID.get(trayPiece.pieceId);
+        if (!piece) return undefined;
+
+        const isValid = canPlacePiece(gameState.board, trayPiece.pieceId, hoverOrigin);
+
+        const cells = new Map<string, boolean>();
+        for (const cell of piece.cells) {
+            const r = hoverOrigin.r + cell.dr;
+            const c = hoverOrigin.c + cell.dc;
+            if (r >= 0 && r < BOARD.rows && c >= 0 && c < BOARD.cols) {
+                cells.set(`${r},${c}`, isValid);
+            }
+        }
+        return cells;
+    }, [gameState, activeTrayIndex, hoverOrigin]);
+
+    const renderModel = useMemo((): BatasBlastRenderModel | null => {
+        if (!gameState) return null;
+        return batasBlastUIAdapter.toRenderModel(gameState) as BatasBlastRenderModel;
+    }, [gameState]);
+
+    if (!renderModel) {
+        return (
+            <GameShell gameId={GAME_ID} gameName="BatasBlast" onNewGame={initGame}>
+                <div className="flex items-center justify-center h-64">
+                    <div className="animate-pulse text-[color:var(--fg)]">Loading...</div>
+                </div>
+            </GameShell>
+        );
+    }
+
+    const { data } = renderModel;
+
+    return (
+        <GameShell
+            gameId={GAME_ID}
+            gameName="BatasBlast"
+            onNewGame={requestReset}
+            onOpenLeaderboard={() => setLeaderboardOpen(true)}
+            onOpenStats={() => setStatsOpen(true)}
+            actionsSlot={
+                isInProgress ? (
+                    <button
+                        type="button"
+                        onClick={() => setConfirmResetOpen(true)}
+                        title="Reset"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                    >
+                        <RotateCcw size={16} />
+                    </button>
+                ) : null
+            }
+        >
+            {/* Floating ghost piece */}
+            {draggingTrayIndex !== null && (
+                <GhostPiece
+                    cells={activePieceCells}
+                    colorIndex={draggingTrayIndex}
+                    position={ghostPosition}
+                />
+            )}
+
+            <div className="flex flex-col items-center gap-5 p-4 relative">
+                <BlastEffect active={showBlast} />
+
+                {/* Score Display */}
+                <ScoreDisplay
+                    score={data.score}
+                    comboStreak={data.comboStreak}
+                    roundStreak={data.roundStreak}
+                />
+
+                {/* Line clear feedback */}
+                {showBlast && lastClearedLines > 0 && (
+                    <div className="absolute top-20 animate-bounce text-amber-400 font-bold text-xl z-50">
+                        +{lastClearedLines} {lastClearedLines === 1 ? 'Line' : 'Lines'}!
+                    </div>
+                )}
+
+                {/* Board with Game Over Overlay */}
+                <div className="relative">
+                    {/* Game Over Overlay */}
+                    {renderModel.isTerminal && (
+                        <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+                            <div className="px-6 py-4 rounded-2xl backdrop-blur-md bg-zinc-900/90 border border-rose-500/40 shadow-2xl text-center">
+                                <div className="flex items-center justify-center gap-2 mb-2">
+                                    <Trophy className="w-8 h-8 text-amber-400" />
+                                </div>
+                                <div className="text-xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
+                                    Game Over!
+                                </div>
+                                <div className="text-xs text-[color:var(--muted)] mt-1 mb-3">
+                                    Keine Züge mehr möglich
+                                </div>
+                                <div className="text-2xl font-bold text-white">
+                                    {data.score.toLocaleString()}
+                                </div>
+                                <div className="text-xs text-[color:var(--muted)] mt-2 flex gap-3 justify-center">
+                                    <span>{data.totalLinesCleared} Lines</span>
+                                    <span>•</span>
+                                    <span>{data.maxComboStreak}x Max Combo</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Board */}
+                    <div
+                        ref={boardRef}
+                        className={`bg-zinc-900/80 p-3 rounded-2xl border border-zinc-700/50 shadow-xl touch-none ${renderModel.isTerminal ? 'opacity-60' : ''}`}
+                        onMouseLeave={() => {
+                            if (!draggingTrayIndex) setHoverOrigin(null);
+                        }}
+                    >
+                        <div
+                            className="relative"
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: `repeat(${BOARD.cols}, ${CELL_SIZE}px)`,
+                                gap: CELL_GAP,
+                            }}
+                        >
+                            {data.board.map((row, r) =>
+                                row.map((filled, c) => {
+                                    const key = `${r},${c}`;
+                                    const previewInfo = previewCells?.get(key);
+                                    const isPreview = previewInfo !== undefined;
+                                    const isValid = previewInfo === true;
+
+                                    return (
+                                        <div
+                                            key={key}
+                                            onClick={() => handleCellClick(r, c)}
+                                            onMouseEnter={() => {
+                                                if (selectedTrayIndex !== null && !draggingTrayIndex) {
+                                                    setHoverOrigin({ r, c });
+                                                }
+                                            }}
+                                            className="cursor-pointer"
+                                        >
+                                            <Cell
+                                                filled={filled}
+                                                preview={isPreview && isValid && !filled}
+                                                invalid={isPreview && !isValid && !filled}
+                                                colorIndex={
+                                                    isPreview && !filled
+                                                        ? (activeTrayIndex ?? 0)
+                                                        : (r + c) % BLOCK_COLORS.length
+                                                }
+                                            />
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Tray - always visible so user can verify game over */}
+                <div className={`flex gap-3 ${renderModel.isTerminal ? 'opacity-60' : ''}`}>
+                    {data.tray.map((piece, i) => (
+                        <TrayPieceDisplay
+                            key={i}
+                            piece={piece}
+                            selected={!renderModel.isTerminal && selectedTrayIndex === i}
+                            isDragging={!renderModel.isTerminal && draggingTrayIndex === i}
+                            onSelect={() => !renderModel.isTerminal && setSelectedTrayIndex(selectedTrayIndex === i ? null : i)}
+                            onDragStart={(e) => !renderModel.isTerminal && handleDragStart(i, e)}
+                            colorIndex={i}
+                        />
+                    ))}
+                </div>
+
+                {/* Play Again / Stats Buttons */}
+                {renderModel.isTerminal && (
+                    <div className="flex gap-3 w-full max-w-md">
+                        <button
+                            onClick={initGame}
+                            className="flex-1 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-xl font-bold transition text-white shadow-lg shadow-emerald-500/20"
+                        >
+                            Play Again
+                        </button>
+                        <button
+                            onClick={() => setStatsOpen(true)}
+                            className="px-6 py-4 bg-[color:var(--surface)] hover:bg-[color:var(--surface2)] border border-[color:var(--border)] rounded-xl font-bold transition"
+                        >
+                            Stats
+                        </button>
+                    </div>
+                )}
+
+                {/* Instructions */}
+                {!renderModel.isTerminal && selectedTrayIndex === null && draggingTrayIndex === null && (
+                    <div className="text-center text-[color:var(--muted)] text-sm">
+                        Tap or drag a piece, then place it on the board
+                    </div>
+                )}
+
+                {!renderModel.isTerminal && selectedTrayIndex !== null && draggingTrayIndex === null && (
+                    <div className="text-center text-emerald-400 text-sm font-medium">
+                        Hover over the board to preview, then tap to place
+                    </div>
+                )}
+
+                {!renderModel.isTerminal && draggingTrayIndex !== null && (
+                    <div className="text-center text-amber-400 text-sm font-medium">
+                        Drag to the board and release to place
+                    </div>
+                )}
+            </div>
+
+            <StatsModal
+                open={statsOpen}
+                onClose={() => setStatsOpen(false)}
+                stats={stats}
+                onLeaderboard={() => setLeaderboardOpen(true)}
+                showDistribution={false}
+            >
+                {/* Custom BatasBlast stats */}
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Games Played</div>
+                        <div className="mt-1 text-lg font-bold text-[color:var(--fg)]">{stats.played}</div>
+                    </div>
+                    <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">High Score</div>
+                        <div className="mt-1 text-lg font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
+                            {(data?.score ?? 0).toLocaleString()}
+                        </div>
+                    </div>
+                    <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Total Lines</div>
+                        <div className="mt-1 text-lg font-bold text-emerald-400">{data?.totalLinesCleared ?? 0}</div>
+                    </div>
+                    <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Best Combo</div>
+                        <div className="mt-1 text-lg font-bold text-orange-400">{data?.maxComboStreak ?? 0}x</div>
+                    </div>
+                </div>
+            </StatsModal>
+
+            <Leaderboard
+                open={leaderboardOpen}
+                onClose={() => setLeaderboardOpen(false)}
+                gameId={GAME_ID}
+            />
+
+            <Modal
+                open={confirmResetOpen}
+                title="Neues Spiel?"
+                onClose={() => setConfirmResetOpen(false)}
+                footer={
+                    <div className="flex items-center justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setConfirmResetOpen(false)}
+                            className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                        >
+                            Abbrechen
+                        </button>
+                        <button
+                            type="button"
+                            onClick={forfeitAndReset}
+                            className="rounded-xl border border-rose-500/30 bg-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/30"
+                        >
+                            Neu starten
+                        </button>
+                    </div>
+                }
+            >
+                <div className="text-sm text-[color:var(--fg)]/85">
+                    Dein aktuelles Spiel wird beendet. Fortfahren?
+                </div>
+            </Modal>
+        </GameShell>
+    );
+}

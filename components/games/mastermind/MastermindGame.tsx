@@ -246,10 +246,15 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
             setCurrentInput(Array(params.codeLength).fill(-1));
             setCurrentInput(Array(params.codeLength).fill(-1));
 
-            // Restore timer
-            timer.setStartedAt(active.startedAtMs);
-            if (active.endedAtMs) {
-                timer.setEndedAt(active.endedAtMs);
+            // Only restore timer if game has actual attempts (was started)
+            if (active.attempts.length > 0) {
+                timer.setStartedAt(active.startedAtMs);
+                if (active.endedAtMs) {
+                    timer.setEndedAt(active.endedAtMs);
+                }
+            } else {
+                // Game loaded but never started - reset timer
+                timer.reset();
             }
         } else {
             // Start new game (params changed or no valid saved game)

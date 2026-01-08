@@ -18,15 +18,15 @@ describe('auth-names', () => {
     });
 
     it('converts usernames to synthetic emails', () => {
-      expect(usernameToEmail('UserOne')).toBe('userone@wordstypeshi.app');
+      expect(usernameToEmail('UserOne')).toBe('userone@batagames.app');
     });
 
     it('removes unsafe characters from username', () => {
-      expect(usernameToEmail('User!@#One')).toBe('userone@wordstypeshi.app');
+      expect(usernameToEmail('User!@#One')).toBe('userone@batagames.app');
     });
 
     it('preserves allowed special characters', () => {
-      expect(usernameToEmail('User.One-Two_Three')).toBe('user.one-two_three@wordstypeshi.app');
+      expect(usernameToEmail('User.One-Two_Three')).toBe('user.one-two_three@batagames.app');
     });
   });
 });

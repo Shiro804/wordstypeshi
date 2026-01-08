@@ -18,8 +18,8 @@ export type Stats = {
   updatedAt: number;
 };
 
-const STORAGE_KEY_V2 = "wordstypeshi.stats.v2";
-const STORAGE_KEY_V1 = "wordstypeshi.stats.v1";
+const STORAGE_KEY_V2 = "batagames.stats.v2";
+const STORAGE_KEY_V1 = "batagames.stats.v1";
 const LEGACY_STORAGE_KEY = "lovdle.stats.v1";
 
 type StatsByDifficulty = Partial<Record<Difficulty, Stats>>;

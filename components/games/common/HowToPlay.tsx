@@ -4,7 +4,7 @@ import { useState } from "react";
 import Modal from "./Modal";
 import { HelpCircle } from "lucide-react";
 
-type GameId = "wordle" | "mastermind" | "wordsearch";
+type GameId = "wordle" | "mastermind" | "wordsearch" | "batasblast";
 
 interface HowToPlayProps {
     gameId: GameId;
@@ -41,6 +41,15 @@ const WordSearchCell = ({ letter, status }: { letter: string; status: "selected"
     `}>
         {letter}
     </div>
+);
+
+const BatasBlastBlock = ({ status }: { status: "filled" | "empty" | "preview" }) => (
+    <div className={`
+        inline-flex h-8 w-8 items-center justify-center rounded-md border-2
+        ${status === "filled" ? "bg-gradient-to-br from-amber-400 to-orange-500 border-orange-600 shadow-md" : ""}
+        ${status === "empty" ? "bg-zinc-800/50 border-zinc-700" : ""}
+        ${status === "preview" ? "bg-gradient-to-br from-amber-400/40 to-orange-500/40 border-orange-400/50 border-dashed" : ""}
+    `} />
 );
 
 const GAME_INSTRUCTIONS: Record<GameId, {
@@ -110,7 +119,7 @@ const GAME_INSTRUCTIONS: Record<GameId, {
         ],
     },
     wordsearch: {
-        title: "How to Play Word Search",
+        title: "How to Play BatasSearch",
         sections: [
             {
                 heading: "Objective",
@@ -141,6 +150,79 @@ const GAME_INSTRUCTIONS: Record<GameId, {
             {
                 heading: "Tips",
                 content: "Scan systematically. Look for uncommon letters first (Q, X, Z). Words can read forwards or backwards.",
+            },
+        ],
+    },
+    batasblast: {
+        title: "How to Play BatasBlast",
+        sections: [
+            {
+                heading: "Objective",
+                content: "Place blocks on an 8×8 grid. Clear complete rows and columns to score as many points as possible!",
+            },
+            {
+                heading: "How to Play",
+                content: "Tap a piece from the tray, then tap or drag to the board to place it. You can also drag pieces directly. Place all 3 pieces to get a new set. Game ends when no pieces fit.",
+                examples: [
+                    {
+                        label: <BatasBlastBlock status="filled" />,
+                        description: "Placed block on the grid"
+                    },
+                    {
+                        label: <BatasBlastBlock status="preview" />,
+                        description: "Preview (valid placement)"
+                    },
+                    {
+                        label: <BatasBlastBlock status="empty" />,
+                        description: "Empty grid cell"
+                    },
+                ],
+            },
+            {
+                heading: "Scoring",
+                content: "Your score is shown in the center. Earn points for:",
+                examples: [
+                    {
+                        label: <span className="text-2xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">42</span>,
+                        description: "+1 point per block placed"
+                    },
+                    {
+                        label: <span className="text-lg font-bold text-emerald-400">+10</span>,
+                        description: "+10 points per line cleared"
+                    },
+                    {
+                        label: <span className="text-lg font-bold text-purple-400">+5</span>,
+                        description: "+5 bonus per extra line in multi-clear"
+                    },
+                ],
+            },
+            {
+                heading: "Bonuses",
+                content: "Two special indicators appear next to your score when active:",
+                examples: [
+                    {
+                        label: (
+                            <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-500/20 text-orange-400">
+                                <span className="text-lg">🔥</span>
+                                <span className="font-bold">3x</span>
+                            </div>
+                        ),
+                        description: "Combo: Clears on consecutive moves. Multiplies line points!"
+                    },
+                    {
+                        label: (
+                            <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-500/20 text-purple-400">
+                                <span className="text-lg">⚡</span>
+                                <span className="font-bold">2</span>
+                            </div>
+                        ),
+                        description: "Round Streak: Consecutive rounds with at least one clear"
+                    },
+                ],
+            },
+            {
+                heading: "Tips",
+                content: "Plan ahead! Leave space for larger pieces. Clear multiple lines at once for bigger combos. Keep your combo alive by clearing at least one line each move.",
             },
         ],
     },

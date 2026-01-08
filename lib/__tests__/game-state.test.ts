@@ -56,7 +56,7 @@ describe('game-state', () => {
       expect(localStorageMock.setItem).toHaveBeenCalled();
       const calls = localStorageMock.setItem.mock.calls;
       const lastCall = calls[calls.length - 1];
-      expect(lastCall[0]).toBe('wordstypeshi.game.v1.user-123');
+      expect(lastCall[0]).toBe('batagames.game.v1.user-123');
     });
 
     it('saves to anonymous key when no userId', () => {
@@ -66,7 +66,7 @@ describe('game-state', () => {
       expect(localStorageMock.setItem).toHaveBeenCalled();
       const calls = localStorageMock.setItem.mock.calls;
       const lastCall = calls[calls.length - 1];
-      expect(lastCall[0]).toBe('wordstypeshi.game.v1');
+      expect(lastCall[0]).toBe('batagames.game.v1');
     });
 
     it('removes key when state is null', () => {
@@ -74,14 +74,14 @@ describe('game-state', () => {
       
       expect(localStorageMock.removeItem).toHaveBeenCalled();
       const calls = localStorageMock.removeItem.mock.calls;
-      expect(calls.some((c: string[]) => c[0] === 'wordstypeshi.game.v1.user-123')).toBe(true);
+      expect(calls.some((c: string[]) => c[0] === 'batagames.game.v1.user-123')).toBe(true);
     });
   });
 
   describe('loadGameState', () => {
     it('loads from user-scoped key when userId provided', () => {
       const state = createGameState({ answer: 'WORLD' });
-      localStorageMock.setItem('wordstypeshi.game.v1.user-123', JSON.stringify(state));
+      localStorageMock.setItem('batagames.game.v1.user-123', JSON.stringify(state));
       
       const loaded = loadGameState('user-123');
       expect(loaded?.answer).toBe('WORLD');
@@ -89,14 +89,14 @@ describe('game-state', () => {
 
     it('loads from anonymous key when no userId', () => {
       const state = createGameState({ answer: 'ANON' });
-      localStorageMock.setItem('wordstypeshi.game.v1', JSON.stringify(state));
+      localStorageMock.setItem('batagames.game.v1', JSON.stringify(state));
       
       const loaded = loadGameState(null);
       expect(loaded?.answer).toBe('ANON');
     });
 
     it('returns null for invalid JSON', () => {
-      localStorageMock.setItem('wordstypeshi.game.v1', 'not-json');
+      localStorageMock.setItem('batagames.game.v1', 'not-json');
       
       const loaded = loadGameState(null);
       expect(loaded).toBeNull();
@@ -104,7 +104,7 @@ describe('game-state', () => {
 
     it('returns null for wrong version', () => {
       const state = { v: 2, answer: 'TEST' };
-      localStorageMock.setItem('wordstypeshi.game.v1', JSON.stringify(state));
+      localStorageMock.setItem('batagames.game.v1', JSON.stringify(state));
       
       const loaded = loadGameState(null);
       expect(loaded).toBeNull();
@@ -112,7 +112,7 @@ describe('game-state', () => {
 
     it('returns null for missing answer', () => {
       const state = { v: 1 };
-      localStorageMock.setItem('wordstypeshi.game.v1', JSON.stringify(state));
+      localStorageMock.setItem('batagames.game.v1', JSON.stringify(state));
       
       const loaded = loadGameState(null);
       expect(loaded).toBeNull();

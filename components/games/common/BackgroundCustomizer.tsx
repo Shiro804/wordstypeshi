@@ -14,17 +14,6 @@ type Props = {
     onInteractionEnd?: () => void;
 };
 
-// Preset colors
-const PRESETS = [
-    "#7d8c98", // Default Grey
-    "#0ea5e9", // Sky Blue
-    "#10b981", // Emerald
-    "#8b5cf6", // Violet
-    "#f43f5e", // Rose
-    "#f59e0b", // Amber
-    "#09090b", // Dark
-];
-
 export default function BackgroundCustomizer({ preferences, onChange, gameId = "global", onInteractionStart, onInteractionEnd }: Props) {
     const currentBg = preferences.backgroundColor || "#7d8c98";
     const currentDuck = preferences.duckColor || "#FFD86B";
@@ -120,30 +109,27 @@ export default function BackgroundCustomizer({ preferences, onChange, gameId = "
                     Colors
                 </label>
 
+                {/* Background Color - prominent color picker */}
                 <div className="grid grid-cols-[80px_1fr] gap-4 items-center mb-4">
                     <div className="text-xs text-[color:var(--fg)]">Background</div>
-                    <div className="flex flex-wrap gap-2 items-center">
-                        {PRESETS.map((color) => (
-                            <button
-                                key={color}
-                                type="button"
-                                className={`w-6 h-6 rounded-full border transition-transform hover:scale-110 ${currentBg === color ? "border-white scale-110 shadow" : "border-transparent opacity-80"
-                                    }`}
-                                style={{ backgroundColor: color }}
-                                onClick={() => handleChange("backgroundColor", color)}
-                                title={color}
-                            />
-                        ))}
-                        <div className="relative w-6 h-6 rounded-full overflow-hidden border border-[color:var(--border)]">
+                    <div className="flex items-center gap-2">
+                        <div className="h-8 flex-1 max-w-[120px] rounded-lg border border-[color:var(--border)] flex items-center px-1 bg-[color:var(--surface)]">
                             <input
                                 type="color"
-                                className="absolute inset-[-4px] w-[200%] h-[200%] cursor-pointer p-0 border-0"
+                                className="w-full h-6 rounded bg-transparent cursor-pointer"
                                 value={currentBg}
                                 onChange={(e) => handleChange("backgroundColor", e.target.value)}
                                 onFocus={onInteractionStart}
                                 onBlur={onInteractionEnd}
                             />
                         </div>
+                        <button
+                            type="button"
+                            onClick={() => handleChange("backgroundColor", "#09090b")}
+                            className="text-[10px] text-[color:var(--muted)] hover:text-[color:var(--fg)] px-2 py-1 rounded hover:bg-[color:var(--surface2)] transition"
+                        >
+                            Reset
+                        </button>
                     </div>
                 </div>
 
@@ -162,6 +148,13 @@ export default function BackgroundCustomizer({ preferences, onChange, gameId = "
                                     onBlur={onInteractionEnd}
                                 />
                             </div>
+                            <button
+                                type="button"
+                                onClick={() => handleChange("duckColor", "#FFD86B")}
+                                className="text-[10px] text-[color:var(--muted)] hover:text-[color:var(--fg)] px-2 py-1 rounded hover:bg-[color:var(--surface2)] transition"
+                            >
+                                Reset
+                            </button>
                         </div>
                     </div>
 
@@ -179,6 +172,13 @@ export default function BackgroundCustomizer({ preferences, onChange, gameId = "
                                     onBlur={onInteractionEnd}
                                 />
                             </div>
+                            <button
+                                type="button"
+                                onClick={() => handleChange("duckBellyColor", "#FFF3C9")}
+                                className="text-[10px] text-[color:var(--muted)] hover:text-[color:var(--fg)] px-2 py-1 rounded hover:bg-[color:var(--surface2)] transition"
+                            >
+                                Reset
+                            </button>
                         </div>
                     </div>
 
@@ -196,6 +196,13 @@ export default function BackgroundCustomizer({ preferences, onChange, gameId = "
                                     onBlur={onInteractionEnd}
                                 />
                             </div>
+                            <button
+                                type="button"
+                                onClick={() => handleChange("beakColor", "#FF8B4A")}
+                                className="text-[10px] text-[color:var(--muted)] hover:text-[color:var(--fg)] px-2 py-1 rounded hover:bg-[color:var(--surface2)] transition"
+                            >
+                                Reset
+                            </button>
                         </div>
                     </div>
 
@@ -213,24 +220,15 @@ export default function BackgroundCustomizer({ preferences, onChange, gameId = "
                                     onBlur={onInteractionEnd}
                                 />
                             </div>
+                            <button
+                                type="button"
+                                onClick={() => handleChange("eyeColor", "#1E2430")}
+                                className="text-[10px] text-[color:var(--muted)] hover:text-[color:var(--fg)] px-2 py-1 rounded hover:bg-[color:var(--surface2)] transition"
+                            >
+                                Reset
+                            </button>
                         </div>
                     </div>
-                </div>
-
-                <div className="flex justify-end pt-2">
-                    <button
-                        type="button"
-                        onClick={() => onChange({
-                            ...preferences,
-                            duckColor: undefined,
-                            duckBellyColor: undefined,
-                            beakColor: undefined,
-                            eyeColor: undefined
-                        })}
-                        className="text-xs text-[color:var(--muted)] hover:text-[color:var(--fg)] px-3 py-1 rounded hover:bg-[color:var(--surface2)]"
-                    >
-                        Reset Duck Colors
-                    </button>
                 </div>
             </div>
         </div>

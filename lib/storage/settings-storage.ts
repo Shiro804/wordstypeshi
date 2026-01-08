@@ -1,7 +1,7 @@
 import type { Difficulty } from "@/lib/difficulty";
 import { isDifficulty } from "@/lib/difficulty";
 
-const KEY = "wordstypeshi.difficulty.v1";
+const KEY = "batagames.difficulty.v1";
 
 export function loadDifficulty(): Difficulty {
   if (typeof window === "undefined") return "medium";

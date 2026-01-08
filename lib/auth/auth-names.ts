@@ -3,7 +3,7 @@
 //
 // IMPORTANT: Supabase validates emails (including TLD). Some pseudo-TLDs like `.local`
 // may be rejected. Use a valid domain-like TLD.
-const USERNAME_DOMAIN = "@wordstypeshi.app";
+const USERNAME_DOMAIN = "@batagames.app";
 
 export function normalizeUsername(input: string) {
   return input.trim().toLowerCase();

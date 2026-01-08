@@ -13,6 +13,8 @@ export interface DuckBackgroundProps {
     beakColor?: string;
     /** Eye color (default: #1E2430) */
     eyeColor?: string;
+    /** Position of duck: 'center' (default) or 'top' */
+    position?: 'center' | 'top';
 }
 
 /**
@@ -27,16 +29,21 @@ export default function DuckBackground({
     duckBellyColor = "#FFF3C9",
     beakColor = "#FF8B4A",
     eyeColor = "#1E2430",
+    position = "center",
 }: DuckBackgroundProps) {
+    const positionClasses = position === 'top'
+        ? 'items-start pt-16'
+        : 'place-items-center';
+
     return (
         <div
-            className="fixed inset-0 grid place-items-center pointer-events-none"
+            className={`fixed inset-0 grid ${positionClasses} pointer-events-none transition-colors duration-500`}
             style={{ backgroundColor: bgColor }}
         >
-            <div className="flex flex-col items-center justify-center gap-[clamp(10px,2.2vw,18px)]">
+            <div className="flex flex-col items-center justify-center gap-[clamp(6px,1.5vw,14px)]">
                 {/* Title */}
                 <div
-                    className="font-black text-[clamp(34px,5vw,72px)] text-[#1E2430] text-center select-none"
+                    className="font-black text-[clamp(22px,4vw,56px)] text-[#1E2430] text-center select-none"
                     style={{
                         fontFamily: 'ui-rounded, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif',
                         letterSpacing: '0.02em',
@@ -48,7 +55,7 @@ export default function DuckBackground({
 
                 {/* Animated Duck SVG */}
                 <svg
-                    className="w-[clamp(180px,26vw,340px)] h-auto animate-duck-bob"
+                    className="w-[clamp(100px,18vw,260px)] h-auto animate-duck-bob"
                     viewBox="0 0 320 320"
                     role="img"
                     aria-label="Cute duck mascot"

@@ -4,7 +4,7 @@ import Modal from "@/components/games/common/Modal";
 import type { Stats } from "@/lib/storage/storage";
 import { formatDuration } from "@/lib/storage/storage";
 
-function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
+export function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
     return (
         <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">{label}</div>
@@ -50,6 +50,11 @@ interface StatsModalProps {
     onShare?: () => void;
     onLeaderboard?: () => void;
     showDistribution?: boolean;
+    distributionMax?: number;
+    /** Custom content to replace default stats grid (for game-specific stats) */
+    children?: React.ReactNode;
+    /** Label for distribution section */
+    distributionLabel?: string;
 }
 
 export default function StatsModal({
@@ -61,7 +66,9 @@ export default function StatsModal({
     onLeaderboard,
     showDistribution = true,
     distributionMax = 6,
-}: StatsModalProps & { distributionMax?: number }) {
+    children,
+    distributionLabel = "Guess distribution",
+}: StatsModalProps) {
     const winRate = Math.round((stats.played ? (stats.wins / stats.played) * 100 : 0));
 
     // Calculate max value for distribution bars
@@ -101,25 +108,31 @@ export default function StatsModal({
                 </div>
             }
         >
-            <div className="grid grid-cols-2 gap-3">
-                <StatCard label="Played" value={stats.played} />
-                <StatCard label="Win rate" value={`${winRate}%`} />
-                <StatCard label="Streak" value={stats.currentStreak} />
-                <StatCard label="Max streak" value={stats.maxStreak} />
-                <StatCard
-                    label="Best time"
-                    value={stats.bestTimeSec == null ? "–" : formatDuration(stats.bestTimeSec)}
-                />
-                <StatCard
-                    label="Avg time"
-                    value={stats.avgTimeSec == null ? "–" : formatDuration(stats.avgTimeSec)}
-                />
-            </div>
+            {children ? (
+                // Custom content provided (game-specific stats)
+                children
+            ) : (
+                // Default stats grid for guess-based games
+                <div className="grid grid-cols-2 gap-3">
+                    <StatCard label="Played" value={stats.played} />
+                    <StatCard label="Win rate" value={`${winRate}%`} />
+                    <StatCard label="Streak" value={stats.currentStreak} />
+                    <StatCard label="Max streak" value={stats.maxStreak} />
+                    <StatCard
+                        label="Best time"
+                        value={stats.bestTimeSec == null ? "–" : formatDuration(stats.bestTimeSec)}
+                    />
+                    <StatCard
+                        label="Avg time"
+                        value={stats.avgTimeSec == null ? "–" : formatDuration(stats.avgTimeSec)}
+                    />
+                </div>
+            )}
 
             {showDistribution && (
                 <div className="mt-4">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[color:var(--muted)]">
-                        Guess distribution
+                        {distributionLabel}
                     </div>
                     <div className="grid gap-2">
                         {(Array.from({ length: distributionMax }).map((_, i) => (i + 1))).map((n) => (

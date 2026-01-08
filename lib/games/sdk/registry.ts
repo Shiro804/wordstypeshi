@@ -11,6 +11,7 @@ import type { GameDefinition } from './types';
 // import { wordleDefinition } from '../wordle/definition';
 import { mastermindDefinition } from '../mastermind/definition';
 import { wordSearchDefinition } from '../wordsearch/definition';
+import { batasBlastDefinition } from '../batasblast/definition';
 
 /**
  * Registry of all available games.
@@ -19,6 +20,7 @@ export const GAMES: Record<string, GameDefinition> = {
   // 'wordle': wordleDefinition,  // Wordle uses legacy system for now
   'mastermind': mastermindDefinition,
   'wordsearch': wordSearchDefinition,
+  'batasblast': batasBlastDefinition,
 };
 
 /**

@@ -30,7 +30,7 @@ const modes: GameMode[] = [
 
 export const wordSearchDefinition: GameDefinition<WordSearchState, WordSearchAction, WordSearchParams> = {
   gameId: 'wordsearch',
-  displayName: 'Word Search',
+  displayName: 'BatasSearch',
   description: 'Find all hidden words in the letter grid!',
   icon: 'Search',
   modes,

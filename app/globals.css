@@ -276,6 +276,12 @@ button {
   50% { transform: translateY(-10px) rotate(1deg); }
 }
 
+/* Smaller bob for header duck */
+@keyframes duck-bob-sm {
+  0%, 100% { transform: translateY(1px) rotate(-0.5deg); }
+  50% { transform: translateY(-2px) rotate(0.5deg); }
+}
+
 @keyframes duck-flap {
   0%, 100% { transform: rotate(0deg) translateY(0); }
   50% { transform: rotate(-12deg) translateY(-2px); }
@@ -299,6 +305,10 @@ button {
   animation: duck-bob 2.7s ease-in-out infinite;
 }
 
+.animate-duck-bob-sm {
+  animation: duck-bob-sm 2.7s ease-in-out infinite;
+}
+
 .animate-duck-flap {
   animation: duck-flap 1.35s ease-in-out infinite;
 }
@@ -314,9 +324,15 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
   .animate-duck-bob,
+  .animate-duck-bob-sm,
   .animate-duck-flap,
   .animate-duck-blink,
   .animate-duck-pop {
     animation: none !important;
   }
+}
+
+/* Smooth color transitions for duck customization */
+.duck-transition * {
+  transition: fill 500ms ease-in-out;
 }

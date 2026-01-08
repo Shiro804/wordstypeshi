@@ -552,7 +552,7 @@ export default function WordleGame() {
         const scored = rows.filter((r) => r.marks);
         if (scored.length === 0) return;
         const lines = scored.map((r) => marksToEmoji(r.marks!));
-        const header = `WordsTypeShi • ${gameOver.won ? scored.length : "X"}/${MAX_TRIES} • ${formatDuration(Math.round(durationSec))}`;
+        const header = `BataGames • ${gameOver.won ? scored.length : "X"}/${MAX_TRIES} • ${formatDuration(Math.round(durationSec))}`;
         const text = [header, ...lines].join("\n");
         try {
             await navigator.clipboard.writeText(text);
@@ -626,6 +626,7 @@ export default function WordleGame() {
             onDifficultyChange={requestDifficultyChange}
             timerText={formatDuration(Math.round(durationSec))}
             onOpenStats={() => setStatsOpen(true)}
+            onOpenWordHistory={() => setWordHistoryOpen(true)}
             onOpenLeaderboard={() => setLeaderboardOpen(true)}
             fullHeight={true}
             hintSlot={
@@ -643,44 +644,16 @@ export default function WordleGame() {
                 ) : null
             }
             actionsSlot={
-                <div className="flex items-center gap-1">
+                committedCount > 0 && !gameOver.done ? (
                     <button
                         type="button"
-                        onClick={() => setWordHistoryOpen(true)}
+                        onClick={() => setConfirmResetOpen(true)}
+                        title="Reset"
                         className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
-                        title="Word History"
                     >
-                        <Book size={16} />
+                        <RotateCcw size={16} />
                     </button>
-                    {committedCount > 0 && !gameOver.done && (
-                        <button
-                            type="button"
-                            onClick={() => setConfirmResetOpen(true)}
-                            title="Reset"
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
-                        >
-                            <RotateCcw size={16} />
-                        </button>
-                    )}
-                    {isDev && (
-                        <>
-                            <button
-                                type="button"
-                                onClick={() => { void devLose(); window.setTimeout(() => containerRef.current?.focus(), 0); }}
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
-                            >
-                                <Skull size={16} />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => { void devSolve(); window.setTimeout(() => containerRef.current?.focus(), 0); }}
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
-                            >
-                                <CheckCircle2 size={16} />
-                            </button>
-                        </>
-                    )}
-                </div>
+                ) : null
             }
         >
             {/* Main content wrapper */}
@@ -758,14 +731,74 @@ export default function WordleGame() {
                     </div>
                 )}
 
-                {/* Keyboard - constrained to parent width */}
-                <div className="shrink-0 pb-safe w-full px-1" ref={keyboardRef}>
+                {/* Keyboard - constrained to parent width with iPhone safe areas */}
+                <div className="shrink-0 pb-safe mb-1 w-full px-2 sm:px-4" ref={keyboardRef}>
                     <Keyboard
                         keyMarks={keyMarks}
                         onKey={onKey}
                         disabled={gameOver.done}
                     />
                 </div>
+
+                {/* Floating Dev Buttons (only in development) */}
+                {isDev && (
+                    <div
+                        className="fixed bottom-20 left-4 z-50 flex flex-col gap-1 p-1 rounded-xl bg-zinc-900/80 border border-zinc-700/50 backdrop-blur-sm shadow-lg cursor-move select-none"
+                        style={{ touchAction: 'none' }}
+                        onMouseDown={(e) => {
+                            const el = e.currentTarget;
+                            const rect = el.getBoundingClientRect();
+                            const offsetX = e.clientX - rect.left;
+                            const offsetY = e.clientY - rect.top;
+                            const onMove = (ev: MouseEvent) => {
+                                el.style.left = `${ev.clientX - offsetX}px`;
+                                el.style.top = `${ev.clientY - offsetY}px`;
+                                el.style.bottom = 'auto';
+                            };
+                            const onUp = () => {
+                                document.removeEventListener('mousemove', onMove);
+                                document.removeEventListener('mouseup', onUp);
+                            };
+                            document.addEventListener('mousemove', onMove);
+                            document.addEventListener('mouseup', onUp);
+                        }}
+                        onTouchStart={(e) => {
+                            const el = e.currentTarget;
+                            const touch = e.touches[0];
+                            const rect = el.getBoundingClientRect();
+                            const offsetX = touch.clientX - rect.left;
+                            const offsetY = touch.clientY - rect.top;
+                            const onMove = (ev: TouchEvent) => {
+                                const t = ev.touches[0];
+                                el.style.left = `${t.clientX - offsetX}px`;
+                                el.style.top = `${t.clientY - offsetY}px`;
+                                el.style.bottom = 'auto';
+                            };
+                            const onEnd = () => {
+                                document.removeEventListener('touchmove', onMove);
+                                document.removeEventListener('touchend', onEnd);
+                            };
+                            document.addEventListener('touchmove', onMove, { passive: false });
+                            document.addEventListener('touchend', onEnd);
+                        }}
+                    >
+                        <div className="text-[8px] text-zinc-500 font-bold uppercase tracking-wider px-1">DEV</div>
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); void devSolve(); window.setTimeout(() => containerRef.current?.focus(), 0); }}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 text-[10px] font-semibold transition"
+                        >
+                            <CheckCircle2 size={12} /> Win
+                        </button>
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); void devLose(); window.setTimeout(() => containerRef.current?.focus(), 0); }}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 text-[10px] font-semibold transition"
+                        >
+                            <Skull size={12} /> Lose
+                        </button>
+                    </div>
+                )}
             </div>
 
             <StatsModal

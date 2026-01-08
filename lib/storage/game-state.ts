@@ -15,7 +15,7 @@ export type PersistedGameState = {
   userId?: string | null;
 };
 
-const STORAGE_KEY_BASE = "wordstypeshi.game.v1";
+const STORAGE_KEY_BASE = "batagames.game.v1";
 
 /**
  * Get the storage key for a specific user.

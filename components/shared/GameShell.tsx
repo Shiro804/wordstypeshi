@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
-import { RotateCcw, Settings as SettingsIcon, BarChart3, Trophy, Menu, HelpCircle } from "lucide-react";
+import { useState } from "react";
+import { RotateCcw, Settings as SettingsIcon, BarChart3, Trophy, Menu, HelpCircle, Book } from "lucide-react";
 import HowToPlay from "@/components/games/common/HowToPlay";
-import DuckBackground from "@/components/shared/DuckBackground";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -35,6 +34,8 @@ interface GameShellProps {
     timerText?: string;
     /** Optional: Stats callback */
     onOpenStats?: () => void;
+    /** Optional: Word History callback (Wordle-specific) */
+    onOpenWordHistory?: () => void;
     /** Optional: Leaderboard callback */
     onOpenLeaderboard?: () => void;
     /** Optional: Settings callback (overrides internal handling) */
@@ -105,12 +106,14 @@ function DifficultyBadge({
 function GameMenu({
     onNewGame,
     onOpenStats,
+    onOpenWordHistory,
     onOpenLeaderboard,
     onOpenSettings,
     onOpenHowToPlay,
 }: {
     onNewGame: () => void;
     onOpenStats?: () => void;
+    onOpenWordHistory?: () => void;
     onOpenLeaderboard?: () => void;
     onOpenSettings: () => void;
     onOpenHowToPlay: () => void;
@@ -138,6 +141,13 @@ function GameMenu({
                     <DropdownMenuItem onClick={onOpenStats} className="flex items-center gap-2">
                         <BarChart3 size={14} />
                         Stats
+                    </DropdownMenuItem>
+                )}
+
+                {onOpenWordHistory && (
+                    <DropdownMenuItem onClick={onOpenWordHistory} className="flex items-center gap-2">
+                        <Book size={14} />
+                        Word History
                     </DropdownMenuItem>
                 )}
 
@@ -170,8 +180,8 @@ function GameMenu({
 
 function TimerBadge({ text }: { text: string }) {
     return (
-        <div className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-1 text-xs font-semibold text-[color:var(--fg)]">
-            <span className="tabular-nums inline-block w-[2rem] text-right">{text}</span>
+        <div className="inline-flex items-center rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-1.5 py-0.5 text-[10px] font-semibold text-[color:var(--fg)]">
+            <span className="tabular-nums">{text}</span>
         </div>
     );
 }
@@ -188,6 +198,7 @@ export default function GameShell({
     onDifficultyChange,
     timerText,
     onOpenStats,
+    onOpenWordHistory,
     onOpenLeaderboard,
     onOpenSettings,
     actionsSlot,
@@ -197,25 +208,9 @@ export default function GameShell({
 }: GameShellProps) {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [howToPlayOpen, setHowToPlayOpen] = useState(false);
-    const [isMounted, setIsMounted] = useState(false);
 
     // Use preferences
     const { preferences, updatePreferences } = useGamePreferences(gameId);
-
-    // Get the background title based on gameId
-    const getBackgroundTitle = () => {
-        switch (gameId) {
-            case 'wordle': return 'BatasWordle';
-            case 'mastermind': return 'BatasMastermind';
-            case 'wordsearch': return 'BatasSearch';
-            default: return 'BataGames';
-        }
-    };
-
-    // Ensure client-side only rendering for background to avoid hydration mismatch
-    useEffect(() => {
-        setIsMounted(true);
-    }, []);
 
     const containerClasses = fullHeight
         ? "relative h-[100dvh] w-full max-w-[100vw] overflow-hidden text-[color:var(--fg)]"
@@ -227,45 +222,19 @@ export default function GameShell({
 
     return (
         <div className={containerClasses} style={gridStyle}>
-            {/* Background & Loading State */}
-            <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-                {/* Visual Background - only render client-side to avoid hydration mismatch */}
-                {isMounted && (
-                    <>
-                        {preferences.backgroundImage ? (
-                            <div
-                                className="absolute inset-0 bg-cover bg-center transition-opacity duration-500"
-                                style={{
-                                    backgroundColor: preferences.backgroundColor || "#09090b",
-                                    backgroundImage: `radial-gradient(1200px 700px at 20% 10%, rgba(255,255,255,0.08), transparent 55%), radial-gradient(900px 600px at 80% 20%, rgba(16,185,129,0.10), transparent 60%), url(${preferences.backgroundImage})`
-                                }}
-                            />
-                        ) : (
-                            <DuckBackground
-                                title={getBackgroundTitle()}
-                                bgColor={preferences.backgroundColor}
-                                duckColor={preferences.duckColor}
-                                duckBellyColor={preferences.duckBellyColor}
-                                beakColor={preferences.beakColor}
-                                eyeColor={preferences.eyeColor}
-                            />
-                        )}
-                        {/* Overlay to ensure text readability */}
-                        <div className="absolute inset-0 bg-black/35" />
-                    </>
-                )}
-
-                {/* Background base color (always visible) */}
-                <div className="absolute inset-0 bg-[#09090b] -z-10" />
-            </div>
+            {/* Background - solid color from preferences */}
+            <div
+                className="fixed inset-0 -z-10 transition-colors duration-500"
+                style={{ backgroundColor: preferences.backgroundColor || '#09090b' }}
+            />
 
             {/* Header */}
-            <header className="relative z-10 flex items-center justify-between gap-2 border-b border-[color:var(--border)] bg-[color:var(--bg)]/90 px-3 py-2 backdrop-blur min-w-0">
-                {/* Left: Hub link + Timer + Hint + Difficulty */}
-                <div className="flex items-center gap-2 sm:gap-3">
+            <header className="relative z-10 flex items-center justify-between gap-1 border-b border-[color:var(--border)] bg-[color:var(--bg)]/90 px-2 py-1.5 backdrop-blur min-w-0">
+                {/* Left: Back + Timer + Hint */}
+                <div className="flex items-center gap-1.5 min-w-0 shrink-0">
                     <Link
                         href="/"
-                        className="text-sm font-semibold tracking-tight text-[color:var(--fg)] hover:text-emerald-400 transition"
+                        className="text-sm font-semibold text-[color:var(--fg)] hover:text-emerald-400 transition shrink-0 px-1"
                     >
                         ←
                     </Link>
@@ -275,7 +244,63 @@ export default function GameShell({
 
                     {/* Hint slot (for Wordle) */}
                     {hintSlot}
+                </div>
 
+                {/* Center: BATAS 🦆 WORD layout */}
+                <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5">
+                    {/* First part: BATAS */}
+                    <span className="text-[8px] font-black tracking-wider text-[color:var(--fg)] uppercase">BATAS</span>
+
+                    {/* Animated Mini Duck - uses smaller bob animation + smooth color transitions */}
+                    <svg
+                        className="w-5 h-5 shrink-0 animate-duck-bob-sm duck-transition"
+                        viewBox="0 0 320 320"
+                        aria-hidden="true"
+                    >
+                        {/* Sparkle */}
+                        <g className="animate-duck-pop origin-center">
+                            <path d="M252 62c6 10 6 22 0 32c-10 6-22 6-32 0c-6-10-6-22 0-32c10-6 22-6 32 0z" fill="rgba(255,255,255,0.75)" />
+                        </g>
+                        {/* Body */}
+                        <ellipse cx="160" cy="192" rx="118" ry="88" fill={preferences.duckColor || "#FFD86B"} />
+                        {/* Belly */}
+                        <ellipse cx="160" cy="210" rx="68" ry="52" fill={preferences.duckBellyColor || "#FFF3C9"} />
+                        {/* Head */}
+                        <circle cx="160" cy="120" r="72" fill={preferences.duckColor || "#FFD86B"} />
+                        {/* Wing */}
+                        <g className="animate-duck-flap origin-[25%_55%]">
+                            <ellipse cx="86" cy="198" rx="44" ry="34" fill="rgba(0,0,0,0.06)" />
+                            <ellipse cx="92" cy="190" rx="48" ry="36" fill={preferences.duckColor || "#FFD86B"} />
+                            <ellipse cx="105" cy="194" rx="28" ry="22" fill={preferences.duckBellyColor || "#FFF3C9"} />
+                        </g>
+                        {/* Beak */}
+                        <path d="M160 140 c26 0 44 10 44 24 c0 14-18 24-44 24 c-26 0-44-10-44-24 c0-14 18-24 44-24z" fill={preferences.beakColor || "#FF8B4A"} />
+                        {/* Cheeks */}
+                        <circle cx="120" cy="158" r="10" fill="rgba(255,120,150,0.18)" />
+                        <circle cx="200" cy="158" r="10" fill="rgba(255,120,150,0.18)" />
+                        {/* Left Eye */}
+                        <g className="animate-duck-blink origin-center">
+                            <circle cx="136" cy="118" r="10" fill={preferences.eyeColor || "#1E2430"} />
+                            <circle cx="132" cy="114" r="3.2" fill="rgba(255,255,255,0.9)" />
+                        </g>
+                        {/* Right Eye */}
+                        <g className="animate-duck-blink origin-center">
+                            <circle cx="184" cy="118" r="10" fill={preferences.eyeColor || "#1E2430"} />
+                            <circle cx="180" cy="114" r="3.2" fill="rgba(255,255,255,0.9)" />
+                        </g>
+                    </svg>
+
+                    {/* Second part: game-specific suffix */}
+                    <span className="text-[8px] font-black tracking-wider text-[color:var(--fg)] uppercase">
+                        {gameId === 'wordle' && 'WORDLE'}
+                        {gameId === 'mastermind' && 'MIND'}
+                        {gameId === 'wordsearch' && 'SEARCH'}
+                        {gameId === 'batasblast' && 'BLAST'}
+                    </span>
+                </div>
+
+                {/* Right: Difficulty + Actions + Menu */}
+                <div className="flex items-center gap-1 shrink-0">
                     {/* Difficulty selector */}
                     {difficulty && onDifficultyChange && (
                         <DifficultyBadge
@@ -283,14 +308,11 @@ export default function GameShell({
                             onDifficultyChange={onDifficultyChange}
                         />
                     )}
-                </div>
-
-                {/* Right: Actions + Menu */}
-                <div className="flex items-center gap-2">
                     {actionsSlot}
                     <GameMenu
                         onNewGame={onNewGame}
                         onOpenStats={onOpenStats}
+                        onOpenWordHistory={onOpenWordHistory}
                         onOpenLeaderboard={onOpenLeaderboard}
                         onOpenSettings={onOpenSettings ?? (() => setSettingsOpen(true))}
                         onOpenHowToPlay={() => setHowToPlayOpen(true)}
