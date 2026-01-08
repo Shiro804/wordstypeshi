@@ -758,29 +758,67 @@ export default function BatasBlastGame() {
         setDraggingTrayIndex(trayIndex);
     }, [gameState]);
 
-    // Compute preview cells for board display
-    const previewCells = useMemo(() => {
+    // Compute preview cells for board display + lines that would be cleared
+    const { previewCells, wouldClearCells } = useMemo(() => {
         if (!gameState || activeTrayIndex === null || !hoverOrigin) {
-            return undefined;
+            return { previewCells: undefined, wouldClearCells: new Set<string>() };
         }
 
         const trayPiece = gameState.tray[activeTrayIndex];
-        if (trayPiece.used) return undefined;
+        if (trayPiece.used) return { previewCells: undefined, wouldClearCells: new Set<string>() };
 
         const piece = PIECE_BY_ID.get(trayPiece.pieceId);
-        if (!piece) return undefined;
+        if (!piece) return { previewCells: undefined, wouldClearCells: new Set<string>() };
 
         const isValid = canPlacePiece(gameState.board, trayPiece.pieceId, hoverOrigin);
 
         const cells = new Map<string, boolean>();
+
+        // Create a simulated board with the piece placed
+        const simulatedBoard = gameState.board.map(row => [...row]);
+
         for (const cell of piece.cells) {
             const r = hoverOrigin.r + cell.dr;
             const c = hoverOrigin.c + cell.dc;
             if (r >= 0 && r < BOARD.rows && c >= 0 && c < BOARD.cols) {
                 cells.set(`${r},${c}`, isValid);
+                if (isValid) {
+                    simulatedBoard[r][c] = true;
+                }
             }
         }
-        return cells;
+
+        // Find rows and cols that would be cleared
+        const wouldClear = new Set<string>();
+
+        if (isValid) {
+            // Check rows
+            for (let r = 0; r < BOARD.rows; r++) {
+                if (simulatedBoard[r].every(cell => cell)) {
+                    for (let c = 0; c < BOARD.cols; c++) {
+                        wouldClear.add(`${r},${c}`);
+                    }
+                }
+            }
+
+            // Check cols
+            for (let c = 0; c < BOARD.cols; c++) {
+                let full = true;
+                for (let r = 0; r < BOARD.rows; r++) {
+                    if (!simulatedBoard[r][c]) {
+                        full = false;
+                        break;
+                    }
+                }
+                if (full) {
+                    for (let r = 0; r < BOARD.rows; r++) {
+                        wouldClear.add(`${r},${c}`);
+                    }
+                }
+            }
+        }
+
+        return { previewCells: cells, wouldClearCells: wouldClear };
     }, [gameState, activeTrayIndex, hoverOrigin]);
 
     const renderModel = useMemo((): BatasBlastRenderModel | null => {
@@ -808,18 +846,6 @@ export default function BatasBlastGame() {
             onOpenLeaderboard={() => setLeaderboardOpen(true)}
             onOpenStats={() => setStatsOpen(true)}
             fullHeight={true}
-            actionsSlot={
-                isInProgress ? (
-                    <button
-                        type="button"
-                        onClick={() => setConfirmResetOpen(true)}
-                        title="Reset"
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
-                    >
-                        <RotateCcw size={16} />
-                    </button>
-                ) : null
-            }
         >
             {/* Floating ghost that follows finger */}
             {draggingTrayIndex !== null && ghostPosition && (
@@ -882,6 +908,7 @@ export default function BatasBlastGame() {
                                 const isPreview = previewInfo !== undefined;
                                 const isValid = previewInfo === true;
                                 const isBlasting = blastingCells.has(key);
+                                const wouldClear = wouldClearCells.has(key);
 
                                 // Use stored color from colorBoard, fallback to pattern
                                 const storedColor = colorBoard[r]?.[c] ?? -1;
@@ -891,7 +918,9 @@ export default function BatasBlastGame() {
                                         ? (activeTrayIndex ?? 0)
                                         : isBlasting
                                             ? blastColor
-                                            : 0;
+                                            : wouldClear
+                                                ? (activeTrayIndex ?? 0)
+                                                : 0;
 
                                 return (
                                     <div
@@ -902,10 +931,11 @@ export default function BatasBlastGame() {
                                                 setHoverOrigin({ r, c });
                                             }
                                         }}
-                                        className={`cursor-pointer ${isBlasting ? 'animate-pulse' : ''}`}
+                                        className={`cursor-pointer ${isBlasting ? 'animate-pulse' : ''} ${wouldClear && !isPreview ? 'animate-pulse' : ''}`}
                                         style={{
-                                            transform: isBlasting ? 'scale(1.1)' : undefined,
+                                            transform: isBlasting ? 'scale(1.1)' : wouldClear && !isPreview ? 'scale(1.05)' : undefined,
                                             transition: 'transform 0.2s ease-out',
+                                            filter: wouldClear && !isPreview ? 'brightness(1.3)' : undefined,
                                         }}
                                     >
                                         <Cell
