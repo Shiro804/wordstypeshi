@@ -3,6 +3,8 @@
 export interface DuckBackgroundProps {
     /** Text displayed above the duck */
     title?: string;
+    /** Title text color (default: #1E2430 for light backgrounds) */
+    titleColor?: string;
     /** Background color (default: #7d8c98) */
     bgColor?: string;
     /** Duck body color (default: #FFD86B) */
@@ -24,6 +26,7 @@ export interface DuckBackgroundProps {
  */
 export default function DuckBackground({
     title = "BataGames",
+    titleColor = "#1E2430",
     bgColor = "#7d8c98",
     duckColor = "#FFD86B",
     duckBellyColor = "#FFF3C9",
@@ -43,8 +46,9 @@ export default function DuckBackground({
             <div className="flex flex-col items-center justify-center gap-[clamp(6px,1.5vw,14px)]">
                 {/* Title */}
                 <div
-                    className="font-black text-[clamp(22px,4vw,56px)] text-[#1E2430] text-center select-none"
+                    className="font-black text-[clamp(22px,4vw,56px)] text-center select-none"
                     style={{
+                        color: titleColor,
                         fontFamily: 'ui-rounded, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif',
                         letterSpacing: '0.02em',
                         textShadow: '0 6px 0 rgba(0,0,0,0.06)'

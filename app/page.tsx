@@ -1,43 +1,48 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { Palette, Type, Search, LayoutGrid } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { Palette, Type, Search, LayoutGrid, LogIn, UserPlus, Settings, LogOut, User } from "lucide-react";
+import { getMyProfile, type UserProfile } from "@/lib/auth/profile";
+import UsernameModal from "@/components/auth/UsernameModal";
+import ProfileSettingsModal from "@/components/hub/ProfileSettingsModal";
+import LanguageSelector from "@/components/shared/LanguageSelector";
+import { useLanguage } from "@/lib/i18n";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-export const dynamic = "force-dynamic";
-
-// Game cards data
+// Game cards data - descriptions come from translations
 const GAMES = [
   {
-    id: "wordle",
-    name: "BatasWordle",
-    description: "Errate das 5-Buchstaben-Wort in 6 Versuchen!",
+    id: "wordle" as const,
     icon: Type,
     href: "/wordle",
     color: "from-emerald-500 to-green-600",
     enabled: true,
   },
   {
-    id: "mastermind",
-    name: "BatasMind",
-    description: "Knacke den geheimen Farbcode durch logisches Denken!",
+    id: "mastermind" as const,
     icon: Palette,
     href: "/mastermind",
     color: "from-purple-500 to-pink-600",
     enabled: true,
   },
   {
-    id: "wordsearch",
-    name: "BatasSearch",
-    description: "Finde alle versteckten Wörter im Buchstabengitter!",
+    id: "wordsearch" as const,
     icon: Search,
     href: "/wordsearch",
     color: "from-blue-500 to-cyan-600",
     enabled: true,
   },
   {
-    id: "batasblast",
-    name: "BatasBlast",
-    description: "Platziere Blöcke auf dem 8×8 Raster und räume Reihen ab!",
+    id: "batasblast" as const,
     icon: LayoutGrid,
     href: "/batasblast",
     color: "from-amber-500 to-orange-600",
@@ -45,16 +50,110 @@ const GAMES = [
   },
 ];
 
-export default async function Page() {
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.getClaims();
+const USERNAME_MODAL_DISMISSED_KEY = "batagames_username_modal_dismissed";
 
-  if (error || !data?.claims) {
-    redirect("/auth/login");
-  }
+// Helper to get game info from translations
+const getGameInfo = (gameId: string, t: ReturnType<typeof useLanguage>['t']) => {
+  const gameTranslations = t[gameId as keyof typeof t] as { name: string; description: string };
+  return {
+    name: gameTranslations?.name ?? gameId,
+    description: gameTranslations?.description ?? '',
+  };
+};
+
+export default function Page() {
+  const router = useRouter();
+  const { language, setLanguage, t } = useLanguage();
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
+  const [showProfileSettings, setShowProfileSettings] = useState(false);
+
+  const refreshProfile = async () => {
+    const p = await getMyProfile();
+    setProfile(p);
+  };
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    // Check auth state
+    supabase.auth.getUser().then(({ data }) => {
+      const loggedIn = !!data.user;
+      setIsLoggedIn(loggedIn);
+
+      if (loggedIn) {
+        // Fetch profile to check username
+        getMyProfile().then((p) => {
+          setProfile(p);
+
+          // Show username modal if no username and not dismissed this session
+          if (p && !p.username) {
+            const dismissed = sessionStorage.getItem(USERNAME_MODAL_DISMISSED_KEY);
+            if (!dismissed) {
+              setShowUsernameModal(true);
+            }
+          }
+        });
+      }
+    });
+  }, []);
+
+  const handleUsernameModalClose = () => {
+    setShowUsernameModal(false);
+    sessionStorage.setItem(USERNAME_MODAL_DISMISSED_KEY, "true");
+  };
+
+  const handleUsernameSaved = (newUsername: string) => {
+    setShowUsernameModal(false);
+    setProfile((prev) => (prev ? { ...prev, username: newUsername } : null));
+  };
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    setIsLoggedIn(false);
+    setProfile(null);
+    router.refresh();
+  };
 
   return (
     <div className="min-h-screen text-white relative" style={{ backgroundColor: '#09090b' }}>
+      {/* Language Selector - Top Left */}
+      <div className="absolute top-4 left-4 z-20">
+        <LanguageSelector />
+      </div>
+
+      {/* User Menu - Top Right (for logged-in users) */}
+      {isLoggedIn === true && (
+        <div className="absolute top-4 right-4 z-20">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-zinc-800/80 border border-zinc-700/50 text-white hover:bg-zinc-700/80 transition-all"
+              >
+                <User size={16} />
+                <span className="text-sm font-medium max-w-24 truncate">
+                  {profile?.username || t.hub.profile}
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-40">
+              <DropdownMenuItem onClick={() => setShowProfileSettings(true)}>
+                <Settings size={14} className="mr-2" />
+                {t.common.settings}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} className="text-red-400">
+                <LogOut size={14} className="mr-2" />
+                {t.common.logout}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
       {/* Duck Area - Top third */}
       <div className="h-[33vh] min-h-[200px] flex flex-col items-center justify-center pt-safe relative">
         {/* Title */}
@@ -114,8 +213,37 @@ export default async function Page() {
 
       {/* Main Content - Starts after duck */}
       <main className="max-w-lg mx-auto px-4 pb-8 relative z-10">
+        {/* Auth buttons for non-logged-in users */}
+        {isLoggedIn === false && (
+          <div className="mb-6 flex justify-center gap-3">
+            <Link
+              href="/auth/login"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-800/80 border border-zinc-700/50 text-white hover:bg-zinc-700/80 transition-all"
+            >
+              <LogIn size={16} />
+              <span>{t.common.login}</span>
+            </Link>
+            <Link
+              href="/auth/sign-up"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 transition-all"
+            >
+              <UserPlus size={16} />
+              <span>{t.common.register}</span>
+            </Link>
+          </div>
+        )}
+
+        {/* Welcome message for logged-in users */}
+        {isLoggedIn === true && profile?.username && (
+          <div className="mb-4 text-center">
+            <p className="text-sm text-zinc-400">
+              {t.auth.welcomeBack.replace('!', `, `)} <span className="text-white font-medium">{profile.username}</span>!
+            </p>
+          </div>
+        )}
+
         <div className="mb-4 text-center">
-          <p className="text-sm text-zinc-500">Wähle ein Spiel</p>
+          <p className="text-sm text-zinc-500">{t.hub.selectGame}</p>
         </div>
 
         {/* Game Grid */}
@@ -143,15 +271,15 @@ export default async function Page() {
                     <div className={`p-2 md:p-2.5 rounded-lg bg-gradient-to-br ${game.color}`}>
                       <Icon className="w-5 h-5 md:w-6 md:h-6" />
                     </div>
-                    <h3 className="text-base md:text-lg font-bold">{game.name}</h3>
+                    <h3 className="text-base md:text-lg font-bold">{getGameInfo(game.id, t).name}</h3>
                   </div>
                   <p className="text-xs md:text-sm text-zinc-400 leading-snug line-clamp-2">
-                    {game.description}
+                    {getGameInfo(game.id, t).description}
                   </p>
 
                   {/* Play indicator */}
                   <div className="mt-3 md:mt-4 flex items-center gap-1.5 text-xs md:text-sm text-zinc-400 group-hover:text-white transition">
-                    <span className="font-medium">Play</span>
+                    <span className="font-medium">{t.common.play}</span>
                     <span className="group-hover:translate-x-0.5 transition-transform">→</span>
                   </div>
                 </div>
@@ -160,11 +288,34 @@ export default async function Page() {
           })}
         </div>
 
+        {/* Info for anonymous users */}
+        {isLoggedIn === false && (
+          <div className="mt-8 p-4 rounded-xl bg-zinc-800/40 border border-zinc-700/30 text-center">
+            <p className="text-sm text-zinc-400">
+              <span className="text-emerald-400 font-medium">{t.common.hint}:</span> {t.hub.guestTip}
+            </p>
+          </div>
+        )}
+
         {/* Coming Soon */}
         <div className="mt-12 text-center">
-          <p className="text-zinc-500">More games coming soon...</p>
+          <p className="text-zinc-500">{t.hub.moreGamesSoon}</p>
         </div>
       </main>
+
+      {/* Username Modal */}
+      <UsernameModal
+        open={showUsernameModal}
+        onClose={handleUsernameModalClose}
+        onSave={handleUsernameSaved}
+      />
+
+      {/* Profile Settings Modal */}
+      <ProfileSettingsModal
+        open={showProfileSettings}
+        onClose={() => setShowProfileSettings(false)}
+        onProfileUpdate={refreshProfile}
+      />
     </div>
   );
 }
