@@ -71,7 +71,7 @@ function Cell({
                     ? `bg-gradient-to-br ${colors.from} ${colors.to} shadow-lg shadow-orange-500/20`
                     : "bg-zinc-800/60 border border-zinc-700/50"
                 }
-        ${preview && !filled ? `bg-gradient-to-br ${colors.from}/80 ${colors.to}/80 border-2 border-emerald-400/90 shadow-[0_0_15px_rgba(52,211,153,0.4)]` : ""}
+        ${preview && !filled ? `bg-gradient-to-br ${colors.from} ${colors.to} opacity-90 border-2 border-emerald-300 shadow-[0_0_20px_rgba(110,231,183,0.6)]` : ""}
         ${invalid ? "bg-red-500/40 border-2 border-red-500/90 shadow-[0_0_15px_rgba(239,68,68,0.4)]" : ""}
         ${blasting ? "animate-pulse scale-110 brightness-150" : ""}
       `}
