@@ -236,7 +236,6 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
     }, []);
 
     // Load active game or init new one when params change
-    const hasInitialized = useRef(false);
     useEffect(() => {
         const active = loadActiveGame<MastermindState>(GAME_ID, userId);
         const paramsMatch = active && active.config.codeLength === params.codeLength && active.config.numColors === params.numColors;
@@ -270,7 +269,6 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
 
             timer.reset();
         }
-        hasInitialized.current = true;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId, params, mode]);
 

@@ -341,10 +341,8 @@ export default function BatasBlastGame() {
     }, []);
 
     // Load active game or init new one
-    const hasInitialized = useRef(false);
+    // Load active game or init new one
     useEffect(() => {
-        if (hasInitialized.current) return;
-
         const active = loadActiveGame<BatasBlastState>(GAME_ID, userId);
 
         if (active && !batasBlastEngine.isTerminal(active)) {
@@ -360,7 +358,6 @@ export default function BatasBlastGame() {
             saveActiveGame(GAME_ID, state, userId);
             timer.reset();
         }
-        hasInitialized.current = true;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId]);
 
