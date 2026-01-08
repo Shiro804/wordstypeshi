@@ -409,7 +409,7 @@ function FloatingScore({ value }: { value: number }) {
             setStage('active');
             const timer = setTimeout(() => {
                 setStage('end');
-            }, 600); // Start fading out after 600ms
+            }, 1000);
             return () => clearTimeout(timer);
         });
         return () => cancelAnimationFrame(raf);
@@ -418,8 +418,8 @@ function FloatingScore({ value }: { value: number }) {
     const getClasses = () => {
         switch (stage) {
             case 'start': return 'opacity-0 scale-50 translate-y-4';
-            case 'active': return 'opacity-100 scale-100 translate-y-0'; // Pop in
-            case 'end': return 'opacity-0 scale-90 -translate-y-8'; // Float up slightly and fade
+            case 'active': return 'opacity-100 scale-100 translate-y-0';
+            case 'end': return 'opacity-0 scale-90 -translate-y-8';
         }
     };
 
@@ -437,6 +437,46 @@ function FloatingScore({ value }: { value: number }) {
             }}
         >
             +{value}
+        </div>
+    );
+}
+
+/** Animated lines popup - same animation as FloatingScore */
+function FloatingLines({ value }: { value: number }) {
+    const [stage, setStage] = useState<'start' | 'active' | 'end'>('start');
+
+    useEffect(() => {
+        const raf = requestAnimationFrame(() => {
+            setStage('active');
+            const timer = setTimeout(() => {
+                setStage('end');
+            }, 1000);
+            return () => clearTimeout(timer);
+        });
+        return () => cancelAnimationFrame(raf);
+    }, []);
+
+    const getClasses = () => {
+        switch (stage) {
+            case 'start': return 'opacity-0 scale-50 translate-y-4';
+            case 'active': return 'opacity-100 scale-100 translate-y-0';
+            case 'end': return 'opacity-0 scale-90 -translate-y-8';
+        }
+    };
+
+    return (
+        <div
+            className={`
+                text-xl font-bold text-amber-400
+                whitespace-nowrap
+                transition-all duration-500 ease-out
+                ${getClasses()}
+            `}
+            style={{
+                textShadow: '0 2px 4px rgba(0,0,0,0.3)'
+            }}
+        >
+            +{value} {value === 1 ? 'Line' : 'Lines'}!
         </div>
     );
 }
@@ -466,6 +506,8 @@ export default function BatasBlastGame() {
 
     // Score Popups
     const [scorePopups, setScorePopups] = useState<Array<{ id: number; value: number }>>([]);
+    // Line Popups
+    const [linePopups, setLinePopups] = useState<Array<{ id: number; value: number }>>([]);
 
     // Refs
     const boardRef = useRef<HTMLDivElement>(null);
@@ -648,8 +690,14 @@ export default function BatasBlastGame() {
                 // Trigger blast animation
                 setBlastingCells(cellsToBlast);
                 setBlastColor(trayIndex);
-                setLastClearedLines(newLinesCleared);
                 setShowBlast(true);
+
+                // Add line popup (same pattern as score popup)
+                const lineId = Date.now() + 1;
+                setLinePopups(prev => [...prev, { id: lineId, value: newLinesCleared }]);
+                setTimeout(() => {
+                    setLinePopups(prev => prev.filter(p => p.id !== lineId));
+                }, 1600);
 
                 // Show full board (with piece, before clear) during animation
                 // Note: newColorBoard is locally computed above and matches 
@@ -984,12 +1032,10 @@ export default function BatasBlastGame() {
                     popups={scorePopups}
                 />
 
-                {/* Line clear feedback */}
-                {showBlast && lastClearedLines > 0 && (
-                    <div className="absolute top-20 animate-bounce text-amber-400 font-bold text-xl z-50">
-                        +{lastClearedLines} {lastClearedLines === 1 ? 'Line' : 'Lines'}!
-                    </div>
-                )}
+                {/* Line clear feedback - same animation as score */}
+                {linePopups.map(popup => (
+                    <FloatingLines key={popup.id} value={popup.value} />
+                ))}
 
 
 
