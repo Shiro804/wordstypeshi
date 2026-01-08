@@ -47,7 +47,7 @@ const BLOCK_COLORS = [
 // Sub-components
 // ============================================================================
 
-/** Single cell on the board */
+/** Single cell on the board with stone texture */
 function Cell({
     filled,
     preview,
@@ -68,7 +68,7 @@ function Cell({
             className={`
         rounded-lg transition-all duration-150 relative overflow-hidden
         ${filled
-                    ? `bg-gradient-to-br ${colors.from} ${colors.to} shadow-lg shadow-orange-500/20`
+                    ? `bg-gradient-to-br ${colors.from} ${colors.to}`
                     : "bg-zinc-800/60 border border-zinc-700/50"
                 }
         ${preview && !filled ? `bg-gradient-to-br ${colors.from} ${colors.to} opacity-90 border-2 border-emerald-300 shadow-[0_0_20px_rgba(110,231,183,0.6)]` : ""}
@@ -78,11 +78,100 @@ function Cell({
             style={{
                 width: CELL_SIZE,
                 height: CELL_SIZE,
+                boxShadow: filled
+                    ? 'inset 2px 2px 4px rgba(255,255,255,0.3), inset -2px -2px 4px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.3)'
+                    : undefined,
             }}
         >
+            {/* Stone texture overlay for filled cells */}
             {filled && (
-                <div className="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent rounded-lg" />
+                <>
+                    {/* Top-left highlight */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent rounded-lg" />
+                    {/* Bottom-right shadow */}
+                    <div className="absolute inset-0 bg-gradient-to-tl from-black/20 via-transparent to-transparent rounded-lg" />
+                    {/* Center shine */}
+                    <div className="absolute top-1 left-1 w-2 h-2 bg-white/50 rounded-full blur-[2px]" />
+                </>
             )}
+        </div>
+    );
+}
+
+/** Floating ghost that follows the finger/cursor */
+function FloatingGhost({
+    cells,
+    colorIndex,
+    position,
+}: {
+    cells: CellOffset[];
+    colorIndex: number;
+    position: { x: number; y: number } | null;
+}) {
+    if (!position || cells.length === 0) return null;
+
+    const minR = Math.min(...cells.map(c => c.dr));
+    const maxR = Math.max(...cells.map(c => c.dr));
+    const minC = Math.min(...cells.map(c => c.dc));
+    const maxC = Math.max(...cells.map(c => c.dc));
+    const rows = maxR - minR + 1;
+    const cols = maxC - minC + 1;
+
+    const ghostCellSize = 34; // Slightly smaller than board cells
+    const ghostGap = 2;
+    const colors = BLOCK_COLORS[colorIndex % BLOCK_COLORS.length];
+
+    // Center the ghost under the cursor
+    const offsetX = (cols * (ghostCellSize + ghostGap)) / 2;
+    const offsetY = (rows * (ghostCellSize + ghostGap)) / 2;
+
+    return (
+        <div
+            className="fixed pointer-events-none z-[200]"
+            style={{
+                left: position.x - offsetX,
+                top: position.y - offsetY,
+                opacity: 0.85,
+                filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))',
+            }}
+        >
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${cols}, ${ghostCellSize}px)`,
+                    gridTemplateRows: `repeat(${rows}, ${ghostCellSize}px)`,
+                    gap: ghostGap,
+                }}
+            >
+                {Array.from({ length: rows * cols }).map((_, i) => {
+                    const r = Math.floor(i / cols);
+                    const c = i % cols;
+                    const isFilled = cells.some(
+                        cell => cell.dr - minR === r && cell.dc - minC === c
+                    );
+                    return (
+                        <div
+                            key={i}
+                            className={`rounded-lg relative overflow-hidden ${isFilled ? `bg-gradient-to-br ${colors.from} ${colors.to}` : ""}`}
+                            style={{
+                                width: ghostCellSize,
+                                height: ghostCellSize,
+                                boxShadow: isFilled
+                                    ? 'inset 2px 2px 4px rgba(255,255,255,0.3), inset -2px -2px 4px rgba(0,0,0,0.3)'
+                                    : undefined,
+                            }}
+                        >
+                            {isFilled && (
+                                <>
+                                    <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent rounded-lg" />
+                                    <div className="absolute inset-0 bg-gradient-to-tl from-black/20 via-transparent to-transparent rounded-lg" />
+                                    <div className="absolute top-1 left-1 w-1.5 h-1.5 bg-white/50 rounded-full blur-[1px]" />
+                                </>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }
@@ -302,8 +391,18 @@ export default function BatasBlastGame() {
     const [selectedTrayIndex, setSelectedTrayIndex] = useState<number | null>(null);
     const [draggingTrayIndex, setDraggingTrayIndex] = useState<number | null>(null);
     const [hoverOrigin, setHoverOrigin] = useState<{ r: number; c: number } | null>(null);
+    const [ghostPosition, setGhostPosition] = useState<{ x: number; y: number } | null>(null);
     const [showBlast, setShowBlast] = useState(false);
     const [lastClearedLines, setLastClearedLines] = useState<number>(0);
+
+    // Color tracking: -1 = empty, 0+ = tray color index
+    const [colorBoard, setColorBoard] = useState<number[][]>(() =>
+        Array.from({ length: BOARD.rows }, () => Array(BOARD.cols).fill(-1))
+    );
+
+    // Cells that are about to be cleared (for animation)
+    const [blastingCells, setBlastingCells] = useState<Set<string>>(new Set());
+    const [blastColor, setBlastColor] = useState<number>(0);
 
     // Refs
     const boardRef = useRef<HTMLDivElement>(null);
@@ -401,6 +500,20 @@ export default function BatasBlastGame() {
             timer.start();
         }
 
+        // Get piece cells to update color board
+        const piece = PIECE_BY_ID.get(trayPiece.pieceId);
+        if (!piece) return;
+
+        // Update color board with the tray index color
+        const newColorBoard = colorBoard.map(row => [...row]);
+        for (const cell of piece.cells) {
+            const r = origin.r + cell.dr;
+            const c = origin.c + cell.dc;
+            if (r >= 0 && r < BOARD.rows && c >= 0 && c < BOARD.cols) {
+                newColorBoard[r][c] = trayIndex;  // Store tray index as color
+            }
+        }
+
         const action: BatasBlastAction = {
             type: 'place',
             trayIndex,
@@ -411,16 +524,46 @@ export default function BatasBlastGame() {
         const result = batasBlastEngine.applyAction(gameState, action);
 
         if (!result.invalidReason) {
+            const newLinesCleared = result.state.totalLinesCleared - prevLinesCleared;
+
+            if (newLinesCleared > 0) {
+                // Find cells that will be cleared (compare old board with new)
+                const cellsToBlast = new Set<string>();
+                for (let r = 0; r < BOARD.rows; r++) {
+                    for (let c = 0; c < BOARD.cols; c++) {
+                        // Cell was filled before but is empty now = cleared
+                        if (gameState.board[r][c] && !result.state.board[r][c]) {
+                            cellsToBlast.add(`${r},${c}`);
+                        }
+                    }
+                }
+
+                // Trigger blast animation
+                setBlastingCells(cellsToBlast);
+                setBlastColor(trayIndex);
+                setLastClearedLines(newLinesCleared);
+                setShowBlast(true);
+
+                // Delay state update for animation
+                setTimeout(() => {
+                    // Clear the colored cells for blasted positions
+                    const clearedColorBoard = newColorBoard.map(row => [...row]);
+                    for (const key of cellsToBlast) {
+                        const [r, c] = key.split(',').map(Number);
+                        clearedColorBoard[r][c] = -1;
+                    }
+                    setColorBoard(clearedColorBoard);
+                    setBlastingCells(new Set());
+                    setShowBlast(false);
+                }, 400);
+            } else {
+                // No lines cleared, just update color board
+                setColorBoard(newColorBoard);
+            }
+
             setGameState(result.state);
             setSelectedTrayIndex(null);
             setHoverOrigin(null);
-
-            const newLinesCleared = result.state.totalLinesCleared - prevLinesCleared;
-            if (newLinesCleared > 0) {
-                setLastClearedLines(newLinesCleared);
-                setShowBlast(true);
-                setTimeout(() => setShowBlast(false), 500);
-            }
 
             if (batasBlastEngine.isTerminal(result.state)) {
                 timer.stop();
@@ -450,7 +593,7 @@ export default function BatasBlastGame() {
                 }
             }
         }
-    }, [gameState, stats, userId, sessionId, timer]);
+    }, [gameState, colorBoard, stats, userId, sessionId, timer]);
 
     // Pointer move handler for drag preview
     useEffect(() => {
@@ -465,6 +608,9 @@ export default function BatasBlastGame() {
 
             const clientX = e.clientX;
             const clientY = e.clientY + offsetY;
+
+            // Update ghost position for floating piece
+            setGhostPosition({ x: clientX, y: clientY });
 
             // Calculate grid position from offset cursor
             if (boardRef.current && gameState) {
@@ -515,6 +661,7 @@ export default function BatasBlastGame() {
             }
 
             setDraggingTrayIndex(null);
+            setGhostPosition(null);
             setHoverOrigin(null);
         };
 
@@ -534,8 +681,11 @@ export default function BatasBlastGame() {
         setSelectedTrayIndex(null);
         setDraggingTrayIndex(null);
         setHoverOrigin(null);
+        setGhostPosition(null);
         setShowBlast(false);
         setLastClearedLines(0);
+        setColorBoard(Array.from({ length: BOARD.rows }, () => Array(BOARD.cols).fill(-1)));
+        setBlastingCells(new Set());
         saveActiveGame(GAME_ID, state, userId);
         timer.reset();
 
@@ -671,7 +821,16 @@ export default function BatasBlastGame() {
                 ) : null
             }
         >
-            {/* Floating ghost piece aligned to board */}
+            {/* Floating ghost that follows finger */}
+            {draggingTrayIndex !== null && ghostPosition && (
+                <FloatingGhost
+                    cells={activePieceCells}
+                    colorIndex={draggingTrayIndex}
+                    position={ghostPosition}
+                />
+            )}
+
+            {/* Board-aligned ghost for precise placement preview */}
             {draggingTrayIndex !== null && hoverOrigin && (
                 <GhostPiece
                     cells={activePieceCells}
@@ -722,6 +881,17 @@ export default function BatasBlastGame() {
                                 const previewInfo = previewCells?.get(key);
                                 const isPreview = previewInfo !== undefined;
                                 const isValid = previewInfo === true;
+                                const isBlasting = blastingCells.has(key);
+
+                                // Use stored color from colorBoard, fallback to pattern
+                                const storedColor = colorBoard[r]?.[c] ?? -1;
+                                const cellColor = filled && storedColor >= 0
+                                    ? storedColor
+                                    : isPreview && !filled
+                                        ? (activeTrayIndex ?? 0)
+                                        : isBlasting
+                                            ? blastColor
+                                            : 0;
 
                                 return (
                                     <div
@@ -732,17 +902,18 @@ export default function BatasBlastGame() {
                                                 setHoverOrigin({ r, c });
                                             }
                                         }}
-                                        className="cursor-pointer"
+                                        className={`cursor-pointer ${isBlasting ? 'animate-pulse' : ''}`}
+                                        style={{
+                                            transform: isBlasting ? 'scale(1.1)' : undefined,
+                                            transition: 'transform 0.2s ease-out',
+                                        }}
                                     >
                                         <Cell
-                                            filled={filled}
+                                            filled={filled || isBlasting}
                                             preview={isPreview && isValid && !filled}
                                             invalid={isPreview && !isValid && !filled}
-                                            colorIndex={
-                                                isPreview && !filled
-                                                    ? (activeTrayIndex ?? 0)
-                                                    : (r + c) % BLOCK_COLORS.length
-                                            }
+                                            blasting={isBlasting}
+                                            colorIndex={cellColor}
                                         />
                                     </div>
                                 );
