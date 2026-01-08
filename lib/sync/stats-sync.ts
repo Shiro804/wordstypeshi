@@ -75,6 +75,7 @@ function rowToStats(data: {
     lastTimesSec: Array.isArray(data.last_times_sec)
       ? (data.last_times_sec as number[])
       : [],
+    bestScore: null, // Not stored in legacy stats table
     updatedAt: Number.isNaN(updatedAtMs) ? Date.now() : updatedAtMs,
   };
 }
@@ -184,6 +185,10 @@ export function mergeStats(local: Stats, remote: Stats): Stats {
       Math.min(local.bestTimeSec, remote.bestTimeSec),
     avgTimeSec: remoteNewer ? remote.avgTimeSec : local.avgTimeSec,
     lastTimesSec: remoteNewer ? remote.lastTimesSec : local.lastTimesSec,
+    bestScore:
+      local.bestScore == null ? remote.bestScore :
+      remote.bestScore == null ? local.bestScore :
+      Math.max(local.bestScore, remote.bestScore),
     updatedAt: Math.max(local.updatedAt ?? 0, remote.updatedAt ?? 0),
   };
 }

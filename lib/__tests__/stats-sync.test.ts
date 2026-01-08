@@ -13,6 +13,7 @@ function createStats(overrides: Partial<Stats> = {}): Stats {
     bestTimeSec: null,
     avgTimeSec: null,
     lastTimesSec: [],
+    bestScore: null,
     updatedAt: Date.now(),
     ...overrides,
   };
