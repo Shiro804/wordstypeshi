@@ -49,7 +49,7 @@ export default function GameResultOverlay({
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             {/* Backdrop - lighter to show context */}
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+            <div className="absolute inset-0 bg-black/10" />
 
             {/* Card - Premium Glassmorphism */}
             <div className={`relative z-10 w-full max-w-sm rounded-2xl border ${borderColor} bg-zinc-950/30 backdrop-blur-2xl p-6 shadow-2xl ring-1 ring-white/10`}>
