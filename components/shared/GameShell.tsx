@@ -14,6 +14,7 @@ import {
 import type { Difficulty } from "@/lib/difficulty";
 import Settings from "@/components/games/common/Settings";
 import { useGamePreferences } from "@/lib/hooks/useGamePreferences";
+import { useLanguage } from "@/lib/i18n";
 
 // ============================================================================
 // Types
@@ -61,10 +62,18 @@ function DifficultyBadge({
     difficulty: Difficulty;
     onDifficultyChange: (d: Difficulty) => void;
 }) {
+    const { t } = useLanguage();
+
     const difficultyColors: Record<Difficulty, string> = {
         easy: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
         medium: "bg-orange-500/15 text-orange-300 border-orange-500/30",
         hard: "bg-rose-500/15 text-rose-300 border-rose-500/30",
+    };
+
+    const difficultyLabels: Record<Difficulty, string> = {
+        easy: t.settings.easy,
+        medium: t.settings.medium,
+        hard: t.settings.hard,
     };
 
     return (
@@ -77,7 +86,7 @@ function DifficultyBadge({
                         difficultyColors[difficulty]
                     }
                 >
-                    {difficulty}
+                    {difficultyLabels[difficulty]}
                     <span className="opacity-60">▾</span>
                 </button>
             </DropdownMenuTrigger>
@@ -91,7 +100,7 @@ function DifficultyBadge({
                         <span className={`inline-block w-2 h-2 rounded-full ${d === "easy" ? "bg-emerald-400" :
                             d === "medium" ? "bg-orange-400" : "bg-rose-400"
                             }`} />
-                        <span className="capitalize">{d}</span>
+                        <span>{difficultyLabels[d]}</span>
                     </DropdownMenuItem>
                 ))}
             </DropdownMenuContent>
@@ -118,6 +127,8 @@ function GameMenu({
     onOpenSettings: () => void;
     onOpenHowToPlay: () => void;
 }) {
+    const { t, language } = useLanguage();
+
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -132,7 +143,7 @@ function GameMenu({
             <DropdownMenuContent align="end" className="min-w-44">
                 <DropdownMenuItem onClick={onNewGame} className="flex items-center gap-2">
                     <RotateCcw size={14} />
-                    New Game
+                    {t.common.newGame}
                 </DropdownMenuItem>
 
                 <DropdownMenuSeparator />
@@ -140,21 +151,21 @@ function GameMenu({
                 {onOpenStats && (
                     <DropdownMenuItem onClick={onOpenStats} className="flex items-center gap-2">
                         <BarChart3 size={14} />
-                        Stats
+                        {t.common.statistics}
                     </DropdownMenuItem>
                 )}
 
                 {onOpenWordHistory && (
                     <DropdownMenuItem onClick={onOpenWordHistory} className="flex items-center gap-2">
                         <Book size={14} />
-                        Word History
+                        {language === 'de' ? 'Wörter-Verlauf' : 'Word History'}
                     </DropdownMenuItem>
                 )}
 
                 {onOpenLeaderboard && (
                     <DropdownMenuItem onClick={onOpenLeaderboard} className="flex items-center gap-2">
                         <Trophy size={14} />
-                        Leaderboard
+                        {t.common.leaderboard}
                     </DropdownMenuItem>
                 )}
 
@@ -162,12 +173,12 @@ function GameMenu({
 
                 <DropdownMenuItem onClick={onOpenHowToPlay} className="flex items-center gap-2">
                     <HelpCircle size={14} />
-                    How to Play
+                    {language === 'de' ? 'Anleitung' : 'How to Play'}
                 </DropdownMenuItem>
 
                 <DropdownMenuItem onClick={onOpenSettings} className="flex items-center gap-2">
                     <SettingsIcon size={14} />
-                    Settings
+                    {t.common.settings}
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
