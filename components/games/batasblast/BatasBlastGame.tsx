@@ -910,16 +910,18 @@ export default function BatasBlastGame() {
                                 const isBlasting = blastingCells.has(key);
                                 const wouldClear = wouldClearCells.has(key);
 
-                                // Use stored color from colorBoard, fallback to pattern
+                                // Use stored color from colorBoard, but wouldClear overrides for preview
                                 const storedColor = colorBoard[r]?.[c] ?? -1;
-                                const cellColor = filled && storedColor >= 0
-                                    ? storedColor
-                                    : isPreview && !filled
-                                        ? (activeTrayIndex ?? 0)
-                                        : isBlasting
-                                            ? blastColor
-                                            : wouldClear
-                                                ? (activeTrayIndex ?? 0)
+
+                                // Priority: wouldClear > blasting > preview > filled
+                                const cellColor = wouldClear
+                                    ? (activeTrayIndex ?? 0)  // All cells that would clear get piece color
+                                    : isBlasting
+                                        ? blastColor
+                                        : isPreview && !filled
+                                            ? (activeTrayIndex ?? 0)
+                                            : filled && storedColor >= 0
+                                                ? storedColor
                                                 : 0;
 
                                 return (
