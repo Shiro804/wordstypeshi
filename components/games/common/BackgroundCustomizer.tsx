@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import type { GamePreferences } from "@/lib/storage/preferences-storage";
 import { createClient } from "@/lib/supabase/client";
+import { useLanguage } from "@/lib/i18n";
 
 type Props = {
     preferences: GamePreferences;
@@ -15,6 +16,7 @@ type Props = {
 };
 
 export default function BackgroundCustomizer({ preferences, onChange, gameId = "global", onInteractionStart, onInteractionEnd }: Props) {
+    const { t } = useLanguage();
     const currentBg = preferences.backgroundColor || "#7d8c98";
     const currentDuck = preferences.duckColor || "#FFD86B";
     const currentImage = preferences.backgroundImage;
@@ -68,7 +70,7 @@ export default function BackgroundCustomizer({ preferences, onChange, gameId = "
             {/* 1. Background Image */}
             <div>
                 <label className="text-xs uppercase tracking-wide text-[color:var(--muted)] block mb-2">
-                    Image
+                    {t.settings.image}
                 </label>
 
                 <div className="flex items-start gap-4">
@@ -77,13 +79,13 @@ export default function BackgroundCustomizer({ preferences, onChange, gameId = "
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={currentImage} alt="Background" className="w-full h-full object-cover" />
                         ) : (
-                            <div className="flex items-center justify-center w-full h-full text-xs text-[color:var(--muted)]">None</div>
+                            <div className="flex items-center justify-center w-full h-full text-xs text-[color:var(--muted)]">{t.settings.none}</div>
                         )}
                     </div>
 
                     <div className="flex flex-col gap-2">
                         <label className={`inline-flex items-center justify-center px-3 py-1.5 text-xs font-semibold rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] hover:bg-[color:var(--surface2)] cursor-pointer transition ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
-                            {uploading ? "Uploading..." : "Upload Image"}
+                            {uploading ? t.settings.uploading : t.settings.uploadImage}
                             <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
                         </label>
 
@@ -93,7 +95,7 @@ export default function BackgroundCustomizer({ preferences, onChange, gameId = "
                                 onClick={clearImage}
                                 className="text-xs text-rose-400 hover:text-rose-300 transition"
                             >
-                                Remove Image
+                                {t.settings.removeImage}
                             </button>
                         )}
                     </div>
@@ -106,12 +108,12 @@ export default function BackgroundCustomizer({ preferences, onChange, gameId = "
             {/* 2. Colors */}
             <div>
                 <label className="text-xs uppercase tracking-wide text-[color:var(--muted)] block mb-3">
-                    Colors
+                    {t.settings.colors}
                 </label>
 
                 {/* Background Color - prominent color picker */}
                 <div className="grid grid-cols-[80px_1fr] gap-4 items-center mb-4">
-                    <div className="text-xs text-[color:var(--fg)]">Background</div>
+                    <div className="text-xs text-[color:var(--fg)]">{t.settings.background}</div>
                     <div className="flex items-center gap-2">
                         <div className="h-8 flex-1 max-w-[120px] rounded-lg border border-[color:var(--border)] flex items-center px-1 bg-[color:var(--surface)]">
                             <input
@@ -128,7 +130,7 @@ export default function BackgroundCustomizer({ preferences, onChange, gameId = "
                             onClick={() => handleChange("backgroundColor", "#09090b")}
                             className="text-[10px] text-[color:var(--muted)] hover:text-[color:var(--fg)] px-2 py-1 rounded hover:bg-[color:var(--surface2)] transition"
                         >
-                            Reset
+                            {t.settings.reset}
                         </button>
                     </div>
                 </div>
@@ -136,7 +138,7 @@ export default function BackgroundCustomizer({ preferences, onChange, gameId = "
                 <div className="space-y-4">
                     {/* Duck Body */}
                     <div className="grid grid-cols-[80px_1fr] gap-4 items-center">
-                        <div className="text-xs text-[color:var(--fg)]">Body</div>
+                        <div className="text-xs text-[color:var(--fg)]">{t.settings.body}</div>
                         <div className="flex items-center gap-2">
                             <div className="h-8 flex-1 max-w-[120px] rounded-lg border border-[color:var(--border)] flex items-center px-1 bg-[color:var(--surface)]">
                                 <input
@@ -153,14 +155,14 @@ export default function BackgroundCustomizer({ preferences, onChange, gameId = "
                                 onClick={() => handleChange("duckColor", "#FFD86B")}
                                 className="text-[10px] text-[color:var(--muted)] hover:text-[color:var(--fg)] px-2 py-1 rounded hover:bg-[color:var(--surface2)] transition"
                             >
-                                Reset
+                                {t.settings.reset}
                             </button>
                         </div>
                     </div>
 
                     {/* Duck Belly */}
                     <div className="grid grid-cols-[80px_1fr] gap-4 items-center">
-                        <div className="text-xs text-[color:var(--fg)]">Belly</div>
+                        <div className="text-xs text-[color:var(--fg)]">{t.settings.belly}</div>
                         <div className="flex items-center gap-2">
                             <div className="h-8 flex-1 max-w-[120px] rounded-lg border border-[color:var(--border)] flex items-center px-1 bg-[color:var(--surface)]">
                                 <input
@@ -177,14 +179,14 @@ export default function BackgroundCustomizer({ preferences, onChange, gameId = "
                                 onClick={() => handleChange("duckBellyColor", "#FFF3C9")}
                                 className="text-[10px] text-[color:var(--muted)] hover:text-[color:var(--fg)] px-2 py-1 rounded hover:bg-[color:var(--surface2)] transition"
                             >
-                                Reset
+                                {t.settings.reset}
                             </button>
                         </div>
                     </div>
 
                     {/* Duck Beak */}
                     <div className="grid grid-cols-[80px_1fr] gap-4 items-center">
-                        <div className="text-xs text-[color:var(--fg)]">Beak</div>
+                        <div className="text-xs text-[color:var(--fg)]">{t.settings.beak}</div>
                         <div className="flex items-center gap-2">
                             <div className="h-8 flex-1 max-w-[120px] rounded-lg border border-[color:var(--border)] flex items-center px-1 bg-[color:var(--surface)]">
                                 <input
@@ -201,14 +203,14 @@ export default function BackgroundCustomizer({ preferences, onChange, gameId = "
                                 onClick={() => handleChange("beakColor", "#FF8B4A")}
                                 className="text-[10px] text-[color:var(--muted)] hover:text-[color:var(--fg)] px-2 py-1 rounded hover:bg-[color:var(--surface2)] transition"
                             >
-                                Reset
+                                {t.settings.reset}
                             </button>
                         </div>
                     </div>
 
                     {/* Duck Eyes */}
                     <div className="grid grid-cols-[80px_1fr] gap-4 items-center">
-                        <div className="text-xs text-[color:var(--fg)]">Eyes</div>
+                        <div className="text-xs text-[color:var(--fg)]">{t.settings.eyes}</div>
                         <div className="flex items-center gap-2">
                             <div className="h-8 flex-1 max-w-[120px] rounded-lg border border-[color:var(--border)] flex items-center px-1 bg-[color:var(--surface)]">
                                 <input
@@ -225,7 +227,7 @@ export default function BackgroundCustomizer({ preferences, onChange, gameId = "
                                 onClick={() => handleChange("eyeColor", "#1E2430")}
                                 className="text-[10px] text-[color:var(--muted)] hover:text-[color:var(--fg)] px-2 py-1 rounded hover:bg-[color:var(--surface2)] transition"
                             >
-                                Reset
+                                {t.settings.reset}
                             </button>
                         </div>
                     </div>
@@ -234,3 +236,4 @@ export default function BackgroundCustomizer({ preferences, onChange, gameId = "
         </div>
     );
 }
+
