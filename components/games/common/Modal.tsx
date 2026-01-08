@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode, useEffect } from "react";
+import { useTranslations } from "@/lib/i18n";
 
 type Props = {
   open: boolean;
@@ -12,6 +13,7 @@ type Props = {
 };
 
 export default function Modal({ open, title, children, onClose, footer, transparent }: Props) {
+  const t = useTranslations();
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -39,7 +41,7 @@ export default function Modal({ open, title, children, onClose, footer, transpar
             onClick={onClose}
             className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-medium text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
           >
-            Close
+            {t.common.close}
           </button>
         </div>
 
