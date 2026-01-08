@@ -337,10 +337,12 @@ function ScoreDisplay({
     score,
     comboStreak,
     roundStreak,
+    popups,
 }: {
     score: number;
     comboStreak: number;
     roundStreak: number;
+    popups: Array<{ id: number; value: number }>;
 }) {
     return (
         <div className="w-full max-w-md grid grid-cols-[1fr_auto_1fr] items-center gap-4">
@@ -355,11 +357,20 @@ function ScoreDisplay({
             </div>
 
             {/* Center: Score */}
-            <div className="flex flex-col items-center justify-center px-8 py-2 rounded-xl bg-zinc-800/50 border border-zinc-700/50 min-w-[140px]">
+            <div className="relative flex flex-col items-center justify-center px-8 py-2 rounded-xl bg-zinc-800/50 border border-zinc-700/50 min-w-[140px]">
                 <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
                     {score.toLocaleString()}
                 </div>
                 <div className="text-xs text-zinc-500 uppercase tracking-wider font-medium">Score</div>
+
+                {/* Popups next to score */}
+                <div className="absolute top-0 right-0 h-full translate-x-full pl-3 flex flex-col justify-center pointer-events-none w-20">
+                    {popups.map((popup) => (
+                        <div key={popup.id} className="relative w-full h-0 flex items-center">
+                            <FloatingScore value={popup.value} />
+                        </div>
+                    ))}
+                </div>
             </div>
 
             {/* Right: Round Streak */}
@@ -406,23 +417,23 @@ function FloatingScore({ value }: { value: number }) {
 
     const getClasses = () => {
         switch (stage) {
-            case 'start': return 'opacity-0 scale-50 translate-y-8';
+            case 'start': return 'opacity-0 scale-50 translate-y-4';
             case 'active': return 'opacity-100 scale-100 translate-y-0'; // Pop in
-            case 'end': return 'opacity-0 scale-150 -translate-y-24'; // Float up and fade
+            case 'end': return 'opacity-0 scale-90 -translate-y-8'; // Float up slightly and fade
         }
     };
 
     return (
         <div
             className={`
-                absolute z-50 pointer-events-none select-none
-                text-5xl font-black text-amber-500 
-                drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]
+                absolute left-0 top-0
+                text-xl font-bold text-amber-500 
+                whitespace-nowrap
                 transition-all duration-500 ease-out
                 ${getClasses()}
             `}
             style={{
-                textShadow: '0 0 20px rgba(245, 158, 11, 0.6), 0 0 10px rgba(245, 158, 11, 0.4)'
+                textShadow: '0 2px 4px rgba(0,0,0,0.3)'
             }}
         >
             +{value}
@@ -943,6 +954,7 @@ export default function BatasBlastGame() {
                     score={data.score}
                     comboStreak={data.comboStreak}
                     roundStreak={data.roundStreak}
+                    popups={scorePopups}
                 />
 
                 {/* Line clear feedback */}
@@ -1095,12 +1107,7 @@ export default function BatasBlastGame() {
                 gameId={GAME_ID}
             />
 
-            {/* Floating Score Popups */}
-            <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden">
-                {scorePopups.map((popup) => (
-                    <FloatingScore key={popup.id} value={popup.value} />
-                ))}
-            </div>
+
 
             {/* Game Result Overlay */}
             <GameResultOverlay
