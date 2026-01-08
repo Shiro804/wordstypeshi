@@ -340,12 +340,14 @@ function ScoreDisplay({
     roundStreak,
     popups,
     highscore = 0,
+    translations,
 }: {
     score: number;
     comboStreak: number;
     roundStreak: number;
     popups: Array<{ id: number; value: number }>;
     highscore?: number;
+    translations: { score: string; best: string };
 }) {
     const isNewHighscore = score > 0 && score >= highscore;
 
@@ -379,11 +381,11 @@ function ScoreDisplay({
                         ))}
                     </div>
                 </div>
-                <div className="text-xs text-zinc-500 uppercase tracking-wider font-medium">Score</div>
+                <div className="text-xs text-zinc-500 uppercase tracking-wider font-medium">{translations.score}</div>
                 {/* Highscore display */}
                 {highscore > 0 && !isNewHighscore && (
                     <div className="text-[10px] text-zinc-600 mt-0.5">
-                        Best: {highscore.toLocaleString()}
+                        {translations.best}: {highscore.toLocaleString()}
                     </div>
                 )}
             </div>
@@ -638,15 +640,30 @@ export default function BatasBlastGame() {
     // Sync stats
     useEffect(() => {
         const local = loadLocalStats(GAME_ID, 'medium');
-        setStats(local);
+
+        // Ensure bestScore is populated from localStorage highscore if missing
+        const lsHighscore = typeof window !== 'undefined'
+            ? parseInt(localStorage.getItem('batasblast.highscore') ?? '0', 10)
+            : 0;
+        const localWithHighscore = {
+            ...local,
+            bestScore: Math.max(local.bestScore ?? 0, lsHighscore) || null,
+        };
+
+        setStats(localWithHighscore);
 
         if (userId) {
-            syncGameStats(userId, GAME_ID, 'medium', local).then(synced => {
+            syncGameStats(userId, GAME_ID, 'medium', localWithHighscore).then(synced => {
                 setStats(synced);
                 saveLocalStats(GAME_ID, 'medium', synced);
+                // Also update localStorage highscore if remote has a higher one
+                if (synced.bestScore && synced.bestScore > highscore) {
+                    setHighscore(synced.bestScore);
+                    localStorage.setItem('batasblast.highscore', String(synced.bestScore));
+                }
             });
         }
-    }, [userId]);
+    }, [userId, highscore]);
 
     // Place piece helper
     const placePiece = useCallback((trayIndex: number, origin: { r: number; c: number }) => {
@@ -754,17 +771,26 @@ export default function BatasBlastGame() {
                     durationSec,
                 });
 
-                setStats(newStats);
-                saveLocalStats(GAME_ID, 'medium', newStats);
+                // Update bestScore in stats if new highscore
+                const finalScore = result.state.score;
+                const currentBest = stats.bestScore ?? 0;
+                const newBestScore = Math.max(currentBest, finalScore);
+                const statsWithScore = {
+                    ...newStats,
+                    bestScore: newBestScore,
+                };
 
-                // Save new highscore if beaten
-                if (result.state.score > highscore) {
-                    setHighscore(result.state.score);
-                    localStorage.setItem('batasblast.highscore', String(result.state.score));
+                setStats(statsWithScore);
+                saveLocalStats(GAME_ID, 'medium', statsWithScore);
+
+                // Save new highscore to localStorage for UI display
+                if (finalScore > highscore) {
+                    setHighscore(finalScore);
+                    localStorage.setItem('batasblast.highscore', String(finalScore));
                 }
 
                 if (userId) {
-                    upsertRemoteGameStats(userId, GAME_ID, 'medium', newStats);
+                    upsertRemoteGameStats(userId, GAME_ID, 'medium', statsWithScore);
                 }
 
                 if (sessionId) {
@@ -1062,6 +1088,7 @@ export default function BatasBlastGame() {
                     roundStreak={data.roundStreak}
                     popups={scorePopups}
                     highscore={highscore}
+                    translations={{ score: t.batasblast.score, best: t.batasblast.best }}
                 />
 
                 {/* Line clear feedback - floating above everything */}
@@ -1098,17 +1125,19 @@ export default function BatasBlastGame() {
                                 const isBlasting = blastingCells.has(key);
                                 const wouldClear = wouldClearCells.has(key);
 
-                                // Use stored color from colorBoard, but wouldClear overrides for preview
+                                // Use colorBoard as source of truth for filled state
+                                // This ensures tiles stay visible during row clear animation
                                 const storedColor = colorBoard[r]?.[c] ?? -1;
+                                const isFilled = storedColor >= 0;
 
                                 // Priority: wouldClear > blasting > preview > filled
                                 const cellColor = wouldClear
                                     ? (activeTrayIndex ?? 0)  // All cells that would clear get piece color
                                     : isBlasting
                                         ? blastColor
-                                        : isPreview && !filled
+                                        : isPreview && !isFilled
                                             ? (activeTrayIndex ?? 0)
-                                            : filled && storedColor >= 0
+                                            : isFilled
                                                 ? storedColor
                                                 : 0;
 
@@ -1129,9 +1158,9 @@ export default function BatasBlastGame() {
                                         }}
                                     >
                                         <Cell
-                                            filled={filled || isBlasting}
-                                            preview={isPreview && isValid && !filled}
-                                            invalid={isPreview && !isValid && !filled}
+                                            filled={isFilled || isBlasting}
+                                            preview={isPreview && isValid && !isFilled}
+                                            invalid={isPreview && !isValid && !isFilled}
                                             blasting={isBlasting}
                                             colorIndex={cellColor}
                                         />
@@ -1161,7 +1190,7 @@ export default function BatasBlastGame() {
                 {/* Instructions */}
                 {!renderModel.isTerminal && selectedTrayIndex === null && draggingTrayIndex === null && (
                     <div className="text-center text-[color:var(--muted)] text-sm">
-                        Tap or drag a piece, then place it on the board
+                        {t.batasblast.tapOrDrag}
                     </div>
                 )}
 
@@ -1188,21 +1217,21 @@ export default function BatasBlastGame() {
                 {/* Custom BatasBlast stats */}
                 <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3">
-                        <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Games Played</div>
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">{t.leaderboard.played}</div>
                         <div className="mt-1 text-lg font-bold text-[color:var(--fg)]">{stats.played}</div>
                     </div>
                     <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3">
-                        <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">High Score</div>
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">{t.batasblast.highScore}</div>
                         <div className="mt-1 text-lg font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
-                            {(data?.score ?? 0).toLocaleString()}
+                            {(stats.bestScore ?? highscore ?? 0).toLocaleString()}
                         </div>
                     </div>
                     <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3">
-                        <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Total Lines</div>
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">{t.batasblast.totalLines}</div>
                         <div className="mt-1 text-lg font-bold text-emerald-400">{data?.totalLinesCleared ?? 0}</div>
                     </div>
                     <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3">
-                        <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Best Combo</div>
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">{t.batasblast.bestCombo}</div>
                         <div className="mt-1 text-lg font-bold text-orange-400">{data?.maxComboStreak ?? 0}x</div>
                     </div>
                 </div>

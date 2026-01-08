@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Stats } from "@/lib/storage/storage";
 import type { Difficulty } from "@/lib/difficulty";
 import { getAvatarPublicUrl } from "@/lib/auth/avatar";
+import { useLanguage } from "@/lib/i18n";
 
 export type LeaderboardMetric =
   | "wins"
@@ -20,7 +21,8 @@ export type LeaderboardMetric =
   | "played"
   | "maxStreak"
   | "bestTimeSec"
-  | "avgTimeSec";
+  | "avgTimeSec"
+  | "highScore";
 
 type Props = {
   open: boolean;
@@ -84,26 +86,29 @@ function rowToStats(r: StatsTableRow): Stats {
     bestTimeSec: r.best_time_sec ?? null,
     avgTimeSec: r.avg_time_sec ?? null,
     lastTimesSec: Array.isArray(r.last_times_sec) ? (r.last_times_sec as number[]) : [],
+    bestScore: null,
     updatedAt: r.updated_at ? Date.parse(r.updated_at) : Date.now(),
   };
 }
 
-function metricLabel(m: LeaderboardMetric) {
+function metricLabel(m: LeaderboardMetric, t: ReturnType<typeof useLanguage>['t']) {
   switch (m) {
     case "wins":
-      return "Wins";
+      return t.leaderboard.wins;
     case "losses":
-      return "Losses";
+      return t.leaderboard.losses;
     case "winRate":
-      return "Win rate";
+      return t.leaderboard.winRate;
     case "played":
-      return "Played";
+      return t.leaderboard.played;
     case "maxStreak":
-      return "Max streak";
+      return t.leaderboard.maxStreak;
     case "bestTimeSec":
-      return "Best time";
+      return t.leaderboard.bestTime;
     case "avgTimeSec":
-      return "Avg time";
+      return t.leaderboard.avgTime;
+    case "highScore":
+      return t.leaderboard.highScore;
   }
 }
 
@@ -115,12 +120,44 @@ function formatSeconds(sec: number | null) {
   return m > 0 ? `${m}:${String(r).padStart(2, "0")}` : `${r}s`;
 }
 
+// Game-specific metrics
+function getMetricsForGame(gameId?: string): LeaderboardMetric[] {
+  if (gameId === 'batasblast') {
+    // BatasBlast: score-based endless game
+    return ['highScore', 'played'];
+  }
+  // Default: word/guess games (wordle, mastermind, wordsearch)
+  return ['wins', 'played', 'winRate', 'maxStreak', 'bestTimeSec', 'avgTimeSec'];
+}
+
+function getDefaultMetric(gameId?: string): LeaderboardMetric {
+  if (gameId === 'batasblast') return 'highScore';
+  return 'wins';
+}
+
+// Check if game has difficulty settings
+function hasDifficulty(gameId?: string): boolean {
+  // BatasBlast doesn't have difficulty
+  if (gameId === 'batasblast') return false;
+  return true;
+}
+
 export default function Leaderboard({ open, onClose, gameId }: Props) {
-  const [metric, setMetric] = useState<LeaderboardMetric>("wins");
+  const { t } = useLanguage();
+  const availableMetrics = getMetricsForGame(gameId);
+  const showDifficulty = hasDifficulty(gameId);
+  const [metric, setMetric] = useState<LeaderboardMetric>(() => getDefaultMetric(gameId));
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Difficulty label helper
+  const getDifficultyLabel = (d: Difficulty) => {
+    if (d === 'easy') return t.settings.easy;
+    if (d === 'medium') return t.settings.medium;
+    return t.settings.hard;
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -161,6 +198,10 @@ export default function Leaderboard({ open, onClose, gameId }: Props) {
               case "losses": return sA.losses - sB.losses;
               case "played": return sB.played - sA.played;
               case "maxStreak": return sB.maxStreak - sA.maxStreak;
+              case "highScore":
+                if (sA.bestScore == null) return 1;
+                if (sB.bestScore == null) return -1;
+                return sB.bestScore - sA.bestScore;
               case "winRate":
                 const rA = sA.played ? sA.wins / sA.played : 0;
                 const rB = sB.played ? sB.wins / sB.played : 0;
@@ -297,29 +338,33 @@ export default function Leaderboard({ open, onClose, gameId }: Props) {
   }, [rows, metric]);
 
   return (
-    <Modal open={open} onClose={onClose} title="Leaderboard">
+    <Modal open={open} onClose={onClose} title={t.leaderboard.title}>
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="text-xs font-semibold uppercase tracking-wide text-[color:var(--muted)]">Difficulty</div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="inline-flex items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] shadow-sm transition hover:bg-[color:var(--surface2)]"
-              >
-                <span>{difficulty}</span>
-                <span className="text-[color:var(--muted)]">▾</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-32">
-              {(["easy", "medium", "hard"] as Difficulty[]).map((d) => (
-                <DropdownMenuItem key={d} onClick={() => setDifficulty(d)}>
-                  {d}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <div className="text-xs font-semibold uppercase tracking-wide text-[color:var(--muted)]">Sort by</div>
+          {showDifficulty && (
+            <>
+              <div className="text-xs font-semibold uppercase tracking-wide text-[color:var(--muted)]">{t.leaderboard.difficulty}</div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] shadow-sm transition hover:bg-[color:var(--surface2)]"
+                  >
+                    <span>{getDifficultyLabel(difficulty)}</span>
+                    <span className="text-[color:var(--muted)]">▾</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-32">
+                  {(["easy", "medium", "hard"] as Difficulty[]).map((d) => (
+                    <DropdownMenuItem key={d} onClick={() => setDifficulty(d)}>
+                      {getDifficultyLabel(d)}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
+          <div className="text-xs font-semibold uppercase tracking-wide text-[color:var(--muted)]">{t.leaderboard.sortBy}</div>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -327,35 +372,27 @@ export default function Leaderboard({ open, onClose, gameId }: Props) {
                 type="button"
                 className="inline-flex items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] shadow-sm transition hover:bg-[color:var(--surface2)]"
               >
-                <span>{metricLabel(metric)}</span>
+                <span>{metricLabel(metric, t)}</span>
                 <span className="text-[color:var(--muted)]">▾</span>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-48">
-              {([
-                "wins",
-                "losses",
-                "winRate",
-                "played",
-                "maxStreak",
-                "bestTimeSec",
-                "avgTimeSec",
-              ] as LeaderboardMetric[]).map((m) => (
+              {availableMetrics.map((m) => (
                 <DropdownMenuItem key={m} onClick={() => setMetric(m)}>
-                  {metricLabel(m)}
+                  {metricLabel(m, t)}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
-        {loading ? <div className="text-sm text-[color:var(--muted)]">Loading…</div> : null}
+        {loading ? <div className="text-sm text-[color:var(--muted)]">{t.leaderboard.loading}</div> : null}
         {error ? <div className="text-sm text-rose-300">{error}</div> : null}
 
         {!loading && !error ? (
           <div className="divide-y divide-[color:var(--border)] overflow-hidden rounded-2xl border border-[color:var(--border)]">
             {ranked.length === 0 ? (
-              <div className="p-4 text-sm text-[color:var(--muted)]">No stats yet.</div>
+              <div className="p-4 text-sm text-[color:var(--muted)]">{t.leaderboard.noStats}</div>
             ) : (
               ranked.map((r, idx) => {
                 const s = r.stats;
@@ -384,6 +421,9 @@ export default function Leaderboard({ open, onClose, gameId }: Props) {
                   case "avgTimeSec":
                     val = formatSeconds(s.avgTimeSec);
                     break;
+                  case "highScore":
+                    val = s.bestScore != null ? s.bestScore.toLocaleString() : "–";
+                    break;
                 }
 
                 const avatarUrl = getAvatarPublicUrl(r.avatar_path);
@@ -404,7 +444,7 @@ export default function Leaderboard({ open, onClose, gameId }: Props) {
                           {idx + 1}. {name}
                         </div>
                       </div>
-                      <div className="text-xs text-[color:var(--muted)]">{metricLabel(metric)}</div>
+                      <div className="text-xs text-[color:var(--muted)]">{metricLabel(metric, t)}</div>
                     </div>
                     <div className="shrink-0 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-1.5 text-sm font-bold text-[color:var(--fg)]">
                       {val}
