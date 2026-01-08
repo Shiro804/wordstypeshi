@@ -13,6 +13,7 @@ import {
     type WordSearchState,
     type SelectPathAction,
 } from "@/lib/games/wordsearch/engine";
+import { DIRECTIONS } from "@/lib/games/wordsearch/ruleset";
 import { wordSearchUIAdapter, type WordSearchRenderModel } from "@/lib/games/wordsearch/ui-adapter";
 import type { Difficulty } from "@/lib/difficulty";
 import { useGameTimer } from "@/lib/hooks/useGameTimer";
@@ -21,6 +22,7 @@ import { createOrReuseActiveSession, endSession } from "@/lib/sync/sessions-sync
 import { fetchPlayedWords, trackPlayedWord } from "@/lib/sync/played-words";
 import Modal from "@/components/games/common/Modal";
 import { loadDifficulty, saveDifficulty } from "@/lib/storage/settings-storage";
+import { loadActiveGame, saveActiveGame } from "@/lib/storage/active-game-storage";
 
 // ============================================================================
 // Constants
@@ -138,6 +140,7 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
 
     // Refs
     const gridRef = useRef<HTMLDivElement>(null);
+    const hasInitialized = useRef(false);
 
     // Get params for current difficulty
     const params = useMemo(() => getModeParams(difficulty), [difficulty]);
@@ -183,13 +186,67 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
             });
             setSessionId(session?.id ?? null);
         }
+
+        // Save initial game state
+        saveActiveGame(GAME_ID, state, userId);
     }, [params, timer, userId, difficulty, playedWords]);
 
-    // Initialize on mount or difficulty change
+    // Initialize: Load active game or create new one
     useEffect(() => {
+        if (hasInitialized.current) {
+            // Difficulty changed - reset and init new game
+            hasInitialized.current = false;
+        }
+
+        // Try to load active game
+        const active = loadActiveGame<WordSearchState>(GAME_ID, userId);
+
+        if (active && !wordSearchEngine.isTerminal(active)) {
+            // Only restore if difficulty matches
+            if (active.config.difficulty === difficulty) {
+                setGameState(active);
+
+                // Restore foundCells from found words
+                const found = new Set<string>();
+                active.words.filter(w => w.found).forEach(word => {
+                    const { startRow, startCol, direction } = word.placement;
+                    const { dr, dc } = DIRECTIONS[direction];
+                    for (let i = 0; i < word.text.length; i++) {
+                        const r = startRow + i * dr;
+                        const c = startCol + i * dc;
+                        found.add(`${r},${c}`);
+                    }
+                });
+                setFoundCells(found);
+
+                // Restore timer
+                timer.setStartedAt(active.startedAtMs);
+                if (active.endedAtMs) {
+                    timer.setEndedAt(active.endedAtMs);
+                }
+
+                hasInitialized.current = true;
+                return;
+            }
+        }
+
+        // No active game or difficulty mismatch - init new game
         initGame();
+        hasInitialized.current = true;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [difficulty, params]);
+    }, [difficulty, userId]);
+
+    // Save game state whenever it changes
+    useEffect(() => {
+        if (!gameState) return;
+
+        // Clear saved state if game is finished
+        if (wordSearchEngine.isTerminal(gameState)) {
+            saveActiveGame(GAME_ID, null, userId);
+        } else {
+            saveActiveGame(GAME_ID, gameState, userId);
+        }
+    }, [gameState, userId]);
 
     // Get render model
     const renderModel = useMemo((): WordSearchRenderModel | null => {
