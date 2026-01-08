@@ -89,6 +89,10 @@ const GAME_INSTRUCTIONS: Record<GameId, {
                 heading: "Tips",
                 content: "Start with common vowels and consonants. Use the feedback to eliminate letters and narrow down possibilities.",
             },
+            {
+                heading: "Note",
+                content: "🇬🇧 Currently only English words are available. German words coming soon!",
+            },
         ],
     },
     mastermind: {
@@ -150,6 +154,10 @@ const GAME_INSTRUCTIONS: Record<GameId, {
             {
                 heading: "Tips",
                 content: "Scan systematically. Look for uncommon letters first (Q, X, Z). Words can read forwards or backwards.",
+            },
+            {
+                heading: "Note",
+                content: "🇬🇧 Currently only English words are available. German words coming soon!",
             },
         ],
     },

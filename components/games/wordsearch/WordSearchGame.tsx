@@ -6,6 +6,8 @@ import GameShell from "@/components/shared/GameShell";
 import GameResultOverlay from "@/components/games/common/GameResultOverlay";
 import Leaderboard from "@/components/games/common/Leaderboard";
 import StatsModal from "@/components/shared/StatsModal";
+import EnglishWordsHint from "@/components/games/common/EnglishWordsHint";
+import { useLanguage } from "@/lib/i18n";
 import {
     wordSearchEngine,
     getModeParams,
@@ -141,6 +143,9 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
     // Refs
     const gridRef = useRef<HTMLDivElement>(null);
     const hasInitialized = useRef(false);
+
+    // Language
+    const { t } = useLanguage();
 
     // Get params for current difficulty
     const params = useMemo(() => getModeParams(difficulty), [difficulty]);
@@ -501,10 +506,10 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
                             <Trophy className="w-8 h-8 text-emerald-400" />
                         </div>
                         <div className="text-2xl font-bold text-emerald-400 mb-1">
-                            Alle Wörter gefunden!
+                            {t.wordsearch.allWordsFound}
                         </div>
                         <div className="text-[color:var(--muted)]">
-                            Zeit: {timer.timerText} • Fehlversuche: {data.misselects}
+                            {t.wordsearch.time}: {timer.timerText} • {t.wordsearch.misselects}: {data.misselects}
                         </div>
                     </div>
                 )}
@@ -513,7 +518,7 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
                 <div className="space-y-2">
                     <div className="flex items-center justify-center gap-2 text-[color:var(--muted)]">
                         <Search className="w-4 h-4" />
-                        <span>{data.foundCount} / {data.totalWords} Wörter gefunden</span>
+                        <span>{data.foundCount} / {data.totalWords} {t.wordsearch.wordsFound}</span>
                     </div>
                     {/* Show all words in easy mode, only found words in medium/hard */}
                     {data.showWordList ? (
@@ -524,7 +529,7 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
                                 <WordList words={data.words.filter(w => w.found)} />
                             ) : (
                                 <p className="text-[color:var(--muted)] text-sm italic">
-                                    Finde die versteckten Wörter im Gitter!
+                                    {t.wordsearch.description}
                                 </p>
                             )}
                         </div>
@@ -588,30 +593,30 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
             <GameResultOverlay
                 open={renderModel.isTerminal}
                 outcome="win"
-                title="Geschafft!"
-                subtitle={`Alle ${data?.totalWords ?? 0} Wörter gefunden`}
+                title={t.wordsearch.done}
+                subtitle={`${t.wordsearch.allWordsFound} (${data?.totalWords ?? 0})`}
                 onPlayAgain={initGame}
                 onOpenStats={() => setStatsOpen(true)}
             />
 
             {/* Confirm Reset Modal */}
-            <Modal open={confirmResetOpen} title="Reset game?" onClose={() => setConfirmResetOpen(false)} footer={
+            <Modal open={confirmResetOpen} title={t.modals.resetTitle} onClose={() => setConfirmResetOpen(false)} footer={
                 <div className="flex items-center justify-end gap-2">
-                    <button type="button" onClick={() => setConfirmResetOpen(false)} className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]">Cancel</button>
-                    <button type="button" onClick={forfeitCurrentGameAndReset} className="rounded-xl border border-[color:var(--border)] bg-rose-500/20 px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-rose-500/30">Reset (counts as loss)</button>
+                    <button type="button" onClick={() => setConfirmResetOpen(false)} className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]">{t.common.cancel}</button>
+                    <button type="button" onClick={forfeitCurrentGameAndReset} className="rounded-xl border border-[color:var(--border)] bg-rose-500/20 px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-rose-500/30">{t.modals.resetConfirm}</button>
                 </div>
             }>
-                <div className="text-sm text-[color:var(--fg)]/85">You already found some words. Resetting now will count as a loss.</div>
+                <div className="text-sm text-[color:var(--fg)]/85">{t.modals.resetMessage}</div>
             </Modal>
 
             {/* Confirm Difficulty Change Modal */}
-            <Modal open={confirmDifficultyOpen} title="Change difficulty?" onClose={() => { setConfirmDifficultyOpen(false); setPendingDifficulty(null); }} footer={
+            <Modal open={confirmDifficultyOpen} title={t.modals.difficultyTitle} onClose={() => { setConfirmDifficultyOpen(false); setPendingDifficulty(null); }} footer={
                 <div className="flex items-center justify-end gap-2">
-                    <button type="button" onClick={() => { setConfirmDifficultyOpen(false); setPendingDifficulty(null); }} className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]">Cancel</button>
-                    <button type="button" onClick={() => { const next = pendingDifficulty; setConfirmDifficultyOpen(false); setPendingDifficulty(null); forfeitCurrentGame(); if (next) applyDifficultyChange(next); }} className="rounded-xl border border-[color:var(--border)] bg-rose-500/20 px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-rose-500/30">Switch (counts as loss)</button>
+                    <button type="button" onClick={() => { setConfirmDifficultyOpen(false); setPendingDifficulty(null); }} className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]">{t.common.cancel}</button>
+                    <button type="button" onClick={() => { const next = pendingDifficulty; setConfirmDifficultyOpen(false); setPendingDifficulty(null); forfeitCurrentGame(); if (next) applyDifficultyChange(next); }} className="rounded-xl border border-[color:var(--border)] bg-rose-500/20 px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-rose-500/30">{t.modals.difficultyConfirm}</button>
                 </div>
             }>
-                <div className="text-sm text-[color:var(--fg)]/85">You already found some words. Switching difficulty now will forfeit this game and count as a loss.</div>
+                <div className="text-sm text-[color:var(--fg)]/85">{t.modals.difficultyMessage}</div>
             </Modal>
         </GameShell>
     );

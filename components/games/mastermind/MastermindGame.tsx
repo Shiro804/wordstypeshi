@@ -23,6 +23,7 @@ import StatsModal from "@/components/shared/StatsModal";
 import { type Stats, applyGameResult, formatDuration } from "@/lib/storage/storage";
 import { useGameTimer } from "@/lib/hooks/useGameTimer";
 import Modal from "../common/Modal";
+import { useLanguage } from "@/lib/i18n";
 
 // ============================================================================
 // Constants & Mapping
@@ -215,6 +216,9 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
     const [stats, setStats] = useState<Stats>(() => loadLocalStats(GAME_ID, difficulty));
     const [userId, setUserId] = useState<string | null>(null);
     const [sessionId, setSessionId] = useState<string | null>(null);
+
+    // Language
+    const { t } = useLanguage();
 
     // Timer state
     const timer = useGameTimer();
@@ -569,7 +573,7 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
 
                 {!renderModel.isTerminal && (
                     <div className="text-center text-[color:var(--muted)]">
-                        {data.remainingAttempts} Versuche übrig
+                        {data.remainingAttempts} {t.mastermind.attemptsRemaining}
                     </div>
                 )}
 
@@ -588,7 +592,7 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
                             className="px-6 py-3 bg-[color:var(--surface)] hover:bg-[color:var(--surface2)] border border-[color:var(--border)] rounded-xl transition flex items-center gap-2"
                         >
                             <X className="w-5 h-5" />
-                            Löschen
+                            {t.mastermind.delete}
                         </button>
                         <button
                             onClick={handleSubmit}
@@ -602,7 +606,7 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
 `}
                         >
                             <CheckCircle2 className="w-5 h-5" />
-                            Raten
+                            {t.mastermind.checkGuess}
                         </button>
                     </div>
                 )}
@@ -627,10 +631,10 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
             <GameResultOverlay
                 open={renderModel.isTerminal}
                 outcome={renderModel.status === 'won' ? 'win' : 'lose'}
-                title={renderModel.status === 'won' ? 'Geknackt!' : 'Game Over'}
+                title={renderModel.status === 'won' ? t.common.youWin : t.common.gameOver}
                 subtitle={renderModel.status === 'won'
-                    ? `Code in ${data.currentAttempt - 1} Versuchen gelöst`
-                    : 'Der Code war:'}
+                    ? t.mastermind.solvedIn.replace('{n}', String(data.currentAttempt - 1))
+                    : t.mastermind.secretCode + ':'}
                 onPlayAgain={initGame}
                 onOpenStats={() => setStatsOpen(true)}
             >
@@ -644,28 +648,28 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
                 )}
             </GameResultOverlay>
 
-            <Modal open={confirmResetOpen} title="Reset game?" onClose={() => setConfirmResetOpen(false)} footer={
+            <Modal open={confirmResetOpen} title={t.modals.resetTitle} onClose={() => setConfirmResetOpen(false)} footer={
                 <div className="flex items-center justify-end gap-2">
-                    <button type="button" onClick={() => setConfirmResetOpen(false)} className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]">Cancel</button>
-                    <button type="button" onClick={forfeitCurrentGameAndReset} className="rounded-xl border border-[color:var(--border)] bg-rose-500/20 px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-rose-500/30">Reset (counts as loss)</button>
+                    <button type="button" onClick={() => setConfirmResetOpen(false)} className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]">{t.common.cancel}</button>
+                    <button type="button" onClick={forfeitCurrentGameAndReset} className="rounded-xl border border-[color:var(--border)] bg-rose-500/20 px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-rose-500/30">{t.modals.resetConfirm}</button>
                 </div>
             }>
-                <div className="text-sm text-[color:var(--fg)]/85">You already made guesses. Resetting now will count as a loss.</div>
+                <div className="text-sm text-[color:var(--fg)]/85">{t.modals.resetMessage}</div>
             </Modal>
 
-            <Modal open={confirmDifficultyOpen} title="Change difficulty?" onClose={() => { setConfirmDifficultyOpen(false); setPendingDifficulty(null); }} footer={
+            <Modal open={confirmDifficultyOpen} title={t.modals.difficultyTitle} onClose={() => { setConfirmDifficultyOpen(false); setPendingDifficulty(null); }} footer={
                 <div className="flex items-center justify-end gap-2">
-                    <button type="button" onClick={() => { setConfirmDifficultyOpen(false); setPendingDifficulty(null); }} className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]">Cancel</button>
+                    <button type="button" onClick={() => { setConfirmDifficultyOpen(false); setPendingDifficulty(null); }} className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]">{t.common.cancel}</button>
                     <button type="button" onClick={() => {
                         const next = pendingDifficulty;
                         setConfirmDifficultyOpen(false);
                         setPendingDifficulty(null);
                         forfeitCurrentGame();
                         if (next) applyDifficultyChange(next);
-                    }} className="rounded-xl border border-[color:var(--border)] bg-rose-500/20 px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-rose-500/30">Switch (counts as loss)</button>
+                    }} className="rounded-xl border border-[color:var(--border)] bg-rose-500/20 px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-rose-500/30">{t.modals.difficultyConfirm}</button>
                 </div>
             }>
-                <div className="text-sm text-[color:var(--fg)]/85">You already made guesses. Switching difficulty now will forfeit this game and count as a loss.</div>
+                <div className="text-sm text-[color:var(--fg)]/85">{t.modals.difficultyMessage}</div>
             </Modal>
         </GameShell >
     );

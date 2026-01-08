@@ -23,6 +23,7 @@ import { type Stats, applyGameResult } from "@/lib/storage/storage";
 import { useGameTimer } from "@/lib/hooks/useGameTimer";
 import Modal from "../common/Modal";
 import type { CellOffset } from "@/lib/games/batasblast/ruleset";
+import { useLanguage } from "@/lib/i18n";
 
 // ============================================================================
 // Constants
@@ -338,12 +339,16 @@ function ScoreDisplay({
     comboStreak,
     roundStreak,
     popups,
+    highscore = 0,
 }: {
     score: number;
     comboStreak: number;
     roundStreak: number;
     popups: Array<{ id: number; value: number }>;
+    highscore?: number;
 }) {
+    const isNewHighscore = score > 0 && score >= highscore;
+
     return (
         <div className="w-full max-w-md grid grid-cols-[1fr_auto_1fr] items-center gap-4">
             {/* Left: Combo Streak */}
@@ -360,9 +365,13 @@ function ScoreDisplay({
             <div className="flex flex-col items-center justify-center px-8 py-2 rounded-xl bg-zinc-800/50 border border-zinc-700/50 min-w-[140px]">
                 {/* Score number with popup anchor */}
                 <div className="relative flex items-center">
-                    <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
+                    <div className={`text-3xl font-bold bg-gradient-to-r ${isNewHighscore ? 'from-yellow-300 to-amber-500' : 'from-amber-400 to-orange-500'} bg-clip-text text-transparent`}>
                         {score.toLocaleString()}
                     </div>
+                    {/* New highscore indicator */}
+                    {isNewHighscore && (
+                        <span className="ml-1 text-yellow-400 animate-pulse">👑</span>
+                    )}
                     {/* Popups positioned right next to the number */}
                     <div className="absolute left-full top-0 pl-2 pointer-events-none">
                         {popups.map((popup) => (
@@ -371,6 +380,12 @@ function ScoreDisplay({
                     </div>
                 </div>
                 <div className="text-xs text-zinc-500 uppercase tracking-wider font-medium">Score</div>
+                {/* Highscore display */}
+                {highscore > 0 && !isNewHighscore && (
+                    <div className="text-[10px] text-zinc-600 mt-0.5">
+                        Best: {highscore.toLocaleString()}
+                    </div>
+                )}
             </div>
 
             {/* Right: Round Streak */}
@@ -486,6 +501,9 @@ function FloatingLines({ value }: { value: number }) {
 // ============================================================================
 
 export default function BatasBlastGame() {
+    // Language
+    const { t } = useLanguage();
+
     // State
     const [gameState, setGameState] = useState<BatasBlastState | null>(null);
     const [selectedTrayIndex, setSelectedTrayIndex] = useState<number | null>(null);
@@ -520,6 +538,11 @@ export default function BatasBlastGame() {
     const [statsOpen, setStatsOpen] = useState(false);
     const [stats, setStats] = useState<Stats>(() => loadLocalStats(GAME_ID, 'medium'));
     const [userId, setUserId] = useState<string | null>(null);
+    const [highscore, setHighscore] = useState<number>(() => {
+        if (typeof window === 'undefined') return 0;
+        const saved = localStorage.getItem('batasblast.highscore');
+        return saved ? parseInt(saved, 10) : 0;
+    });
     const [sessionId, setSessionId] = useState<string | null>(null);
 
     // Timer
@@ -676,18 +699,24 @@ export default function BatasBlastGame() {
             const newLinesCleared = result.state.totalLinesCleared - prevLinesCleared;
 
             if (newLinesCleared > 0) {
-                // Find cells that will be cleared (compare old board with new)
+                // Find cells that will be cleared (the piece was placed, then rows cleared)
+                // We need to identify which cells from newColorBoard will be cleared
                 const cellsToBlast = new Set<string>();
                 for (let r = 0; r < BOARD.rows; r++) {
                     for (let c = 0; c < BOARD.cols; c++) {
-                        // Cell was filled before but is empty now = cleared
-                        if (gameState.board[r][c] && !result.state.board[r][c]) {
+                        // Cell is filled in newColorBoard (after piece placement) 
+                        // but will be empty in final state = this cell gets cleared
+                        if (newColorBoard[r][c] >= 0 && !result.state.board[r][c]) {
                             cellsToBlast.add(`${r},${c}`);
                         }
                     }
                 }
 
-                // Trigger blast animation
+                // IMMEDIATELY show the placed piece by applying newColorBoard
+                // This ensures all tiles of the piece are visible before animation
+                setColorBoard(newColorBoard);
+
+                // Trigger blast animation on cleared cells only
                 setBlastingCells(cellsToBlast);
                 setBlastColor(trayIndex);
                 setShowBlast(true);
@@ -699,13 +728,9 @@ export default function BatasBlastGame() {
                     setLinePopups(prev => prev.filter(p => p.id !== lineId));
                 }, 1600);
 
-                // Show full board (with piece, before clear) during animation
-                // Note: newColorBoard is locally computed above and matches 
-                // what the board looks like right before the blast.
-
-                // Delay state update for animation
+                // Delay the final state update (after clear animation)
                 setTimeout(() => {
-                    // Application of final engine state (cleared)
+                    // Apply final engine state (with cleared cells removed)
                     setColorBoard(result.state.colorBoard);
                     setBlastingCells(new Set());
                     setShowBlast(false);
@@ -732,6 +757,12 @@ export default function BatasBlastGame() {
                 setStats(newStats);
                 saveLocalStats(GAME_ID, 'medium', newStats);
 
+                // Save new highscore if beaten
+                if (result.state.score > highscore) {
+                    setHighscore(result.state.score);
+                    localStorage.setItem('batasblast.highscore', String(result.state.score));
+                }
+
                 if (userId) {
                     upsertRemoteGameStats(userId, GAME_ID, 'medium', newStats);
                 }
@@ -748,7 +779,7 @@ export default function BatasBlastGame() {
                 }
             }
         }
-    }, [gameState, colorBoard, stats, userId, sessionId, timer]);
+    }, [gameState, colorBoard, stats, userId, sessionId, timer, highscore]);
 
     // Pointer move handler for drag preview
     useEffect(() => {
@@ -1030,6 +1061,7 @@ export default function BatasBlastGame() {
                     comboStreak={data.comboStreak}
                     roundStreak={data.roundStreak}
                     popups={scorePopups}
+                    highscore={highscore}
                 />
 
                 {/* Line clear feedback - floating above everything */}
@@ -1188,8 +1220,8 @@ export default function BatasBlastGame() {
             <GameResultOverlay
                 open={renderModel.isTerminal}
                 outcome="lose"
-                title="Game Over!"
-                subtitle="Keine Züge mehr möglich"
+                title={t.batasblast.gameOver}
+                subtitle={t.batasblast.noMovesLeft}
                 onPlayAgain={initGame}
                 onOpenStats={() => setStatsOpen(true)}
             >
@@ -1199,9 +1231,9 @@ export default function BatasBlastGame() {
                         {data.score.toLocaleString()}
                     </div>
                     <div className="text-xs text-[color:var(--muted)] flex gap-3 justify-center">
-                        <span>{data.totalLinesCleared} Lines</span>
+                        <span>{data.totalLinesCleared} {t.games.lines}</span>
                         <span>•</span>
-                        <span>{data.maxComboStreak}x Max Combo</span>
+                        <span>{data.maxComboStreak}x Max {t.games.combo}</span>
                     </div>
                 </div>
             </GameResultOverlay>

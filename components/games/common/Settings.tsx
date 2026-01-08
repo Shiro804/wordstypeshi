@@ -15,6 +15,7 @@ import { deleteMyAvatarObject, getAvatarPublicUrl, uploadMyAvatar } from "@/lib/
 import BackgroundCustomizer from "@/components/games/common/BackgroundCustomizer";
 import type { GamePreferences } from "@/lib/storage/preferences-storage";
 import type { Difficulty } from "@/lib/difficulty";
+import { useLanguage } from "@/lib/i18n";
 
 type Props = {
   open: boolean;
@@ -83,11 +84,21 @@ export default function Settings({
 
   const [isTransparent, setIsTransparent] = useState(false);
 
+  // Language
+  const { t } = useLanguage();
+
+  // Helper for difficulty labels
+  const getDifficultyLabel = (d: Difficulty) => {
+    if (d === 'easy') return t.settings.easy;
+    if (d === 'medium') return t.settings.medium;
+    return t.settings.hard;
+  };
+
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Settings"
+      title={t.settings.title}
       transparent={isTransparent}
       footer={
         <div className="flex items-center justify-between gap-2">
@@ -99,7 +110,7 @@ export default function Settings({
               className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-medium text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
               onClick={onClose}
             >
-              Cancel
+              {t.common.cancel}
             </button>
             <button
               type="button"
@@ -119,7 +130,7 @@ export default function Settings({
                 }
               }}
             >
-              {saving ? "Saving..." : "Save"}
+              {saving ? t.settings.saving : t.common.save}
             </button>
           </div>
         </div>
@@ -128,18 +139,18 @@ export default function Settings({
       <div className="space-y-6">
         {/* ═══ PROFILE SECTION ═══ */}
         <div>
-          <div className="text-xs uppercase tracking-widest text-[color:var(--muted)] font-bold mb-3">📱 Profile</div>
+          <div className="text-xs uppercase tracking-widest text-[color:var(--muted)] font-bold mb-3">📱 {t.settings.profile}</div>
 
           {/* Account email */}
           <div className="mb-3">
-            <div className="text-xs uppercase tracking-wide text-[color:var(--muted)]">Account</div>
+            <div className="text-xs uppercase tracking-wide text-[color:var(--muted)]">{t.settings.account}</div>
             <div className="mt-1 text-sm text-[color:var(--fg)]/85">{authEmail}</div>
           </div>
 
           {/* Username */}
           <div className="mb-3">
             <label className="text-xs uppercase tracking-wide text-[color:var(--muted)]" htmlFor="username">
-              Username
+              {t.settings.username}
             </label>
             <input
               id="username"
@@ -148,19 +159,19 @@ export default function Settings({
               onKeyDown={(e) => {
                 e.stopPropagation();
               }}
-              placeholder="Pick a username"
+              placeholder={t.settings.pickUsername}
               autoCapitalize="none"
               autoCorrect="off"
               className="mt-1 w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm text-[color:var(--fg)] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--border)]"
             />
             <div className="mt-1 text-xs text-[color:var(--muted)]">
-              2–20 chars. Letters, numbers, underscore, dash, dot.
+              {t.settings.usernameHint}
             </div>
           </div>
 
           {/* Profile picture */}
           <div>
-            <div className="text-xs uppercase tracking-wide text-[color:var(--muted)]">Profile picture</div>
+            <div className="text-xs uppercase tracking-wide text-[color:var(--muted)]">{t.settings.profilePicture}</div>
             <div className="mt-2 flex items-center gap-3">
               <div className="h-12 w-12 overflow-hidden rounded-full border border-[color:var(--border)] bg-[color:var(--surface2)]">
                 {avatarPreviewUrl ? (
@@ -212,7 +223,7 @@ export default function Settings({
                       }
                     }}
                   />
-                  <span>{avatarUploading ? "Uploading..." : "Upload"}</span>
+                  <span>{avatarUploading ? t.settings.uploading : t.settings.upload}</span>
                 </label>
 
                 <button
@@ -233,7 +244,7 @@ export default function Settings({
                     setAvatarPreviewUrl(null);
                   }}
                 >
-                  Remove
+                  {t.settings.remove}
                 </button>
               </div>
             </div>
@@ -246,9 +257,9 @@ export default function Settings({
         {difficulty && onDifficultyChange && (
           <>
             <div>
-              <div className="text-xs uppercase tracking-widest text-[color:var(--muted)] font-bold mb-3">🎮 Gameplay</div>
+              <div className="text-xs uppercase tracking-widest text-[color:var(--muted)] font-bold mb-3">🎮 {t.settings.gameplay}</div>
 
-              <div className="text-xs uppercase tracking-wide text-[color:var(--muted)]">Difficulty</div>
+              <div className="text-xs uppercase tracking-wide text-[color:var(--muted)]">{t.settings.difficulty}</div>
               <div className="mt-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -256,7 +267,7 @@ export default function Settings({
                       type="button"
                       className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm transition hover:opacity-80 ${difficultyColors[difficulty]}`}
                     >
-                      <span className="capitalize">{difficulty}</span>
+                      <span>{getDifficultyLabel(difficulty)}</span>
                       <span className="opacity-60">▾</span>
                     </button>
                   </DropdownMenuTrigger>
@@ -272,7 +283,7 @@ export default function Settings({
                       >
                         <span className={`inline-block w-2 h-2 rounded-full ${d === "easy" ? "bg-emerald-400" : d === "medium" ? "bg-orange-400" : "bg-rose-400"
                           }`} />
-                        <span className="capitalize">{d}</span>
+                        <span>{getDifficultyLabel(d)}</span>
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -287,7 +298,7 @@ export default function Settings({
 
         {/* ═══ APPEARANCE SECTION ═══ */}
         <div>
-          <div className="text-xs uppercase tracking-widest text-[color:var(--muted)] font-bold mb-3">🎨 Appearance</div>
+          <div className="text-xs uppercase tracking-widest text-[color:var(--muted)] font-bold mb-3">🎨 {t.settings.appearance}</div>
           <BackgroundCustomizer
             preferences={preferences}
             onChange={onPreferencesChange}

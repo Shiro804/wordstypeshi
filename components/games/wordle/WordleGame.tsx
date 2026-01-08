@@ -32,6 +32,7 @@ import GameShell from "@/components/shared/GameShell";
 import GameResultOverlay from "@/components/games/common/GameResultOverlay";
 import StatsModal from "@/components/shared/StatsModal";
 import { Checkbox } from "@/components/ui/checkbox";
+import EnglishWordsHint from "@/components/games/common/EnglishWordsHint";
 
 const MAX_TRIES = 6;
 const GAME_ID = "wordle";
@@ -681,8 +682,17 @@ export default function WordleGame() {
                     else if (/^[A-Z]$/i.test(e.key)) onKey(e.key.toUpperCase());
                 }}
             >
-                {/* Toast */}
-                <div className="h-6 text-center text-sm text-[color:var(--muted)] shrink-0">{toast}</div>
+                {/* Toast - Modern styled hint notification */}
+                <div className="h-10 flex items-center justify-center shrink-0">
+                    {toast && (
+                        <div className="animate-in fade-in slide-in-from-top-2 duration-300 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 backdrop-blur-md shadow-lg shadow-emerald-500/10">
+                            <span className="text-sm font-semibold text-emerald-300 flex items-center gap-2">
+                                <span className="text-lg">💡</span>
+                                {toast}
+                            </span>
+                        </div>
+                    )}
+                </div>
 
                 {/* Grid area - centered with max-width */}
                 <div className="max-w-md mx-auto w-full flex-1 flex flex-col items-center justify-center py-2 overflow-hidden relative">
