@@ -87,47 +87,53 @@ function Cell({
     );
 }
 
-/** Floating ghost piece that follows cursor/touch */
+/** Floating ghost piece that aligns with board grid */
 function GhostPiece({
     cells,
     colorIndex,
-    position,
+    hoverOrigin,
+    boardRef,
 }: {
     cells: CellOffset[];
     colorIndex: number;
-    position: { x: number; y: number } | null;
+    hoverOrigin: { r: number; c: number } | null;
+    boardRef: React.RefObject<HTMLDivElement | null>;
 }) {
-    if (!position || cells.length === 0) return null;
+    if (!hoverOrigin || cells.length === 0 || !boardRef.current) return null;
 
+    const rect = boardRef.current.getBoundingClientRect();
+    const cellTotal = CELL_SIZE + CELL_GAP;
+
+    // Find the bounding box of the piece cells
     const minR = Math.min(...cells.map(c => c.dr));
-    const maxR = Math.max(...cells.map(c => c.dr));
     const minC = Math.min(...cells.map(c => c.dc));
+    const maxR = Math.max(...cells.map(c => c.dr));
     const maxC = Math.max(...cells.map(c => c.dc));
     const rows = maxR - minR + 1;
     const cols = maxC - minC + 1;
 
-    const ghostCellSize = 32;
-    const ghostGap = 2;
     const colors = BLOCK_COLORS[colorIndex % BLOCK_COLORS.length];
 
-    // Offset to center the ghost under the cursor
-    const offsetX = (cols * (ghostCellSize + ghostGap)) / 2;
-    const offsetY = (rows * (ghostCellSize + ghostGap)) / 2;
+    // Calculate absolute position based on board grid
+    // The origin cell (0,0 of piece) should align with hoverOrigin on board
+    const boardPadding = 12; // p-3 = 0.75rem = 12px
+    const left = rect.left + boardPadding + (hoverOrigin.c + minC) * cellTotal;
+    const top = rect.top + boardPadding + (hoverOrigin.r + minR) * cellTotal;
 
     return (
         <div
-            className="fixed pointer-events-none z-[100] opacity-80"
+            className="fixed pointer-events-none z-[100] opacity-70"
             style={{
-                left: position.x - offsetX,
-                top: position.y - offsetY,
+                left,
+                top,
             }}
         >
             <div
                 style={{
                     display: 'grid',
-                    gridTemplateColumns: `repeat(${cols}, ${ghostCellSize}px)`,
-                    gridTemplateRows: `repeat(${rows}, ${ghostCellSize}px)`,
-                    gap: ghostGap,
+                    gridTemplateColumns: `repeat(${cols}, ${CELL_SIZE}px)`,
+                    gridTemplateRows: `repeat(${rows}, ${CELL_SIZE}px)`,
+                    gap: CELL_GAP,
                 }}
             >
                 {Array.from({ length: rows * cols }).map((_, i) => {
@@ -140,13 +146,13 @@ function GhostPiece({
                         <div
                             key={i}
                             className={`
-                rounded-md shadow-lg
+                rounded-lg shadow-lg
                 ${isFilled
                                     ? `bg-gradient-to-br ${colors.from} ${colors.to}`
                                     : "bg-transparent"
                                 }
               `}
-                            style={{ width: ghostCellSize, height: ghostCellSize }}
+                            style={{ width: CELL_SIZE, height: CELL_SIZE }}
                         />
                     );
                 })}
@@ -674,12 +680,13 @@ export default function BatasBlastGame() {
                 ) : null
             }
         >
-            {/* Floating ghost piece */}
-            {draggingTrayIndex !== null && (
+            {/* Floating ghost piece aligned to board */}
+            {draggingTrayIndex !== null && hoverOrigin && (
                 <GhostPiece
                     cells={activePieceCells}
                     colorIndex={draggingTrayIndex}
-                    position={ghostPosition}
+                    hoverOrigin={hoverOrigin}
+                    boardRef={boardRef}
                 />
             )}
 
