@@ -47,7 +47,7 @@ export default function GameResultOverlay({
         : 'from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 shadow-rose-500/20';
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 opacity-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-10">
             {/* Backdrop - lighter to show context */}
             <div className="absolute inset-0 bg-black/10" />
 
