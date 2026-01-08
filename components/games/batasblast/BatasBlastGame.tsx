@@ -302,7 +302,6 @@ export default function BatasBlastGame() {
     const [selectedTrayIndex, setSelectedTrayIndex] = useState<number | null>(null);
     const [draggingTrayIndex, setDraggingTrayIndex] = useState<number | null>(null);
     const [hoverOrigin, setHoverOrigin] = useState<{ r: number; c: number } | null>(null);
-    const [ghostPosition, setGhostPosition] = useState<{ x: number; y: number } | null>(null);
     const [showBlast, setShowBlast] = useState(false);
     const [lastClearedLines, setLastClearedLines] = useState<number>(0);
 
@@ -467,61 +466,55 @@ export default function BatasBlastGame() {
             const clientX = e.clientX;
             const clientY = e.clientY + offsetY;
 
-            // Visual adjustment: shift left slightly on touch to feel more centered
-            const visualX = isTouch ? clientX - 25 : clientX;
-
-            setGhostPosition({ x: visualX, y: clientY });
-
             // Calculate grid position from offset cursor
-            if (boardRef.current) {
+            if (boardRef.current && gameState) {
                 const rect = boardRef.current.getBoundingClientRect();
-                const x = clientX - rect.left;
-                const y = clientY - rect.top;
                 const cellTotal = CELL_SIZE + CELL_GAP;
-                const col = Math.floor(x / cellTotal);
-                const row = Math.floor(y / cellTotal);
 
-                if (row >= 0 && row < BOARD.rows && col >= 0 && col < BOARD.cols) {
-                    setHoverOrigin({ r: row, c: col });
-                } else {
-                    setHoverOrigin(null);
+                // Get piece dimensions to center it under finger
+                const trayPiece = gameState.tray[draggingTrayIndex];
+                const piece = PIECE_BY_ID.get(trayPiece?.pieceId ?? '');
+                const cells = piece?.cells ?? [];
+
+                if (cells.length > 0) {
+                    const minC = Math.min(...cells.map(c => c.dc));
+                    const maxC = Math.max(...cells.map(c => c.dc));
+                    const minR = Math.min(...cells.map(c => c.dr));
+                    const maxR = Math.max(...cells.map(c => c.dr));
+                    const pieceCols = maxC - minC + 1;
+                    const pieceRows = maxR - minR + 1;
+
+                    // Offset to center the piece under finger
+                    const centerOffsetX = (pieceCols * cellTotal) / 2;
+                    const centerOffsetY = (pieceRows * cellTotal) / 2;
+
+                    const x = clientX - rect.left - centerOffsetX;
+                    const y = clientY - rect.top - centerOffsetY;
+
+                    // Account for board padding (p-3 = 12px)
+                    const boardPadding = 12;
+                    const col = Math.floor((x - boardPadding + cellTotal / 2) / cellTotal) - minC;
+                    const row = Math.floor((y - boardPadding + cellTotal / 2) / cellTotal) - minR;
+
+                    if (row >= 0 && row < BOARD.rows && col >= 0 && col < BOARD.cols) {
+                        setHoverOrigin({ r: row, c: col });
+                    } else {
+                        setHoverOrigin(null);
+                    }
                 }
             }
         };
 
-        const handlePointerUp = (e: PointerEvent) => {
-            // Re-calculate target to ensure sync with move logic
-            const isTouch = e.pointerType === 'touch';
-            const offsetY = isTouch ? -100 : 0;
-            const clientX = e.clientX;
-            const clientY = e.clientY + offsetY;
-
-            let targetOrigin = hoverOrigin;
-
-            // Double check target in case of race condition or slight movement
-            if (boardRef.current && draggingTrayIndex !== null) {
-                const rect = boardRef.current.getBoundingClientRect();
-                const x = clientX - rect.left;
-                const y = clientY - rect.top;
-                const cellTotal = CELL_SIZE + CELL_GAP;
-                const col = Math.floor(x / cellTotal);
-                const row = Math.floor(y / cellTotal);
-
-                if (row >= 0 && row < BOARD.rows && col >= 0 && col < BOARD.cols) {
-                    targetOrigin = { r: row, c: col };
-                }
-            }
-
-            // Try to place piece at current hover position
-            if (targetOrigin && gameState && draggingTrayIndex !== null) {
+        const handlePointerUp = () => {
+            // Use the already-calculated hover position
+            if (hoverOrigin && gameState && draggingTrayIndex !== null) {
                 const trayPiece = gameState.tray[draggingTrayIndex];
-                if (!trayPiece.used && canPlacePiece(gameState.board, trayPiece.pieceId, targetOrigin)) {
-                    placePiece(draggingTrayIndex, targetOrigin);
+                if (!trayPiece.used && canPlacePiece(gameState.board, trayPiece.pieceId, hoverOrigin)) {
+                    placePiece(draggingTrayIndex, hoverOrigin);
                 }
             }
 
             setDraggingTrayIndex(null);
-            setGhostPosition(null);
             setHoverOrigin(null);
         };
 
@@ -541,7 +534,6 @@ export default function BatasBlastGame() {
         setSelectedTrayIndex(null);
         setDraggingTrayIndex(null);
         setHoverOrigin(null);
-        setGhostPosition(null);
         setShowBlast(false);
         setLastClearedLines(0);
         saveActiveGame(GAME_ID, state, userId);
@@ -614,7 +606,6 @@ export default function BatasBlastGame() {
 
         e.preventDefault();
         setDraggingTrayIndex(trayIndex);
-        setGhostPosition({ x: e.clientX, y: e.clientY });
     }, [gameState]);
 
     // Compute preview cells for board display
