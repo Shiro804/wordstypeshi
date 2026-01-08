@@ -458,6 +458,13 @@ export default function BatasBlastGame() {
 
         if (active && !batasBlastEngine.isTerminal(active)) {
             setGameState(active);
+            // Restore color board if present, else fallback to empty
+            if (active.colorBoard) {
+                setColorBoard(active.colorBoard);
+            } else {
+                setColorBoard(Array.from({ length: BOARD.rows }, () => Array(BOARD.cols).fill(-1)));
+            }
+
             timer.setStartedAt(active.startedAtMs);
             if (active.endedAtMs) {
                 timer.setEndedAt(active.endedAtMs);
@@ -466,6 +473,7 @@ export default function BatasBlastGame() {
             const newSeed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
             const state = batasBlastEngine.init(newSeed, params);
             setGameState(state);
+            setColorBoard(state.colorBoard); // Init color board
             saveActiveGame(GAME_ID, state, userId);
             timer.reset();
         }
@@ -551,24 +559,24 @@ export default function BatasBlastGame() {
                 setLastClearedLines(newLinesCleared);
                 setShowBlast(true);
 
+                // Show full board (with piece, before clear) during animation
+                // Note: newColorBoard is locally computed above and matches 
+                // what the board looks like right before the blast.
+
                 // Delay state update for animation
                 setTimeout(() => {
-                    // Clear the colored cells for blasted positions
-                    const clearedColorBoard = newColorBoard.map(row => [...row]);
-                    for (const key of cellsToBlast) {
-                        const [r, c] = key.split(',').map(Number);
-                        clearedColorBoard[r][c] = -1;
-                    }
-                    setColorBoard(clearedColorBoard);
+                    // Application of final engine state (cleared)
+                    setColorBoard(result.state.colorBoard);
                     setBlastingCells(new Set());
                     setShowBlast(false);
+                    setGameState(result.state);
                 }, 400);
             } else {
-                // No lines cleared, just update color board
-                setColorBoard(newColorBoard);
+                // No lines cleared, update immediately
+                setColorBoard(result.state.colorBoard);
+                setGameState(result.state);
             }
 
-            setGameState(result.state);
             setSelectedTrayIndex(null);
             setHoverOrigin(null);
 
@@ -691,7 +699,7 @@ export default function BatasBlastGame() {
         setGhostPosition(null);
         setShowBlast(false);
         setLastClearedLines(0);
-        setColorBoard(Array.from({ length: BOARD.rows }, () => Array(BOARD.cols).fill(-1)));
+        setColorBoard(state.colorBoard); // Reset color board from state
         setBlastingCells(new Set());
         saveActiveGame(GAME_ID, state, userId);
         timer.reset();

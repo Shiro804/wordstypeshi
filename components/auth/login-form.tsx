@@ -61,7 +61,7 @@ export function LoginForm({
                 <Input
                   id="email"
                   type="email"
-                  placeholder="yasmin@istsoschön.com"
+                  placeholder="email@batagames.com"
                   autoCapitalize="none"
                   autoCorrect="off"
                   required

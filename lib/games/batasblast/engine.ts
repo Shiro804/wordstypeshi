@@ -42,6 +42,9 @@ export interface BatasBlastState extends BaseGameState {
   // Board: 8x8 grid, true = filled
   board: boolean[][];
   
+  // Color Board: 8x8 grid, -1 = empty, 0+ = color index (tray index)
+  colorBoard: number[][];
+  
   // Current tray of 3 pieces
   tray: TrayPiece[];
   
@@ -90,9 +93,21 @@ function createEmptyBoard(): boolean[][] {
   );
 }
 
+/** Create an empty color board */
+function createEmptyColorBoard(): number[][] {
+  return Array.from({ length: BOARD.rows }, () => 
+    Array.from({ length: BOARD.cols }, () => -1)
+  );
+}
+
 /** Clone a board */
 function cloneBoard(board: boolean[][]): boolean[][] {
   return board.map(row => [...row]);
+}
+
+/** Clone a color board */
+function cloneColorBoard(board: number[][]): number[][] {
+    return board.map(row => [...row]);
 }
 
 /** Check if a piece can be placed at origin */
@@ -133,8 +148,10 @@ function canPlaceAnywhere(board: boolean[][], piece: PieceDefinition): boolean {
 /** Place a piece on the board (mutates board) */
 function placePiece(
   board: boolean[][],
+  colorBoard: number[][],
   piece: PieceDefinition,
-  origin: { r: number; c: number }
+  origin: { r: number; c: number },
+  colorIndex: number
 ): { r: number; c: number }[] {
   const filledCells: { r: number; c: number }[] = [];
   
@@ -142,6 +159,7 @@ function placePiece(
     const r = origin.r + cell.dr;
     const c = origin.c + cell.dc;
     board[r][c] = true;
+    colorBoard[r][c] = colorIndex;
     filledCells.push({ r, c });
   }
   
@@ -149,7 +167,7 @@ function placePiece(
 }
 
 /** Find and clear complete lines, returns cleared rows and cols */
-function clearLines(board: boolean[][]): { rows: number[]; cols: number[] } {
+function clearLines(board: boolean[][], colorBoard: number[][]): { rows: number[]; cols: number[] } {
   const rowsToClear: number[] = [];
   const colsToClear: number[] = [];
   
@@ -178,11 +196,13 @@ function clearLines(board: boolean[][]): { rows: number[]; cols: number[] } {
   for (const r of rowsToClear) {
     for (let c = 0; c < BOARD.cols; c++) {
       board[r][c] = false;
+      colorBoard[r][c] = -1;
     }
   }
   for (const c of colsToClear) {
     for (let r = 0; r < BOARD.rows; r++) {
       board[r][c] = false;
+      colorBoard[r][c] = -1;
     }
   }
   
@@ -225,6 +245,7 @@ function init(seed: string, params: BatasBlastParams): BatasBlastState {
     startedAtMs: now,
     endedAtMs: null,
     board: createEmptyBoard(),
+    colorBoard: createEmptyColorBoard(),
     tray,
     roundIndex: 0,
     moveCount: 0,
@@ -303,6 +324,7 @@ function applyAction(
   
   // Clone state
   const newBoard = cloneBoard(state.board);
+  const newColorBoard = cloneColorBoard(state.colorBoard); // Update
   const newTray = state.tray.map(p => ({ ...p }));
   
   // Get piece
@@ -310,7 +332,7 @@ function applyAction(
   const piece = PIECE_BY_ID.get(trayPiece.pieceId)!;
   
   // Place piece
-  const filledCells = placePiece(newBoard, piece, action.origin);
+  const filledCells = placePiece(newBoard, newColorBoard, piece, action.origin, action.trayIndex); // Update
   trayPiece.used = true;
   
   events.push({
@@ -324,7 +346,7 @@ function applyAction(
   });
   
   // Clear lines
-  const cleared = clearLines(newBoard);
+  const cleared = clearLines(newBoard, newColorBoard); // Update
   const linesCleared = cleared.rows.length + cleared.cols.length;
   
   if (linesCleared > 0) {
@@ -350,6 +372,7 @@ function applyAction(
   let newState: BatasBlastState = {
     ...state,
     board: newBoard,
+    colorBoard: newColorBoard, // Update
     tray: newTray,
     moveCount: state.moveCount + 1,
     score: state.score + scoreResult.points,
