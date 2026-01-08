@@ -466,6 +466,7 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
             timerText={timer.timerText}
             onOpenStats={() => setStatsOpen(true)}
             onOpenLeaderboard={() => setLeaderboardOpen(true)}
+            fullHeight={true}
             actionsSlot={
                 isInProgress ? (
                     <button

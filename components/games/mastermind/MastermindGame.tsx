@@ -500,6 +500,7 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
             difficulty={difficulty}
             onDifficultyChange={requestDifficultyChange}
             timerText={timer.timerText}
+            fullHeight={true}
             actionsSlot={
                 isInProgress ? (
                     <button

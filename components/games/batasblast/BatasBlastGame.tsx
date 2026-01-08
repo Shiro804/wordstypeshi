@@ -660,6 +660,7 @@ export default function BatasBlastGame() {
             onNewGame={requestReset}
             onOpenLeaderboard={() => setLeaderboardOpen(true)}
             onOpenStats={() => setStatsOpen(true)}
+            fullHeight={true}
             actionsSlot={
                 isInProgress ? (
                     <button
