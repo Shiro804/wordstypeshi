@@ -1032,10 +1032,12 @@ export default function BatasBlastGame() {
                     popups={scorePopups}
                 />
 
-                {/* Line clear feedback - same animation as score */}
-                {linePopups.map(popup => (
-                    <FloatingLines key={popup.id} value={popup.value} />
-                ))}
+                {/* Line clear feedback - floating above everything */}
+                <div className="fixed inset-0 flex items-start justify-center pt-32 pointer-events-none z-50">
+                    {linePopups.map(popup => (
+                        <FloatingLines key={popup.id} value={popup.value} />
+                    ))}
+                </div>
 
 
 
