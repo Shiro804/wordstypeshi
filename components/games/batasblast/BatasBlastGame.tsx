@@ -508,31 +508,58 @@ export default function BatasBlastGame() {
     }, []);
 
     // Load active game or init new one
-    // Load active game or init new one
     useEffect(() => {
-        const active = loadActiveGame<BatasBlastState>(GAME_ID, userId);
+        const loadGame = async () => {
+            const active = loadActiveGame<BatasBlastState>(GAME_ID, userId);
 
-        if (active && !batasBlastEngine.isTerminal(active)) {
-            setGameState(active);
-            // Restore color board if present, else fallback to empty
-            if (active.colorBoard) {
-                setColorBoard(active.colorBoard);
+            if (active && !batasBlastEngine.isTerminal(active)) {
+                setGameState(active);
+                // Restore color board if present, else fallback to empty
+                if (active.colorBoard) {
+                    setColorBoard(active.colorBoard);
+                } else {
+                    setColorBoard(Array.from({ length: BOARD.rows }, () => Array(BOARD.cols).fill(-1)));
+                }
+
+                timer.setStartedAt(active.startedAtMs);
+                if (active.endedAtMs) {
+                    timer.setEndedAt(active.endedAtMs);
+                }
+
+                // Restore session so endSession can be called later
+                if (userId) {
+                    const session = await createOrReuseActiveSession({
+                        userId,
+                        gameId: GAME_ID,
+                        difficulty: 'medium',
+                        answer: '',
+                        startedAtMs: active.startedAtMs,
+                    });
+                    setSessionId(session?.id ?? null);
+                }
             } else {
-                setColorBoard(Array.from({ length: BOARD.rows }, () => Array(BOARD.cols).fill(-1)));
-            }
+                const newSeed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                const state = batasBlastEngine.init(newSeed, params);
+                setGameState(state);
+                setColorBoard(state.colorBoard);
+                saveActiveGame(GAME_ID, state, userId);
+                timer.reset();
 
-            timer.setStartedAt(active.startedAtMs);
-            if (active.endedAtMs) {
-                timer.setEndedAt(active.endedAtMs);
+                // Create new session
+                if (userId) {
+                    const session = await createOrReuseActiveSession({
+                        userId,
+                        gameId: GAME_ID,
+                        difficulty: 'medium',
+                        answer: '',
+                        startedAtMs: state.startedAtMs,
+                    });
+                    setSessionId(session?.id ?? null);
+                }
             }
-        } else {
-            const newSeed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-            const state = batasBlastEngine.init(newSeed, params);
-            setGameState(state);
-            setColorBoard(state.colorBoard); // Init color board
-            saveActiveGame(GAME_ID, state, userId);
-            timer.reset();
-        }
+        };
+
+        loadGame();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId]);
 

@@ -22,13 +22,15 @@ export function loadActiveGame<T>(gameId: string, userId?: string | null): T | n
     const raw = window.localStorage.getItem(key);
     
     // Fallback migration logic: check anonymous key if user key is missing
+    // IMPORTANT: Only migrate if user key is EMPTY to avoid overwriting existing data
     if (!raw && userId) {
       const anonKey = getStorageKey(gameId, null);
       const anonRaw = window.localStorage.getItem(anonKey);
       if (anonRaw) {
-        // Migrate to user key
+        // Migrate to user key (safe because user key is empty)
         window.localStorage.setItem(key, anonRaw);
         window.localStorage.removeItem(anonKey);
+        console.log(`[active-game-storage] Migrated anonymous game to user ${userId}`);
         return JSON.parse(anonRaw) as T;
       }
     }
@@ -45,6 +47,8 @@ export function saveActiveGame<T>(gameId: string, state: T | null, userId?: stri
   if (typeof window === "undefined") return;
   const key = getStorageKey(gameId, userId);
   if (state === null) {
+    // Log removal for debugging data loss issues
+    console.log(`[active-game-storage] Removing active game: ${key}`);
     window.localStorage.removeItem(key);
   } else {
     window.localStorage.setItem(key, JSON.stringify(state));

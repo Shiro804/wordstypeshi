@@ -237,38 +237,65 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
 
     // Load active game or init new one when params change
     useEffect(() => {
-        const active = loadActiveGame<MastermindState>(GAME_ID, userId);
-        const paramsMatch = active && active.config.codeLength === params.codeLength && active.config.numColors === params.numColors;
+        const loadGame = async () => {
+            const active = loadActiveGame<MastermindState>(GAME_ID, userId);
+            const paramsMatch = active && active.config.codeLength === params.codeLength && active.config.numColors === params.numColors;
 
-        if (paramsMatch && !mastermindEngine.isTerminal(active)) {
-            // Restore existing game with matching params
-            setGameState(active);
-            setCurrentInput(Array(params.codeLength).fill(-1));
-            setCurrentInput(Array(params.codeLength).fill(-1));
+            if (paramsMatch && !mastermindEngine.isTerminal(active)) {
+                // Restore existing game with matching params
+                setGameState(active);
+                setCurrentInput(Array(params.codeLength).fill(-1));
 
-            // Only restore timer if game has actual attempts (was started)
-            if (active.attempts.length > 0) {
-                timer.setStartedAt(active.startedAtMs);
-                if (active.endedAtMs) {
-                    timer.setEndedAt(active.endedAtMs);
+                // Only restore timer if game has actual attempts (was started)
+                if (active.attempts.length > 0) {
+                    timer.setStartedAt(active.startedAtMs);
+                    if (active.endedAtMs) {
+                        timer.setEndedAt(active.endedAtMs);
+                    }
+                } else {
+                    // Game loaded but never started - reset timer
+                    timer.reset();
+                }
+
+                // Restore session so endSession can be called later
+                if (userId) {
+                    const session = await createOrReuseActiveSession({
+                        userId,
+                        gameId: GAME_ID,
+                        difficulty,
+                        answer: active.secret.join(","),
+                        startedAtMs: active.startedAtMs,
+                    });
+                    setSessionId(session?.id ?? null);
                 }
             } else {
-                // Game loaded but never started - reset timer
-                timer.reset();
-            }
-        } else {
-            // Start new game (params changed or no valid saved game)
-            const newSeed = mode === "daily"
-                ? generateDailySeed("mastermind", mode, new Date())
-                : `${Date.now()} -${Math.random().toString(36).slice(2)} `;
-            const state = mastermindEngine.init(newSeed, params);
-            setGameState(state);
-            setCurrentInput(Array(params.codeLength).fill(-1));
-            setSelectedColor(null);
-            saveActiveGame(GAME_ID, state, userId);
+                // Start new game (params changed or no valid saved game)
+                const newSeed = mode === "daily"
+                    ? generateDailySeed("mastermind", mode, new Date())
+                    : `${Date.now()} -${Math.random().toString(36).slice(2)} `;
+                const state = mastermindEngine.init(newSeed, params);
+                setGameState(state);
+                setCurrentInput(Array(params.codeLength).fill(-1));
+                setSelectedColor(null);
+                saveActiveGame(GAME_ID, state, userId);
 
-            timer.reset();
-        }
+                timer.reset();
+
+                // Create new session
+                if (userId) {
+                    const session = await createOrReuseActiveSession({
+                        userId,
+                        gameId: GAME_ID,
+                        difficulty,
+                        answer: state.secret.join(","),
+                        startedAtMs: state.startedAtMs,
+                    });
+                    setSessionId(session?.id ?? null);
+                }
+            }
+        };
+
+        loadGame();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId, params, mode]);
 

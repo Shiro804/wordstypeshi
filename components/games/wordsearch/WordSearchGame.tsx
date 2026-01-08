@@ -193,46 +193,59 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
 
     // Initialize: Load active game or create new one
     useEffect(() => {
-        if (hasInitialized.current) {
-            // Difficulty changed - reset and init new game
-            hasInitialized.current = false;
-        }
-
-        // Try to load active game
-        const active = loadActiveGame<WordSearchState>(GAME_ID, userId);
-
-        if (active && !wordSearchEngine.isTerminal(active)) {
-            // Only restore if difficulty matches
-            if (active.config.difficulty === difficulty) {
-                setGameState(active);
-
-                // Restore foundCells from found words
-                const found = new Set<string>();
-                active.words.filter(w => w.found).forEach(word => {
-                    const { startRow, startCol, direction } = word.placement;
-                    const { dr, dc } = DIRECTIONS[direction];
-                    for (let i = 0; i < word.text.length; i++) {
-                        const r = startRow + i * dr;
-                        const c = startCol + i * dc;
-                        found.add(`${r},${c}`);
-                    }
-                });
-                setFoundCells(found);
-
-                // Restore timer
-                timer.setStartedAt(active.startedAtMs);
-                if (active.endedAtMs) {
-                    timer.setEndedAt(active.endedAtMs);
-                }
-
-                hasInitialized.current = true;
-                return;
+        const loadGame = async () => {
+            if (hasInitialized.current) {
+                hasInitialized.current = false;
             }
-        }
 
-        // No active game or difficulty mismatch - init new game
-        initGame();
-        hasInitialized.current = true;
+            const active = loadActiveGame<WordSearchState>(GAME_ID, userId);
+
+            if (active && !wordSearchEngine.isTerminal(active)) {
+                if (active.config.difficulty === difficulty) {
+                    setGameState(active);
+
+                    // Restore foundCells from found words
+                    const found = new Set<string>();
+                    active.words.filter(w => w.found).forEach(word => {
+                        const { startRow, startCol, direction } = word.placement;
+                        const { dr, dc } = DIRECTIONS[direction];
+                        for (let i = 0; i < word.text.length; i++) {
+                            const r = startRow + i * dr;
+                            const c = startCol + i * dc;
+                            found.add(`${r},${c}`);
+                        }
+                    });
+                    setFoundCells(found);
+
+                    // Restore timer
+                    timer.setStartedAt(active.startedAtMs);
+                    if (active.endedAtMs) {
+                        timer.setEndedAt(active.endedAtMs);
+                    }
+
+                    // Restore session so endSession can be called later
+                    if (userId) {
+                        const session = await createOrReuseActiveSession({
+                            userId,
+                            gameId: GAME_ID,
+                            difficulty,
+                            answer: active.words.map(w => w.text).join(","),
+                            startedAtMs: active.startedAtMs,
+                        });
+                        setSessionId(session?.id ?? null);
+                    }
+
+                    hasInitialized.current = true;
+                    return;
+                }
+            }
+
+            // No active game or difficulty mismatch - init new game
+            initGame();
+            hasInitialized.current = true;
+        };
+
+        loadGame();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [difficulty, userId]);
 
