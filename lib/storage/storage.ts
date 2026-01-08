@@ -15,6 +15,8 @@ export type Stats = {
   bestTimeSec: number | null;
   avgTimeSec: number | null;
   lastTimesSec: number[]; // most recent first
+  // score-based games (BatasBlast)
+  bestScore: number | null;
   updatedAt: number;
 };
 
@@ -35,6 +37,7 @@ export function defaultStats(): Stats {
     bestTimeSec: null,
     avgTimeSec: null,
     lastTimesSec: [],
+    bestScore: null,
     updatedAt: Date.now(),
   };
 }

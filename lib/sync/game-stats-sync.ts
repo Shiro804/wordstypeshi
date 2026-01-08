@@ -46,6 +46,7 @@ function createEmptyStats(): Stats {
     bestTimeSec: null,
     avgTimeSec: null,
     lastTimesSec: [],
+    bestScore: null,
     updatedAt: Date.now(),
   };
 }
@@ -82,6 +83,7 @@ export async function fetchRemoteGameStats(
     bestTimeSec: rawStats.bestTimeSec ?? null,
     avgTimeSec: rawStats.avgTimeSec ?? null,
     lastTimesSec: rawStats.lastTimesSec ?? [],
+    bestScore: rawStats.bestScore ?? null,
     updatedAt: Number.isNaN(updatedAtMs) ? Date.now() : updatedAtMs,
   };
 }
@@ -148,6 +150,10 @@ export function mergeStats(local: Stats, remote: Stats): Stats {
       Math.min(local.bestTimeSec, remote.bestTimeSec),
     avgTimeSec: remoteNewer ? remote.avgTimeSec : local.avgTimeSec,
     lastTimesSec: remoteNewer ? remote.lastTimesSec : local.lastTimesSec,
+    bestScore:
+      local.bestScore == null ? remote.bestScore :
+      remote.bestScore == null ? local.bestScore :
+      Math.max(local.bestScore, remote.bestScore),
     updatedAt: Math.max(local.updatedAt ?? 0, remote.updatedAt ?? 0),
   };
 }
