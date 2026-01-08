@@ -324,7 +324,9 @@ function applyAction(
   
   // Clone state
   const newBoard = cloneBoard(state.board);
-  const newColorBoard = cloneColorBoard(state.colorBoard); // Update
+  // Handle migration from old saves safely
+  const currentColorBoard = state.colorBoard || createEmptyColorBoard();
+  const newColorBoard = cloneColorBoard(currentColorBoard); 
   const newTray = state.tray.map(p => ({ ...p }));
   
   // Get piece
