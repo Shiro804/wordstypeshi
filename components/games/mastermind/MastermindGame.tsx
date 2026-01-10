@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Trophy, X, CheckCircle2, RotateCcw } from "lucide-react";
 import GameShell from "@/components/shared/GameShell";
 import GameResultOverlay from "@/components/games/common/GameResultOverlay";
+import FloatingGameOver from "@/components/games/common/FloatingGameOver";
 import {
     mastermindEngine,
     getModeParams,
@@ -37,6 +38,25 @@ const DIFFICULTY_TO_MODE: Record<Difficulty, MastermindModeId> = {
     medium: 'classic_4x8',
     hard: 'hard_5x8',
 };
+
+// Calculate a scale factor to fit the game content in the available viewport
+function getResponsiveScale(): number {
+    if (typeof window === 'undefined') return 1;
+
+    const viewportHeight = window.innerHeight;
+
+    // Base content height at scale 1.0:
+    // Header(50) + Grid(~240) + Attempts text(30) + ColorPicker(~120) + Buttons(50) + padding(80) = ~570px
+    const baseContentHeight = 570;
+
+    // Subtract header height from viewport
+    const availableHeight = viewportHeight - 55;
+
+    const heightScale = availableHeight / baseContentHeight;
+
+    // Clamp between 0.7 (minimum) and 1.0 (maximum - don't upscale)
+    return Math.max(0.7, Math.min(1.0, heightScale));
+}
 
 // ============================================================================
 // Sub-components
@@ -216,6 +236,23 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
     const [stats, setStats] = useState<Stats>(() => loadLocalStats(GAME_ID, difficulty));
     const [userId, setUserId] = useState<string | null>(null);
     const [sessionId, setSessionId] = useState<string | null>(null);
+
+    // Game over animation states
+    const [showFloatingText, setShowFloatingText] = useState(false);
+    const [showGameOverOverlay, setShowGameOverOverlay] = useState(false);
+
+    // Responsive scale - recalculates on resize
+    const [scale, setScale] = useState(() => getResponsiveScale());
+
+    useEffect(() => {
+        const handleResize = () => setScale(getResponsiveScale());
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('orientationchange', handleResize);
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            window.removeEventListener('orientationchange', handleResize);
+        };
+    }, []);
 
     // Language
     const { t } = useLanguage();
@@ -507,6 +544,22 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
         setCurrentInput(Array(params.codeLength).fill(-1));
     }, [params.codeLength]);
 
+    // Trigger floating game over animation when game ends
+    useEffect(() => {
+        if (renderModel?.isTerminal) {
+            setShowFloatingText(true);
+        } else {
+            setShowFloatingText(false);
+            setShowGameOverOverlay(false);
+        }
+    }, [renderModel?.isTerminal]);
+
+    // Callback when floating animation completes - show the overlay
+    const handleFloatingComplete = useCallback(() => {
+        setShowFloatingText(false);
+        setShowGameOverOverlay(true);
+    }, []);
+
     if (!renderModel) {
         return (
             <GameShell gameId="mastermind" gameName="Mastermind" onNewGame={initGame}>
@@ -545,8 +598,14 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
                 ) : null
             }
         >
-            <div className="max-w-md mx-auto p-4 space-y-6">
-                {/* Grid */}
+            <div
+                className="max-w-md mx-auto p-4 space-y-4 flex flex-col"
+                style={{
+                    transform: `scale(${scale})`,
+                    transformOrigin: 'top center',
+                }}
+            >
+                {/* Grid - no scroll needed with scaling */}
                 <div className="space-y-2">
                     {data.attempts.map((attempt, i) => (
                         <AttemptRow
@@ -627,9 +686,18 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
                 gameId={GAME_ID}
             />
 
-            {/* Game Result Overlay */}
+            {/* Floating Game Over Animation - shows before overlay */}
+            <FloatingGameOver
+                active={showFloatingText}
+                text={renderModel.status === 'won' ? t.common.youWin : t.common.gameOver}
+                outcome={renderModel.status === 'won' ? 'win' : 'lose'}
+                duration={1500}
+                onComplete={handleFloatingComplete}
+            />
+
+            {/* Game Result Overlay - shows after floating animation */}
             <GameResultOverlay
-                open={renderModel.isTerminal}
+                open={showGameOverOverlay}
                 outcome={renderModel.status === 'won' ? 'win' : 'lose'}
                 title={renderModel.status === 'won' ? t.common.youWin : t.common.gameOver}
                 subtitle={renderModel.status === 'won'

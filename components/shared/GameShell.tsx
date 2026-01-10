@@ -224,7 +224,7 @@ export default function GameShell({
     const { preferences, updatePreferences } = useGamePreferences(gameId);
 
     const containerClasses = fullHeight
-        ? "relative h-[100dvh] w-full max-w-[100vw] overflow-hidden text-[color:var(--fg)]"
+        ? "relative h-[100dvh] w-full max-w-[100vw] overflow-y-auto overflow-x-hidden text-[color:var(--fg)]"
         : "min-h-screen w-full overflow-x-hidden text-[color:var(--fg)]";
 
     const gridStyle = fullHeight
@@ -332,7 +332,7 @@ export default function GameShell({
             </header>
 
             {/* Game Content */}
-            <main className={fullHeight ? "relative z-10 min-w-0 overflow-hidden" : ""}>
+            <main className={fullHeight ? "relative z-10 min-w-0 overflow-auto" : ""}>
                 {children}
             </main>
 

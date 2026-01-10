@@ -30,6 +30,7 @@ import { fetchWordDefinition, translatePartOfSpeech, translateToGerman, type Wor
 import { saveWordDefinition } from "@/lib/word-definitions";
 import GameShell from "@/components/shared/GameShell";
 import GameResultOverlay from "@/components/games/common/GameResultOverlay";
+import FloatingGameOver from "@/components/games/common/FloatingGameOver";
 import StatsModal from "@/components/shared/StatsModal";
 import { Checkbox } from "@/components/ui/checkbox";
 import EnglishWordsHint from "@/components/games/common/EnglishWordsHint";
@@ -80,6 +81,10 @@ export default function WordleGame() {
     const [isWordDefinitionLoading, setIsWordDefinitionLoading] = useState(false);
     const [definitionPopupOpen, setDefinitionPopupOpen] = useState(false);
 
+    // Game over animation states
+    const [showFloatingText, setShowFloatingText] = useState(false);
+    const [showGameOverOverlay, setShowGameOverOverlay] = useState(false);
+
     const theme = "dark" as const;
 
     // timer
@@ -92,6 +97,15 @@ export default function WordleGame() {
 
     useEffect(() => {
         getCurrentUserId().then((uid) => setUserId(uid));
+    }, []);
+
+    // Focus container for keyboard input on mount
+    useEffect(() => {
+        // Small delay to ensure DOM is ready
+        const timer = setTimeout(() => {
+            containerRef.current?.focus();
+        }, 100);
+        return () => clearTimeout(timer);
     }, []);
 
     const answerLockedRef = useRef(false);
@@ -284,6 +298,22 @@ export default function WordleGame() {
         if (!startedAtMs) return;
         setEndedAtMs((prev) => prev ?? Date.now());
     }, [gameOver.done, startedAtMs]);
+
+    // Trigger floating game over animation when game ends
+    useEffect(() => {
+        if (gameOver.done) {
+            setShowFloatingText(true);
+        } else {
+            setShowFloatingText(false);
+            setShowGameOverOverlay(false);
+        }
+    }, [gameOver.done]);
+
+    // Callback when floating animation completes - show the overlay
+    const handleFloatingComplete = () => {
+        setShowFloatingText(false);
+        setShowGameOverOverlay(true);
+    };
 
     useEffect(() => {
         if (!gameOver.done || !answer) {
@@ -673,6 +703,7 @@ export default function WordleGame() {
             <div
                 ref={containerRef}
                 tabIndex={0}
+                autoFocus
                 className="flex flex-col w-full h-full min-w-0 outline-none"
                 onKeyDown={(e) => {
                     const t = e.target as HTMLElement | null;
@@ -788,9 +819,18 @@ export default function WordleGame() {
                 onClose={() => setWordHistoryOpen(false)}
             />
 
-            {/* Game Result Overlay */}
+            {/* Floating Game Over Animation - shows before overlay */}
+            <FloatingGameOver
+                active={showFloatingText}
+                text={gameOver.won ? 'You Won!' : 'Game Over'}
+                outcome={gameOver.won ? 'win' : 'lose'}
+                duration={1500}
+                onComplete={handleFloatingComplete}
+            />
+
+            {/* Game Result Overlay - shows after floating animation */}
             <GameResultOverlay
-                open={gameOver.done}
+                open={showGameOverOverlay}
                 outcome={gameOver.won ? 'win' : 'lose'}
                 title={gameOver.won ? 'You Won!' : 'Game Over'}
                 subtitle={gameOver.won ? `Solved in ${committedCount} tries` : undefined}

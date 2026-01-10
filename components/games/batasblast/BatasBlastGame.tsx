@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { RotateCcw, Flame, Zap, Sparkles, X } from "lucide-react";
 import GameShell from "@/components/shared/GameShell";
 import GameResultOverlay from "@/components/games/common/GameResultOverlay";
+import FloatingGameOver from "@/components/games/common/FloatingGameOver";
 import {
     batasBlastEngine,
     type BatasBlastState,
@@ -30,10 +31,36 @@ import { useLanguage } from "@/lib/i18n";
 // ============================================================================
 
 const GAME_ID = "batasblast";
-const CELL_SIZE = 38; // px
+const CELL_SIZE = 38; // px - base size, will be scaled responsively
 const CELL_GAP = 3; // px
 const TRAY_CELL_SIZE = 18;
 const TRAY_CELL_GAP = 2;
+
+// Calculate a scale factor to fit the game content in the available viewport
+function getResponsiveScale(): number {
+    if (typeof window === 'undefined') return 1;
+
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+
+    // Base content dimensions at scale 1.0:
+    // Header ~50px is outside this container (rendered by GameShell)
+    // Score area: ~100px, LinePopup: ~32px, Board: 8*38 + 7*3 + padding = ~360px, 
+    // Gap: ~20px, Tray: ~100px, Instructions: ~30px, Bottom padding: ~20px
+    // Total inside container = ~660px
+    const baseContentHeight = 700;
+    const baseContentWidth = 400; // board(360) + horizontal padding
+
+    // Subtract header height from viewport since header is outside our scaled container
+    const availableHeight = viewportHeight - 55; // header height
+
+    const heightScale = availableHeight / baseContentHeight;
+    const widthScale = viewportWidth / baseContentWidth;
+
+    // Use the smaller scale to fit both dimensions
+    // Allow scaling down to 0.5 for very small screens, cap at 1.0 for large screens
+    return Math.max(0.5, Math.min(1.0, Math.min(heightScale, widthScale)));
+}
 
 // Color palette for blocks
 const BLOCK_COLORS = [
@@ -506,6 +533,22 @@ export default function BatasBlastGame() {
     // Language
     const { t } = useLanguage();
 
+    // Responsive scale - recalculates on resize
+    const [scale, setScale] = useState(() => getResponsiveScale());
+
+    useEffect(() => {
+        const handleResize = () => {
+            setScale(getResponsiveScale());
+        };
+        window.addEventListener('resize', handleResize);
+        // Also recalculate on orientation change
+        window.addEventListener('orientationchange', handleResize);
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            window.removeEventListener('orientationchange', handleResize);
+        };
+    }, []);
+
     // State
     const [gameState, setGameState] = useState<BatasBlastState | null>(null);
     const [selectedTrayIndex, setSelectedTrayIndex] = useState<number | null>(null);
@@ -546,6 +589,10 @@ export default function BatasBlastGame() {
         return saved ? parseInt(saved, 10) : 0;
     });
     const [sessionId, setSessionId] = useState<string | null>(null);
+
+    // Game over animation states
+    const [showFloatingText, setShowFloatingText] = useState(false);
+    const [showGameOverOverlay, setShowGameOverOverlay] = useState(false);
 
     // Timer
     const timer = useGameTimer();
@@ -664,6 +711,24 @@ export default function BatasBlastGame() {
             });
         }
     }, [userId, highscore]);
+
+    // Trigger floating game over animation when game ends
+    useEffect(() => {
+        const isGameOver = gameState && batasBlastEngine.isTerminal(gameState);
+        if (isGameOver) {
+            // Start the floating text animation
+            setShowFloatingText(true);
+        } else {
+            setShowFloatingText(false);
+            setShowGameOverOverlay(false);
+        }
+    }, [gameState]);
+
+    // Callback when floating animation completes - show the overlay
+    const handleFloatingComplete = useCallback(() => {
+        setShowFloatingText(false);
+        setShowGameOverOverlay(true);
+    }, []);
 
     // Place piece helper
     const placePiece = useCallback((trayIndex: number, origin: { r: number; c: number }) => {
@@ -1078,7 +1143,13 @@ export default function BatasBlastGame() {
                 />
             )}
 
-            <div className="flex flex-col items-center gap-5 p-4 relative">
+            <div
+                className="flex flex-col items-center gap-5 p-4 relative w-full"
+                style={{
+                    transform: `scale(${scale})`,
+                    transformOrigin: 'top center',
+                }}
+            >
                 <BlastEffect active={showBlast} />
 
                 {/* Score Display */}
@@ -1091,8 +1162,8 @@ export default function BatasBlastGame() {
                     translations={{ score: t.batasblast.score, best: t.batasblast.best }}
                 />
 
-                {/* Line clear feedback - floating above everything */}
-                <div className="fixed inset-0 flex items-start justify-center pt-32 pointer-events-none z-50">
+                {/* Line clear feedback - appears below score and animates up */}
+                <div className="h-8 flex justify-center items-start pointer-events-none overflow-visible">
                     {linePopups.map(popup => (
                         <FloatingLines key={popup.id} value={popup.value} />
                     ))}
@@ -1244,10 +1315,18 @@ export default function BatasBlastGame() {
             />
 
 
+            {/* Floating Game Over Animation - shows before overlay */}
+            <FloatingGameOver
+                active={showFloatingText}
+                text={t.batasblast.gameOver}
+                outcome="lose"
+                duration={1500}
+                onComplete={handleFloatingComplete}
+            />
 
-            {/* Game Result Overlay */}
+            {/* Game Result Overlay - shows after floating animation */}
             <GameResultOverlay
-                open={renderModel.isTerminal}
+                open={showGameOverOverlay}
                 outcome="lose"
                 title={t.batasblast.gameOver}
                 subtitle={t.batasblast.noMovesLeft}

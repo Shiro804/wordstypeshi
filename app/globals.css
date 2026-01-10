@@ -79,6 +79,15 @@ button {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* Additional safe-area helpers using Tailwind-like naming */
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 /* --- Wordle-like animations --- */
 @keyframes tile-pop {
   0% {
