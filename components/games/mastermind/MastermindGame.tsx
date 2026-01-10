@@ -40,8 +40,12 @@ const DIFFICULTY_TO_MODE: Record<Difficulty, MastermindModeId> = {
 };
 
 // Calculate a scale factor to fit the game content in the available viewport
+// Only applies on desktop - mobile uses natural scrolling
 function getResponsiveScale(): number {
     if (typeof window === 'undefined') return 1;
+
+    // On mobile devices (width <= 768px), don't scale - use natural scrolling instead
+    if (window.innerWidth <= 768) return 1;
 
     const viewportHeight = window.innerHeight;
 
@@ -584,7 +588,6 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
             difficulty={difficulty}
             onDifficultyChange={requestDifficultyChange}
             timerText={timer.timerText}
-            fullHeight={true}
             actionsSlot={
                 isInProgress ? (
                     <button

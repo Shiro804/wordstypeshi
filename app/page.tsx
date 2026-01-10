@@ -119,14 +119,20 @@ export default function Page() {
 
   return (
     <div className="min-h-screen text-white relative" style={{ backgroundColor: '#09090b' }}>
-      {/* Language Selector - Top Left */}
-      <div className="absolute top-4 left-4 z-20">
+      {/* Language Selector - Top Left with safe area offset */}
+      <div
+        className="absolute left-4 z-20"
+        style={{ top: 'max(env(safe-area-inset-top, 0px) + 1rem, 1rem)' }}
+      >
         <LanguageSelector />
       </div>
 
       {/* User Menu - Top Right (for logged-in users) */}
       {isLoggedIn === true && (
-        <div className="absolute top-4 right-4 z-20">
+        <div
+          className="absolute right-4 z-20"
+          style={{ top: 'max(env(safe-area-inset-top, 0px) + 1rem, 1rem)' }}
+        >
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button

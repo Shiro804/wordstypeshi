@@ -30,10 +30,8 @@ import { fetchWordDefinition, translatePartOfSpeech, translateToGerman, type Wor
 import { saveWordDefinition } from "@/lib/word-definitions";
 import GameShell from "@/components/shared/GameShell";
 import GameResultOverlay from "@/components/games/common/GameResultOverlay";
-import FloatingGameOver from "@/components/games/common/FloatingGameOver";
 import StatsModal from "@/components/shared/StatsModal";
 import { Checkbox } from "@/components/ui/checkbox";
-import EnglishWordsHint from "@/components/games/common/EnglishWordsHint";
 
 const MAX_TRIES = 6;
 const GAME_ID = "wordle";
@@ -42,6 +40,7 @@ export default function WordleGame() {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const keyboardRef = useRef<HTMLDivElement | null>(null);
     const [keyboardHeight, setKeyboardHeight] = useState(0);
+
 
     const [difficulty, setDifficulty] = useState<Difficulty>(() => loadDifficulty());
 
@@ -81,10 +80,6 @@ export default function WordleGame() {
     const [isWordDefinitionLoading, setIsWordDefinitionLoading] = useState(false);
     const [definitionPopupOpen, setDefinitionPopupOpen] = useState(false);
 
-    // Game over animation states
-    const [showFloatingText, setShowFloatingText] = useState(false);
-    const [showGameOverOverlay, setShowGameOverOverlay] = useState(false);
-
     const theme = "dark" as const;
 
     // timer
@@ -97,15 +92,6 @@ export default function WordleGame() {
 
     useEffect(() => {
         getCurrentUserId().then((uid) => setUserId(uid));
-    }, []);
-
-    // Focus container for keyboard input on mount
-    useEffect(() => {
-        // Small delay to ensure DOM is ready
-        const timer = setTimeout(() => {
-            containerRef.current?.focus();
-        }, 100);
-        return () => clearTimeout(timer);
     }, []);
 
     const answerLockedRef = useRef(false);
@@ -148,9 +134,13 @@ export default function WordleGame() {
     }, [userId, answer, startedAtMs, current, rows]);
 
     useEffect(() => {
+        console.log('[WORDLE INIT] Loading word lists for difficulty:', difficulty);
         loadWordLists(difficulty).then(({ allowed, solutions }) => {
+            console.log('[WORDLE INIT] Word lists loaded. Solutions count:', solutions.length);
             setAllowed(allowed);
             setSolutions(solutions);
+        }).catch(err => {
+            console.error('[WORDLE INIT] Failed to load word lists:', err);
         });
     }, [difficulty]);
 
@@ -179,9 +169,15 @@ export default function WordleGame() {
     }, [theme]);
 
     useEffect(() => {
-        if (!solutions.length) return;
+        console.log('[WORDLE INIT] Game init effect. solutions.length:', solutions.length);
+        if (!solutions.length) {
+            console.log('[WORDLE INIT] No solutions yet, waiting...');
+            return;
+        }
         const persisted = loadGameState(userId);
+        console.log('[WORDLE INIT] Persisted state:', persisted);
         if (persisted && persisted.answer && persisted.difficulty === difficulty) {
+            console.log('[WORDLE INIT] Loading persisted game with answer:', persisted.answer);
             setAnswer(persisted.answer);
             setRows(persisted.rows);
             setCurrent(persisted.current);
@@ -191,6 +187,7 @@ export default function WordleGame() {
             window.setTimeout(() => containerRef.current?.focus(), 0);
             return;
         }
+        console.log('[WORDLE INIT] Starting new game...');
         newGame();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [solutions.length, difficulty, userId]);
@@ -298,22 +295,6 @@ export default function WordleGame() {
         if (!startedAtMs) return;
         setEndedAtMs((prev) => prev ?? Date.now());
     }, [gameOver.done, startedAtMs]);
-
-    // Trigger floating game over animation when game ends
-    useEffect(() => {
-        if (gameOver.done) {
-            setShowFloatingText(true);
-        } else {
-            setShowFloatingText(false);
-            setShowGameOverOverlay(false);
-        }
-    }, [gameOver.done]);
-
-    // Callback when floating animation completes - show the overlay
-    const handleFloatingComplete = () => {
-        setShowFloatingText(false);
-        setShowGameOverOverlay(true);
-    };
 
     useEffect(() => {
         if (!gameOver.done || !answer) {
@@ -529,16 +510,33 @@ export default function WordleGame() {
     }
 
     function onKey(k: string) {
-        if (k === "ENTER") return commitGuess();
-        if (k === "BACKSPACE") return setCurrent((s) => {
-            if (s.length === 0) return s;
-            const lastNonSpaceIdx = s.search(/\S(?=\s*$)/);
-            if (lastNonSpaceIdx === -1) return s.slice(0, -1);
-            return s.slice(0, lastNonSpaceIdx) + " " + s.slice(lastNonSpaceIdx + 1);
-        });
-        if (gameOver.done) return;
-        if (!/^[A-Z]$/.test(k)) return;
-        if (keyMarks[k] === "absent") return;
+        console.log('[WORDLE onKey] Called with:', k, 'gameOver.done:', gameOver.done);
+        if (k === "ENTER") {
+            console.log('[WORDLE onKey] ENTER pressed, calling commitGuess');
+            return commitGuess();
+        }
+        if (k === "BACKSPACE") {
+            console.log('[WORDLE onKey] BACKSPACE pressed');
+            return setCurrent((s) => {
+                if (s.length === 0) return s;
+                const lastNonSpaceIdx = s.search(/\S(?=\s*$)/);
+                if (lastNonSpaceIdx === -1) return s.slice(0, -1);
+                return s.slice(0, lastNonSpaceIdx) + " " + s.slice(lastNonSpaceIdx + 1);
+            });
+        }
+        if (gameOver.done) {
+            console.log('[WORDLE onKey] Blocked: gameOver.done is true');
+            return;
+        }
+        if (!/^[A-Z]$/.test(k)) {
+            console.log('[WORDLE onKey] Blocked: not a valid letter:', k);
+            return;
+        }
+        if (keyMarks[k] === "absent") {
+            console.log('[WORDLE onKey] Blocked: key is absent:', k);
+            return;
+        }
+        console.log('[WORDLE onKey] Setting current with letter:', k);
         setCurrent((s) => {
             const gapIndex = s.indexOf(" ");
             if (gapIndex !== -1) {
@@ -606,7 +604,9 @@ export default function WordleGame() {
     }
 
     const ghost = current.padEnd(5, " ");
+    console.log('[WORDLE] ghost:', JSON.stringify(ghost), 'activeRowIndex:', activeRowIndex);
     const viewRows: GridRow[] = useMemo(() => {
+        console.log('[WORDLE useMemo] Running with ghost:', JSON.stringify(ghost), 'answer:', answer);
         if (!answer) {
             return Array.from({ length: MAX_TRIES }, () => ({
                 guess: "     ",
@@ -703,7 +703,6 @@ export default function WordleGame() {
             <div
                 ref={containerRef}
                 tabIndex={0}
-                autoFocus
                 className="flex flex-col w-full h-full min-w-0 outline-none"
                 onKeyDown={(e) => {
                     const t = e.target as HTMLElement | null;
@@ -713,17 +712,8 @@ export default function WordleGame() {
                     else if (/^[A-Z]$/i.test(e.key)) onKey(e.key.toUpperCase());
                 }}
             >
-                {/* Toast - Modern styled hint notification */}
-                <div className="h-10 flex items-center justify-center shrink-0">
-                    {toast && (
-                        <div className="animate-in fade-in slide-in-from-top-2 duration-300 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 backdrop-blur-md shadow-lg shadow-emerald-500/10">
-                            <span className="text-sm font-semibold text-emerald-300 flex items-center gap-2">
-                                <span className="text-lg">💡</span>
-                                {toast}
-                            </span>
-                        </div>
-                    )}
-                </div>
+                {/* Toast */}
+                <div className="h-6 text-center text-sm text-[color:var(--muted)] shrink-0">{toast}</div>
 
                 {/* Grid area - centered with max-width */}
                 <div className="max-w-md mx-auto w-full flex-1 flex flex-col items-center justify-center py-2 overflow-hidden relative">
@@ -819,18 +809,9 @@ export default function WordleGame() {
                 onClose={() => setWordHistoryOpen(false)}
             />
 
-            {/* Floating Game Over Animation - shows before overlay */}
-            <FloatingGameOver
-                active={showFloatingText}
-                text={gameOver.won ? 'You Won!' : 'Game Over'}
-                outcome={gameOver.won ? 'win' : 'lose'}
-                duration={1500}
-                onComplete={handleFloatingComplete}
-            />
-
-            {/* Game Result Overlay - shows after floating animation */}
+            {/* Game Result Overlay */}
             <GameResultOverlay
-                open={showGameOverOverlay}
+                open={gameOver.done}
                 outcome={gameOver.won ? 'win' : 'lose'}
                 title={gameOver.won ? 'You Won!' : 'Game Over'}
                 subtitle={gameOver.won ? `Solved in ${committedCount} tries` : undefined}

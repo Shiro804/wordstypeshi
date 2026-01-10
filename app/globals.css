@@ -71,17 +71,19 @@ button {
 }
 
 /* Safe-area helpers (for iPhone notch + home indicator) */
+/* Using max() with fallback for older iOS versions */
 .safe-top {
-  padding-top: env(safe-area-inset-top);
+  padding-top: max(env(safe-area-inset-top, 0px), 0px);
 }
 
 .safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 0px);
 }
 
 /* Additional safe-area helpers using Tailwind-like naming */
+/* These add the safe area ON TOP of existing padding */
 .pt-safe {
-  padding-top: env(safe-area-inset-top);
+  padding-top: max(env(safe-area-inset-top, 0px), 0px);
 }
 
 .pb-safe {
@@ -93,9 +95,11 @@ button {
   0% {
     transform: scale(0.92);
   }
+
   40% {
     transform: scale(1.06);
   }
+
   100% {
     transform: scale(1);
   }
@@ -105,31 +109,39 @@ button {
   0% {
     transform: rotateX(0deg);
   }
+
   45% {
     transform: rotateX(90deg);
   }
+
   55% {
     transform: rotateX(90deg);
   }
+
   100% {
     transform: rotateX(0deg);
   }
 }
 
 @keyframes row-shake {
+
   0%,
   100% {
     transform: translateX(0);
   }
+
   20% {
     transform: translateX(-6px);
   }
+
   40% {
     transform: translateX(6px);
   }
+
   60% {
     transform: translateX(-4px);
   }
+
   80% {
     transform: translateX(4px);
   }
@@ -153,7 +165,7 @@ button {
   /* Container query context */
   container-type: inline-size;
   container-name: grid;
-  
+
   /* 
    * Das Grid soll maximal so groß sein, dass alle 6 Reihen 
    * plus der Rest der UI reinpassen.
@@ -173,10 +185,11 @@ button {
    * 
    * Mit max-height begrenzen wir das Grid auf vernünftige Werte.
    */
-  max-height: min(
-    calc(100dvh - 320px), /* Dynamisch: Viewport minus UI-Elemente */
-    400px                  /* Absolutes Maximum */
-  );
+  max-height: min(calc(100dvh - 320px),
+      /* Dynamisch: Viewport minus UI-Elemente */
+      400px
+      /* Absolutes Maximum */
+    );
 }
 
 /* --- Tile states (Grid.tsx uses these classes) --- */
@@ -281,33 +294,81 @@ button {
 
 /* Duck Background Animations */
 @keyframes duck-bob {
-  0%, 100% { transform: translateY(0) rotate(-1deg); }
-  50% { transform: translateY(-10px) rotate(1deg); }
+
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg);
+  }
+
+  50% {
+    transform: translateY(-10px) rotate(1deg);
+  }
 }
 
 /* Smaller bob for header duck */
 @keyframes duck-bob-sm {
-  0%, 100% { transform: translateY(1px) rotate(-0.5deg); }
-  50% { transform: translateY(-2px) rotate(0.5deg); }
+
+  0%,
+  100% {
+    transform: translateY(1px) rotate(-0.5deg);
+  }
+
+  50% {
+    transform: translateY(-2px) rotate(0.5deg);
+  }
 }
 
 @keyframes duck-flap {
-  0%, 100% { transform: rotate(0deg) translateY(0); }
-  50% { transform: rotate(-12deg) translateY(-2px); }
+
+  0%,
+  100% {
+    transform: rotate(0deg) translateY(0);
+  }
+
+  50% {
+    transform: rotate(-12deg) translateY(-2px);
+  }
 }
 
 @keyframes duck-blink {
-  0%, 6%, 100% { transform: scaleY(1); }
-  2% { transform: scaleY(0.12); }
-  4% { transform: scaleY(1); }
-  70% { transform: scaleY(1); }
-  72% { transform: scaleY(0.12); }
-  74% { transform: scaleY(1); }
+
+  0%,
+  6%,
+  100% {
+    transform: scaleY(1);
+  }
+
+  2% {
+    transform: scaleY(0.12);
+  }
+
+  4% {
+    transform: scaleY(1);
+  }
+
+  70% {
+    transform: scaleY(1);
+  }
+
+  72% {
+    transform: scaleY(0.12);
+  }
+
+  74% {
+    transform: scaleY(1);
+  }
 }
 
 @keyframes duck-pop {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-4px) scale(1.03); }
+
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+
+  50% {
+    transform: translateY(-4px) scale(1.03);
+  }
 }
 
 .animate-duck-bob {
@@ -332,6 +393,7 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .animate-duck-bob,
   .animate-duck-bob-sm,
   .animate-duck-flap,

@@ -59,9 +59,10 @@ export async function updateSession(request: NextRequest) {
     "/manifest.webmanifest",
   ];
 
-  const isPublicRoute = publicRoutes.some(route => 
-    request.nextUrl.pathname === route || 
-    request.nextUrl.pathname.startsWith("/auth")
+  const isPublicRoute = publicRoutes.some(route =>
+    request.nextUrl.pathname === route ||
+    request.nextUrl.pathname.startsWith("/auth") ||
+    request.nextUrl.pathname.startsWith("/words")  // Word list files
   );
 
   if (!user && !isPublicRoute) {
