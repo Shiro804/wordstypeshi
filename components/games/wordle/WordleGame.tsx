@@ -721,7 +721,7 @@ export default function WordleGame() {
                 </div>
 
                 {/* Keyboard - constrained to parent width with iPhone safe areas */}
-                <div className="shrink-0 pb-safe mb-1 w-full px-2 sm:px-4" ref={keyboardRef}>
+                <div className="shrink-0 pb-safe mb-1 w-full max-w-lg mx-auto px-2 sm:px-4" ref={keyboardRef}>
                     <Keyboard
                         keyMarks={keyMarks}
                         onKey={onKey}
