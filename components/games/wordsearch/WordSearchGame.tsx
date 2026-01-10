@@ -62,8 +62,8 @@ function Cell({ letter, row, col, isSelected, isFound, onMouseDown, onMouseEnter
         <div
             data-cell={`${row},${col}`}
             className={`
-        w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center
-        text-sm sm:text-base font-bold uppercase
+        w-8 h-8 sm:w-10 sm:h-10 lg:w-8 lg:h-8 flex items-center justify-center
+        text-sm sm:text-base lg:text-sm font-bold uppercase
         rounded-md transition-all select-none cursor-pointer touch-none
         ${isFound
                     ? 'bg-emerald-500/30 text-emerald-300 border-2 border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]'
