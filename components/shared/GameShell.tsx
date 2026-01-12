@@ -227,9 +227,10 @@ export default function GameShell({
         ? "relative h-[100dvh] w-full max-w-[100vw] overflow-y-auto overflow-x-hidden text-[color:var(--fg)]"
         : "min-h-screen w-full overflow-x-hidden text-[color:var(--fg)]";
 
+    // Always apply safe-area-inset-top for PWA mode on iOS (notch/Dynamic Island)
     const gridStyle = fullHeight
-        ? { display: 'grid', gridTemplateRows: 'auto 1fr auto', paddingTop: 'env(safe-area-inset-top)' }
-        : undefined;
+        ? { display: 'grid', gridTemplateRows: 'auto 1fr auto', paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }
+        : { paddingTop: 'env(safe-area-inset-top)' };
 
     return (
         <div className={containerClasses} style={gridStyle}>
