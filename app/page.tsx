@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Palette, Type, Search, LayoutGrid, LogIn, UserPlus, Settings, LogOut, User } from "lucide-react";
+import { Palette, Type, Search, LayoutGrid, Droplets, LogIn, UserPlus, Settings, LogOut, User } from "lucide-react";
 import { getMyProfile, type UserProfile } from "@/lib/auth/profile";
 import UsernameModal from "@/components/auth/UsernameModal";
 import ProfileSettingsModal from "@/components/hub/ProfileSettingsModal";
@@ -46,6 +46,13 @@ const GAMES = [
     icon: LayoutGrid,
     href: "/batasblast",
     color: "from-amber-500 to-orange-600",
+    enabled: true,
+  },
+  {
+    id: "batascolors" as const,
+    icon: Droplets,
+    href: "/batascolors",
+    color: "from-rose-500 to-orange-500",
     enabled: true,
   },
 ];

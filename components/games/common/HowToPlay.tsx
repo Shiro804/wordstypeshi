@@ -4,7 +4,7 @@ import { useState } from "react";
 import Modal from "./Modal";
 import { HelpCircle } from "lucide-react";
 
-type GameId = "wordle" | "mastermind" | "wordsearch" | "batasblast";
+type GameId = "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors";
 
 interface HowToPlayProps {
     gameId: GameId;
@@ -51,6 +51,53 @@ const BatasBlastBlock = ({ status }: { status: "filled" | "empty" | "preview" })
         ${status === "preview" ? "bg-gradient-to-br from-amber-400/40 to-orange-500/40 border-orange-400/50 border-dashed" : ""}
     `} />
 );
+
+const BatasColorsPieSegment = ({ color, percentage }: { color: string; percentage: number }) => (
+    <div className="flex items-center gap-2">
+        <div
+            className="h-8 w-8 rounded-lg border-2 border-white/20"
+            style={{ backgroundColor: color }}
+        />
+        <span className="text-sm font-medium text-[color:var(--fg)]">{percentage}%</span>
+    </div>
+);
+
+// Mini pie chart for HowToPlay visualization
+const MiniPieChart = ({ segments }: { segments: Array<{ color: string; percentage: number }> }) => {
+    const size = 48;
+    const center = size / 2;
+    const radius = size / 2 - 2;
+
+    // Build pie slices
+    let currentAngle = -90; // Start at top
+    const slices = segments.map((seg, i) => {
+        const angle = (seg.percentage / 100) * 360;
+        const startAngle = currentAngle;
+        const endAngle = currentAngle + angle;
+        currentAngle = endAngle;
+
+        // SVG arc path
+        const startRad = (startAngle * Math.PI) / 180;
+        const endRad = (endAngle * Math.PI) / 180;
+        const x1 = center + radius * Math.cos(startRad);
+        const y1 = center + radius * Math.sin(startRad);
+        const x2 = center + radius * Math.cos(endRad);
+        const y2 = center + radius * Math.sin(endRad);
+        const largeArc = angle > 180 ? 1 : 0;
+
+        const d = `M ${center} ${center} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+
+        return <path key={i} d={d} fill={seg.color} stroke="rgba(0,0,0,0.3)" strokeWidth="1" />;
+    });
+
+    return (
+        <svg width={size} height={size} className="drop-shadow-md">
+            {slices}
+            {/* Center hole for donut effect */}
+            <circle cx={center} cy={center} r={radius * 0.3} fill="var(--surface)" />
+        </svg>
+    );
+};
 
 const GAME_INSTRUCTIONS: Record<GameId, {
     title: string;
@@ -234,6 +281,131 @@ const GAME_INSTRUCTIONS: Record<GameId, {
             },
         ],
     },
+    batascolors: {
+        title: "How to Play BatasColors",
+        sections: [
+            {
+                heading: "Objective",
+                content: "Mix colors in a pie chart to match the target color. Each segment has a percentage weight – blend the right colors to hit 100% accuracy!",
+                examples: [
+                    {
+                        label: (
+                            <div className="flex items-center gap-3">
+                                <MiniPieChart segments={[
+                                    { color: "#ef4444", percentage: 40 },
+                                    { color: "#3b82f6", percentage: 60 },
+                                ]} />
+                                <span className="text-lg text-white/60">→</span>
+                                <div className="w-8 h-8 rounded-full bg-purple-500 ring-2 ring-purple-400 shadow-lg" />
+                            </div>
+                        ),
+                        description: "Red (40%) + Blue (60%) = Purple target"
+                    },
+                ],
+            },
+            {
+                heading: "The Pie Chart",
+                content: "Click a segment to select it, then pick a color from the palette. Each segment's percentage shows how much it contributes to the mix.",
+                examples: [
+                    {
+                        label: (
+                            <div className="flex items-center gap-1">
+                                <div className="w-6 h-6 rounded-full bg-zinc-700 border-2 border-dashed border-zinc-500" />
+                                <span className="text-xs text-zinc-400">40%</span>
+                            </div>
+                        ),
+                        description: "Empty segment – click to select"
+                    },
+                    {
+                        label: (
+                            <div className="flex items-center gap-1">
+                                <div className="w-6 h-6 rounded-full bg-rose-500 ring-2 ring-rose-400 ring-offset-2 ring-offset-zinc-900" />
+                                <span className="text-xs text-rose-300">40%</span>
+                            </div>
+                        ),
+                        description: "Selected segment – pick a color"
+                    },
+                    {
+                        label: (
+                            <div className="flex items-center gap-1">
+                                <div className="w-6 h-6 rounded-full bg-blue-500 border-2 border-white/30" />
+                                <span className="text-xs text-blue-300">60%</span>
+                            </div>
+                        ),
+                        description: "Filled segment – click again to clear"
+                    },
+                ],
+            },
+            {
+                heading: "Color Palette",
+                content: "Pick colors from the palette to fill your segments. Tap a color to apply it to the selected segment.",
+                examples: [
+                    {
+                        label: (
+                            <div className="flex gap-1">
+                                {["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#8b5cf6"].map((c, i) => (
+                                    <div key={i} className="w-5 h-5 rounded-full border border-white/20" style={{ backgroundColor: c }} />
+                                ))}
+                            </div>
+                        ),
+                        description: "Available colors"
+                    },
+                ],
+            },
+            {
+                heading: "Mixing & Feedback",
+                content: "Once all segments are filled, press 'Mix' to blend your colors. You'll see your accuracy:",
+                examples: [
+                    {
+                        label: <span className="text-2xl font-black text-emerald-400">100%</span>,
+                        description: "Perfect match – You win! 🎯"
+                    },
+                    {
+                        label: <span className="text-2xl font-black text-yellow-400">79%</span>,
+                        description: "Close – Adjust your colors"
+                    },
+                    {
+                        label: <span className="text-2xl font-black text-rose-400">45%</span>,
+                        description: "Far off – Try different colors"
+                    },
+                ],
+            },
+            {
+                heading: "Attempt History",
+                content: "Your previous attempts appear in a compact bar showing the colors you tried, the result, and the accuracy:",
+                examples: [
+                    {
+                        label: (
+                            <div className="flex items-center gap-2 py-1 px-2 rounded-full bg-black/30 border border-white/10">
+                                <div className="flex -space-x-0.5">
+                                    <div className="w-2.5 h-2.5 rounded-full bg-red-500 border border-black/30" />
+                                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500 border border-black/30" />
+                                </div>
+                                <span className="text-[8px] text-white/40">→</span>
+                                <div className="relative flex items-center justify-center w-5 h-5 rounded-full ring-1 ring-yellow-400 bg-purple-500">
+                                    <span className="text-[8px] font-black text-white drop-shadow-sm">79</span>
+                                </div>
+                            </div>
+                        ),
+                        description: "Red + Blue → Purple (79% match)"
+                    },
+                ],
+            },
+            {
+                heading: "Difficulty Levels",
+                content: "",
+                examples: [
+                    { label: <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-xs font-bold">EASY</span>, description: "2 segments" },
+                    { label: <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 text-xs font-bold">MEDIUM</span>, description: "3 segments" },
+                    { label: <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-xs font-bold">HARD</span>, description: "4 segments" },
+                ],
+            },
+            {
+                heading: "Tips",
+                content: "Every puzzle has a guaranteed 100% solution! Larger segments influence the mix more. Click a filled segment twice to clear it.",
+            },
+        ],
+    },
 };
 
 export default function HowToPlay({ gameId, isOpen, onClose }: HowToPlayProps) {
@@ -254,7 +426,7 @@ export default function HowToPlay({ gameId, isOpen, onClose }: HowToPlayProps) {
                             <div className="space-y-3 mt-4 bg-[color:var(--surface)] p-4 rounded-xl border border-[color:var(--border)]">
                                 {section.examples.map((example, exIdx) => (
                                     <div key={exIdx} className="flex items-center gap-4">
-                                        <div className="flex-shrink-0 flex items-center justify-center w-12">
+                                        <div className="flex-shrink-0">
                                             {example.label}
                                         </div>
                                         <span className="text-sm font-medium text-[color:var(--fg)]">

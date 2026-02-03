@@ -178,6 +178,20 @@ export const translations = {
       bestCombo: "Best Combo",
     },
 
+    // BatasColors
+    batascolors: {
+      name: "BatasColors",
+      description: "Mix colors to match the target",
+      targetColor: "Target Color",
+      accuracy: "Accuracy",
+      mix: "Mix",
+      clear: "Clear",
+      attemptsRemaining: "attempts remaining",
+      perfect: "Perfect match!",
+      almostThere: "Almost there!",
+      previousAttempts: "Previous Attempts",
+    },
+
     // Leaderboard
     leaderboard: {
       title: "Leaderboard",
@@ -379,6 +393,20 @@ export const translations = {
       tapOrDrag: "Tippe oder ziehe ein Teil, dann platziere es auf dem Feld",
       totalLines: "Reihen gesamt",
       bestCombo: "Beste Kombo",
+    },
+
+    // BatasColors
+    batascolors: {
+      name: "BatasColors",
+      description: "Mische Farben um die Zielfarbe zu treffen",
+      targetColor: "Zielfarbe",
+      accuracy: "Genauigkeit",
+      mix: "Mischen",
+      clear: "Löschen",
+      attemptsRemaining: "Versuche übrig",
+      perfect: "Perfekte Mischung!",
+      almostThere: "Fast geschafft!",
+      previousAttempts: "Bisherige Versuche",
     },
 
     // Leaderboard
