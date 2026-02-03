@@ -11,7 +11,6 @@ import { useLanguage } from "@/lib/i18n";
 import {
     wordSearchEngine,
     getModeParams,
-    BASE_WORDS,
     type WordSearchState,
     type SelectPathAction,
 } from "@/lib/games/wordsearch/engine";
@@ -25,6 +24,7 @@ import { fetchPlayedWords, trackPlayedWord } from "@/lib/sync/played-words";
 import Modal from "@/components/games/common/Modal";
 import { loadDifficulty, saveDifficulty } from "@/lib/storage/settings-storage";
 import { loadActiveGame, saveActiveGame } from "@/lib/storage/active-game-storage";
+import { loadWordLists, type Difficulty as WordListDifficulty } from "@/lib/words";
 
 // ============================================================================
 // Constants
@@ -135,6 +135,8 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
     const [pendingDifficulty, setPendingDifficulty] = useState<Difficulty | null>(null);
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [playedWords, setPlayedWords] = useState<Set<string>>(new Set());
+    const [wordList, setWordList] = useState<string[]>([]);
+    const [isLoadingWords, setIsLoadingWords] = useState(true);
 
     // Use shared hooks
     const timer = useGameTimer({ pauseOnHidden: true });
@@ -150,6 +152,22 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
     // Get params for current difficulty
     const params = useMemo(() => getModeParams(difficulty), [difficulty]);
 
+    // Load word list based on difficulty (easy → easy.txt, medium/hard → medium.txt)
+    useEffect(() => {
+        setIsLoadingWords(true);
+        // WordSearch uses easy.txt for easy mode, medium.txt for medium and hard
+        const wordListDifficulty: WordListDifficulty = difficulty === 'easy' ? 'easy' : 'medium';
+        loadWordLists(wordListDifficulty)
+            .then(({ solutions }) => {
+                setWordList(solutions);
+                setIsLoadingWords(false);
+            })
+            .catch(() => {
+                setWordList([]);
+                setIsLoadingWords(false);
+            });
+    }, [difficulty]);
+
     // Fetch played words when userId or difficulty changes
     useEffect(() => {
         if (!userId) return;
@@ -158,16 +176,18 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
 
     // Initialize game
     const initGame = useCallback(async () => {
+        // Wait for word list to be loaded
+        if (isLoadingWords || wordList.length === 0) return;
+
         const seed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
         // Filter out already played words from dictionary
-        const sourceDictionary = params.dictionary ?? BASE_WORDS;
-        const availableWords = sourceDictionary.filter(w => !playedWords.has(w.toUpperCase()));
+        const availableWords = wordList.filter(w => !playedWords.has(w.toUpperCase()));
 
-        // If all words are exhausted, reset (should rarely happen with 80+ words)
+        // If all words are exhausted, reset to full list
         const finalDictionary = availableWords.length >= params.wordCount
             ? availableWords
-            : sourceDictionary;
+            : wordList;
 
         const paramsWithFilteredDict = { ...params, dictionary: finalDictionary };
 
@@ -194,7 +214,7 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
 
         // Save initial game state
         saveActiveGame(GAME_ID, state, userId);
-    }, [params, timer, userId, difficulty, playedWords]);
+    }, [params, timer, userId, difficulty, playedWords, wordList, isLoadingWords]);
 
     // Initialize: Load active game or create new one
     useEffect(() => {
@@ -245,14 +265,16 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
                 }
             }
 
-            // No active game or difficulty mismatch - init new game
-            initGame();
-            hasInitialized.current = true;
+            // No active game or difficulty mismatch - init new game (only if words are loaded)
+            if (!isLoadingWords && wordList.length > 0) {
+                initGame();
+                hasInitialized.current = true;
+            }
         };
 
         loadGame();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [difficulty, userId]);
+    }, [difficulty, userId, isLoadingWords, wordList]);
 
     // Save game state whenever it changes
     useEffect(() => {

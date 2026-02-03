@@ -15,7 +15,23 @@ export type PersistedGameState = {
   userId?: string | null;
 };
 
+/**
+ * Wrapped format for persisted game state with elapsed time tracking.
+ * This ensures timers persist correctly across browser sessions.
+ */
+export type WrappedGameState = {
+  v: 2;
+  gameState: PersistedGameState;
+  /** Elapsed play time in milliseconds at time of save */
+  elapsedMs: number;
+  /** Timestamp when the game was saved */
+  savedAtMs: number;
+};
+
 const STORAGE_KEY_BASE = "batagames.game.v1";
+
+/** Maximum allowed game duration before auto-reset (24 hours) */
+const MAX_GAME_DURATION_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Get the storage key for a specific user.
@@ -26,6 +42,13 @@ export function getStorageKey(userId?: string | null): string {
     return `${STORAGE_KEY_BASE}.${userId}`;
   }
   return STORAGE_KEY_BASE;
+}
+
+/**
+ * Check if data is in the new wrapped format (v2)
+ */
+function isWrappedFormat(data: unknown): data is WrappedGameState {
+  return typeof data === 'object' && data !== null && 'v' in data && (data as WrappedGameState).v === 2;
 }
 
 export function loadGameState(userId?: string | null): PersistedGameState | null {
@@ -41,21 +64,48 @@ export function loadGameState(userId?: string | null): PersistedGameState | null
       const anonKey = getStorageKey(null);
       raw = window.localStorage.getItem(anonKey);
       if (raw) {
-        // Migrate anonymous state to user-scoped storage
-        const parsed = JSON.parse(raw) as PersistedGameState;
-        if (parsed && parsed.v === 1) {
-          // Save to user-scoped key and clear anonymous key
-          window.localStorage.setItem(userKey, raw);
-          window.localStorage.removeItem(anonKey);
-        }
+        // Migrate to user-scoped key
+        window.localStorage.setItem(userKey, raw);
+        window.localStorage.removeItem(anonKey);
+        console.log(`[game-state] Migrated anonymous game to user ${userId}`);
       }
     }
     
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as PersistedGameState;
-    if (!parsed || parsed.v !== 1) return null;
-    if (typeof parsed.answer !== "string") return null;
-    return parsed;
+    const parsed = JSON.parse(raw);
+    
+    // Handle new wrapped format (v2) with elapsed time tracking
+    if (isWrappedFormat(parsed)) {
+      const { gameState, elapsedMs } = parsed;
+      
+      // Safety net: discard games that have been running for over 24 hours
+      if (elapsedMs > MAX_GAME_DURATION_MS) {
+        console.log(`[game-state] Discarding stale game (${Math.round(elapsedMs / 1000 / 60)}min elapsed)`);
+        window.localStorage.removeItem(userKey);
+        return null;
+      }
+      
+      // Reconstruct startedAtMs so that elapsed time is preserved correctly
+      // Only adjust if game is still in progress (startedAtMs exists but not endedAtMs)
+      if (gameState.startedAtMs && !gameState.endedAtMs) {
+        const adjustedState: PersistedGameState = {
+          ...gameState,
+          startedAtMs: Date.now() - elapsedMs,
+        };
+        console.log(`[game-state] Loaded game with ${Math.round(elapsedMs / 1000)}s elapsed time`);
+        return adjustedState;
+      }
+      
+      // Game was finished, return as-is
+      return gameState;
+    }
+    
+    // Legacy format (v1): return as-is
+    const legacyParsed = parsed as PersistedGameState;
+    if (!legacyParsed || legacyParsed.v !== 1) return null;
+    if (typeof legacyParsed.answer !== "string") return null;
+    console.log(`[game-state] Loaded legacy format game (timer may be incorrect once)`);
+    return legacyParsed;
   } catch {
     return null;
   }
@@ -68,5 +118,15 @@ export function saveGameState(state: PersistedGameState | null, userId?: string 
     window.localStorage.removeItem(key);
     return;
   }
-  window.localStorage.setItem(key, JSON.stringify(state));
+  
+  // Calculate elapsed time and save in new wrapped format
+  const elapsedMs = state.startedAtMs ? Date.now() - state.startedAtMs : 0;
+  const wrapped: WrappedGameState = {
+    v: 2,
+    gameState: state,
+    elapsedMs,
+    savedAtMs: Date.now(),
+  };
+  window.localStorage.setItem(key, JSON.stringify(wrapped));
 }
+

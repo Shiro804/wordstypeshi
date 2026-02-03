@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import type { PersistedGameState } from '@/lib/storage/game-state';
+import type { PersistedGameState, WrappedGameState } from '@/lib/storage/game-state';
 
 // Create a proper localStorage mock
 function createLocalStorageMock() {
@@ -49,14 +49,20 @@ describe('game-state', () => {
   });
 
   describe('saveGameState', () => {
-    it('saves to user-scoped key when userId provided', () => {
-      const state = createGameState();
+    it('saves to user-scoped key in wrapped format when userId provided', () => {
+      const state = createGameState({ startedAtMs: Date.now() - 5000 });
       saveGameState(state, 'user-123');
       
       expect(localStorageMock.setItem).toHaveBeenCalled();
       const calls = localStorageMock.setItem.mock.calls;
       const lastCall = calls[calls.length - 1];
       expect(lastCall[0]).toBe('batagames.game.v1.user-123');
+      
+      // Verify wrapped format
+      const saved = JSON.parse(lastCall[1]);
+      expect(saved.v).toBe(2);
+      expect(saved.gameState.answer).toBe('HELLO');
+      expect(saved.elapsedMs).toBeGreaterThanOrEqual(5000);
     });
 
     it('saves to anonymous key when no userId', () => {
@@ -79,20 +85,55 @@ describe('game-state', () => {
   });
 
   describe('loadGameState', () => {
-    it('loads from user-scoped key when userId provided', () => {
-      const state = createGameState({ answer: 'WORLD' });
-      localStorageMock.setItem('batagames.game.v1.user-123', JSON.stringify(state));
+    it('loads wrapped format and adjusts startedAtMs for in-progress games', () => {
+      const gameState = createGameState({ 
+        answer: 'WORLD',
+        startedAtMs: Date.now() - 10000 // 10 seconds ago
+      });
+      const wrapped: WrappedGameState = {
+        v: 2,
+        gameState,
+        elapsedMs: 5000, // 5 seconds of play time
+        savedAtMs: Date.now() - 1000,
+      };
+      localStorageMock.setItem('batagames.game.v1.user-123', JSON.stringify(wrapped));
       
       const loaded = loadGameState('user-123');
       expect(loaded?.answer).toBe('WORLD');
+      // startedAtMs should be adjusted so elapsed time is ~5 seconds
+      const elapsedMs = Date.now() - loaded!.startedAtMs!;
+      expect(elapsedMs).toBeGreaterThanOrEqual(5000);
+      expect(elapsedMs).toBeLessThan(6000);
     });
 
-    it('loads from anonymous key when no userId', () => {
-      const state = createGameState({ answer: 'ANON' });
+    it('loads wrapped format without adjusting startedAtMs for finished games', () => {
+      const now = Date.now();
+      const gameState = createGameState({ 
+        answer: 'DONE',
+        startedAtMs: now - 60000,
+        endedAtMs: now - 30000 // Game ended 30 seconds after start
+      });
+      const wrapped: WrappedGameState = {
+        v: 2,
+        gameState,
+        elapsedMs: 30000,
+        savedAtMs: now,
+      };
+      localStorageMock.setItem('batagames.game.v1', JSON.stringify(wrapped));
+      
+      const loaded = loadGameState(null);
+      expect(loaded?.answer).toBe('DONE');
+      // Should not adjust startedAtMs for finished games
+      expect(loaded?.startedAtMs).toBe(gameState.startedAtMs);
+      expect(loaded?.endedAtMs).toBe(gameState.endedAtMs);
+    });
+
+    it('loads legacy format (v1) as-is', () => {
+      const state = createGameState({ answer: 'LEGACY' });
       localStorageMock.setItem('batagames.game.v1', JSON.stringify(state));
       
       const loaded = loadGameState(null);
-      expect(loaded?.answer).toBe('ANON');
+      expect(loaded?.answer).toBe('LEGACY');
     });
 
     it('returns null for invalid JSON', () => {
@@ -102,15 +143,7 @@ describe('game-state', () => {
       expect(loaded).toBeNull();
     });
 
-    it('returns null for wrong version', () => {
-      const state = { v: 2, answer: 'TEST' };
-      localStorageMock.setItem('batagames.game.v1', JSON.stringify(state));
-      
-      const loaded = loadGameState(null);
-      expect(loaded).toBeNull();
-    });
-
-    it('returns null for missing answer', () => {
+    it('returns null for missing answer in legacy format', () => {
       const state = { v: 1 };
       localStorageMock.setItem('batagames.game.v1', JSON.stringify(state));
       
@@ -119,3 +152,4 @@ describe('game-state', () => {
     });
   });
 });
+

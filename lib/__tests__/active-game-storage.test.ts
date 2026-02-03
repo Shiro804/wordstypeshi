@@ -34,22 +34,32 @@ describe('active-game-storage', () => {
   });
 
   describe('saveActiveGame', () => {
-    it('saves anonymous game', () => {
-      const state = { foo: 'bar' };
+    it('saves anonymous game with elapsed time wrapper', () => {
+      const now = Date.now();
+      const state = { foo: 'bar', startedAtMs: now - 5000 }; // 5 seconds ago
       storage.saveActiveGame('test-game', state, null);
-      expect(localStorageMock.setItem).toHaveBeenCalledWith(
-        'puzzlehub.activegame.test-game', 
-        JSON.stringify(state)
-      );
+      
+      // Check that setItem was called
+      expect(localStorageMock.setItem).toHaveBeenCalled();
+      const call = localStorageMock.setItem.mock.calls[0];
+      expect(call[0]).toBe('puzzlehub.activegame.test-game');
+      
+      // Parse saved data and verify wrapper format
+      const saved = JSON.parse(call[1]);
+      expect(saved.v).toBe(2);
+      expect(saved.gameState).toEqual(state);
+      expect(saved.elapsedMs).toBeGreaterThanOrEqual(5000);
+      expect(saved.elapsedMs).toBeLessThan(6000);
     });
 
     it('saves user-scoped game', () => {
-      const state = { foo: 'bar' };
+      const now = Date.now();
+      const state = { foo: 'bar', startedAtMs: now };
       storage.saveActiveGame('test-game', state, 'user-123');
-      expect(localStorageMock.setItem).toHaveBeenCalledWith(
-        'puzzlehub.activegame.test-game.user-123', 
-        JSON.stringify(state)
-      );
+      
+      expect(localStorageMock.setItem).toHaveBeenCalled();
+      const call = localStorageMock.setItem.mock.calls[0];
+      expect(call[0]).toBe('puzzlehub.activegame.test-game.user-123');
     });
 
     it('removes item when state is null', () => {
@@ -59,34 +69,65 @@ describe('active-game-storage', () => {
   });
 
   describe('loadActiveGame', () => {
-    it('loads anonymous game', () => {
-      const state = { foo: 'bar' };
+    it('loads wrapped format and adjusts startedAtMs', () => {
+      const originalStartedAtMs = Date.now() - 10000; // 10 seconds ago
+      const wrapper = {
+        gameState: { foo: 'bar', startedAtMs: originalStartedAtMs },
+        elapsedMs: 5000, // 5 seconds of play time
+        savedAtMs: Date.now() - 1000, // saved 1 second ago
+        v: 2,
+      };
+      localStorageMock.setItem('puzzlehub.activegame.test-game', JSON.stringify(wrapper));
+      
+      const loaded = storage.loadActiveGame<{ foo: string; startedAtMs: number }>('test-game', null);
+      
+      expect(loaded).not.toBeNull();
+      expect(loaded!.foo).toBe('bar');
+      // startedAtMs should be adjusted so elapsed time is ~5 seconds
+      const elapsedMs = Date.now() - loaded!.startedAtMs;
+      expect(elapsedMs).toBeGreaterThanOrEqual(5000);
+      expect(elapsedMs).toBeLessThan(6000);
+    });
+
+    it('loads legacy format as-is', () => {
+      const originalStartedAtMs = Date.now() - 10000;
+      const state = { foo: 'bar', startedAtMs: originalStartedAtMs };
       localStorageMock.setItem('puzzlehub.activegame.test-game', JSON.stringify(state));
       
-      const loaded = storage.loadActiveGame('test-game', null);
+      const loaded = storage.loadActiveGame<{ foo: string; startedAtMs: number }>('test-game', null);
       expect(loaded).toEqual(state);
     });
 
     it('loads user-scoped game', () => {
-      const state = { foo: 'bar' };
-      localStorageMock.setItem('puzzlehub.activegame.test-game.user-123', JSON.stringify(state));
+      const wrapper = {
+        gameState: { foo: 'bar', startedAtMs: Date.now() },
+        elapsedMs: 1000,
+        savedAtMs: Date.now(),
+        v: 2,
+      };
+      localStorageMock.setItem('puzzlehub.activegame.test-game.user-123', JSON.stringify(wrapper));
       
-      const loaded = storage.loadActiveGame('test-game', 'user-123');
-      expect(loaded).toEqual(state);
+      const loaded = storage.loadActiveGame<{ foo: string; startedAtMs: number }>('test-game', 'user-123');
+      expect(loaded!.foo).toBe('bar');
     });
 
     it('migrates anonymous game to user scope', () => {
-      const state = { foo: 'bar' };
-      localStorageMock.setItem('puzzlehub.activegame.test-game', JSON.stringify(state));
+      const wrapper = {
+        gameState: { foo: 'bar', startedAtMs: Date.now() },
+        elapsedMs: 2000,
+        savedAtMs: Date.now(),
+        v: 2,
+      };
+      localStorageMock.setItem('puzzlehub.activegame.test-game', JSON.stringify(wrapper));
       
       // Load with user ID, but user data is missing
-      const loaded = storage.loadActiveGame('test-game', 'user-123');
+      const loaded = storage.loadActiveGame<{ foo: string; startedAtMs: number }>('test-game', 'user-123');
       
-      expect(loaded).toEqual(state);
+      expect(loaded!.foo).toBe('bar');
       // expect migration happened
       expect(localStorageMock.setItem).toHaveBeenCalledWith(
         'puzzlehub.activegame.test-game.user-123', 
-        JSON.stringify(state)
+        JSON.stringify(wrapper)
       );
       expect(localStorageMock.removeItem).toHaveBeenCalledWith('puzzlehub.activegame.test-game');
     });

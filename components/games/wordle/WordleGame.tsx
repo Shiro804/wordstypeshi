@@ -7,7 +7,7 @@ import { marksToEmoji, pickRandom, scoreGuess } from "@/lib/game";
 import { loadWordLists } from "@/lib/words";
 import type { Difficulty } from "@/lib/difficulty";
 import { loadDifficulty, saveDifficulty } from "@/lib/storage/settings-storage";
-import { loadGameState, saveGameState } from "@/lib/storage/game-state";
+import { loadActiveGame, saveActiveGame } from "@/lib/storage/active-game-storage";
 import Grid, { type GridRow } from "@/components/games/common/Grid";
 import Keyboard from "@/components/games/common/Keyboard";
 import Modal from "@/components/games/common/Modal";
@@ -35,6 +35,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 const MAX_TRIES = 6;
 const GAME_ID = "wordle";
+
+/** State persisted to localStorage for resuming games */
+interface WordleState {
+    startedAtMs: number;
+    difficulty: Difficulty;
+    answer: string;
+    rows: GridRow[];
+    current: string;
+    endedAtMs: number | null;
+    hintUsed: boolean;
+}
 
 export default function WordleGame() {
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -174,7 +185,7 @@ export default function WordleGame() {
             console.log('[WORDLE INIT] No solutions yet, waiting...');
             return;
         }
-        const persisted = loadGameState(userId);
+        const persisted = loadActiveGame<WordleState>(GAME_ID, userId);
         console.log('[WORDLE INIT] Persisted state:', persisted);
         if (persisted && persisted.answer && persisted.difficulty === difficulty) {
             console.log('[WORDLE INIT] Loading persisted game with answer:', persisted.answer);
@@ -199,17 +210,15 @@ export default function WordleGame() {
     }, [difficulty, stats, userId]);
 
     useEffect(() => {
-        if (!answer) return;
-        saveGameState({
-            v: 1,
+        if (!answer || !startedAtMs) return;
+        saveActiveGame<WordleState>(GAME_ID, {
+            startedAtMs,
             difficulty,
             answer,
             rows,
             current,
-            startedAtMs,
             endedAtMs,
             hintUsed,
-            userId,
         }, userId);
     }, [difficulty, answer, rows, current, startedAtMs, endedAtMs, hintUsed, userId]);
 
@@ -358,7 +367,7 @@ export default function WordleGame() {
 
     async function startNewGameInternal() {
         answerLockedRef.current = false;
-        saveGameState(null, userId);
+        saveActiveGame(GAME_ID, null, userId);
         if (!solutions.length) return;
 
         const availableWords = solutions.filter((word) => !playedWords.has(word.toUpperCase()));
@@ -459,7 +468,7 @@ export default function WordleGame() {
     async function applyDifficultyChange(d: Difficulty) {
         await endAnyActiveSession();
         setDifficulty(d);
-        saveGameState(null, userId);
+        saveActiveGame(GAME_ID, null, userId);
         requestReset();
     }
 
