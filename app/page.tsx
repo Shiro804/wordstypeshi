@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Palette, Type, Search, LayoutGrid, Droplets, LogIn, UserPlus, Settings, LogOut, User } from "lucide-react";
+import { Palette, Type, Search, LayoutGrid, Droplets, LogIn, UserPlus, Settings, LogOut, User, Heart } from "lucide-react";
 import { getMyProfile, type UserProfile } from "@/lib/auth/profile";
 import UsernameModal from "@/components/auth/UsernameModal";
 import ProfileSettingsModal from "@/components/hub/ProfileSettingsModal";
 import LanguageSelector from "@/components/shared/LanguageSelector";
+import ValentineModal from "@/components/shared/ValentineModal";
 import { useLanguage } from "@/lib/i18n";
 import {
   DropdownMenu,
@@ -57,6 +58,9 @@ const GAMES = [
   },
 ];
 
+// ❤️ Valentine's Day Special - Usernames who can see the Valentine tile
+const VALENTINE_USERNAMES = ["SuperBata1804", "SuperSelim0606"];
+
 const USERNAME_MODAL_DISMISSED_KEY = "batagames_username_modal_dismissed";
 
 // Helper to get game info from translations
@@ -75,6 +79,12 @@ export default function Page() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
+  const [showValentineModal, setShowValentineModal] = useState(false);
+
+  // Check if current user is the Valentine recipient
+  const isValentineUser = VALENTINE_USERNAMES.some(
+    name => profile?.username?.toLowerCase() === name.toLowerCase()
+  );
 
   const refreshProfile = async () => {
     const p = await getMyProfile();
@@ -299,6 +309,43 @@ export default function Page() {
               </Link>
             );
           })}
+
+          {/* 💕 Valentine's Special Tile - Only for the special user */}
+          {isValentineUser && (
+            <button
+              onClick={() => setShowValentineModal(true)}
+              className={`
+                group relative overflow-hidden rounded-xl p-3 md:p-4
+                backdrop-blur-md bg-gradient-to-br from-pink-950/80 to-rose-950/80
+                border border-pink-500/30 hover:border-pink-400/50
+                hover:scale-[1.02] transition-all duration-300
+                shadow-lg hover:shadow-pink-500/20 hover:shadow-2xl
+                text-left animate-valentine-glow
+              `}
+            >
+              {/* Pink glow */}
+              <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 opacity-40 blur-2xl group-hover:opacity-60 transition-opacity" />
+
+              {/* Content */}
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
+                  <div className="p-2 md:p-2.5 rounded-lg bg-gradient-to-br from-pink-500 to-rose-500">
+                    <Heart className="w-5 h-5 md:w-6 md:h-6 fill-current" />
+                  </div>
+                  <h3 className="text-base md:text-lg font-bold text-pink-100">BatasValentine</h3>
+                </div>
+                <p className="text-xs md:text-sm text-pink-300/80 leading-snug">
+                  Eine besondere Überraschung für mein beeebi 💕
+                </p>
+
+                {/* Open indicator */}
+                <div className="mt-3 md:mt-4 flex items-center gap-1.5 text-xs md:text-sm text-pink-300 group-hover:text-pink-100 transition">
+                  <span className="font-medium">Öffnen</span>
+                  <span className="group-hover:translate-x-0.5 transition-transform">💝</span>
+                </div>
+              </div>
+            </button>
+          )}
         </div>
 
         {/* Info for anonymous users */}
@@ -328,6 +375,12 @@ export default function Page() {
         open={showProfileSettings}
         onClose={() => setShowProfileSettings(false)}
         onProfileUpdate={refreshProfile}
+      />
+
+      {/* 💕 Valentine Modal */}
+      <ValentineModal
+        open={showValentineModal}
+        onClose={() => setShowValentineModal(false)}
       />
     </div>
   );
