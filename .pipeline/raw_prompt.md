@@ -1,0 +1,1 @@
+Bestehendes Projekt aus Git-Repository. Analysiere die Projektstruktur, installiere Dependencies, stelle sicher dass es buildet und lauffähig ist.

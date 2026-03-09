@@ -1,0 +1,1 @@
+Analysiere die Projektstruktur des bestehenden Git-Repositories. Identifiziere den Tech-Stack, Package-Manager und Build-System. Installiere alle Dependencies. Führe den Build-Prozess aus und behebe auftretende Fehler. Starte die Anwendung und verifiziere, dass sie korrekt läuft.
