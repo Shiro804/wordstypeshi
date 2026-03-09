@@ -192,6 +192,18 @@ export const translations = {
       previousAttempts: "Previous Attempts",
     },
 
+    // BatasPairs
+    bataspairs: {
+      name: "BatasPairs",
+      description: "Find all matching pairs",
+      pairsFound: "pairs found",
+      pairsRemaining: "pairs remaining",
+      flips: "Flips",
+      mismatches: "Misses",
+      allPairsFound: "All pairs found!",
+      solvedIn: "Solved in {flips} flips with {mismatches} misses",
+    },
+
     // Leaderboard
     leaderboard: {
       title: "Leaderboard",
@@ -407,6 +419,18 @@ export const translations = {
       perfect: "Perfekte Mischung!",
       almostThere: "Fast geschafft!",
       previousAttempts: "Bisherige Versuche",
+    },
+
+    // BatasPairs
+    bataspairs: {
+      name: "BatasPairs",
+      description: "Finde alle passenden Paare",
+      pairsFound: "Paare gefunden",
+      pairsRemaining: "Paare übrig",
+      flips: "Aufdeckungen",
+      mismatches: "Fehlversuche",
+      allPairsFound: "Alle Paare gefunden!",
+      solvedIn: "Gelöst in {flips} Zügen mit {mismatches} Fehlversuchen",
     },
 
     // Leaderboard

@@ -2,7 +2,7 @@
 
 import Modal from "./Modal";
 
-type GameId = "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors";
+type GameId = "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors" | "bataspairs";
 
 interface HowToPlayProps {
     gameId: GameId;
@@ -391,6 +391,36 @@ const GAME_INSTRUCTIONS: Record<GameId, {
             {
                 heading: "Tips",
                 content: "Every puzzle has a guaranteed 100% solution! Larger segments influence the mix more. Click a filled segment twice to clear it.",
+            },
+        ],
+    },
+    bataspairs: {
+        title: "How to Play BatasPairs",
+        sections: [
+            {
+                heading: "Objective",
+                content: "Find all matching pairs of cards by flipping them two at a time. Match all pairs to win!",
+            },
+            {
+                heading: "How to Play",
+                content: "Tap a card to flip it and reveal the icon. Then tap another card. If both icons match, the pair stays revealed. If not, both cards flip back after a short delay.",
+            },
+            {
+                heading: "Difficulty Levels",
+                content: "",
+                examples: [
+                    { label: <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-xs font-bold">EASY</span>, description: "4×3 grid (6 pairs)" },
+                    { label: <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 text-xs font-bold">MEDIUM</span>, description: "4×4 grid (8 pairs)" },
+                    { label: <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-xs font-bold">HARD</span>, description: "5×4 grid (10 pairs)" },
+                ],
+            },
+            {
+                heading: "Scoring",
+                content: "Score is based on speed and accuracy. Fewer mismatches and faster completion mean higher scores!",
+            },
+            {
+                heading: "Tips",
+                content: "Try to remember card positions. Focus on a few cards at a time rather than randomly flipping. Build a mental map of what you've seen.",
             },
         ],
     },
