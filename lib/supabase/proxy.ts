@@ -47,12 +47,26 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
 
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith("/login") &&
-    !request.nextUrl.pathname.startsWith("/auth")
-  ) {
-    // no user, potentially respond by redirecting the user to the login page
+  // Public routes that don't require authentication
+  const publicRoutes = [
+    "/",           // Homepage (public landing page)
+    "/wordle",     // Game pages are public (anonymous play)
+    "/mastermind",
+    "/wordsearch",
+    "/batasblast",
+    "/robots.txt",
+    "/sitemap.xml",
+    "/manifest.webmanifest",
+  ];
+
+  const isPublicRoute = publicRoutes.some(route =>
+    request.nextUrl.pathname === route ||
+    request.nextUrl.pathname.startsWith("/auth") ||
+    request.nextUrl.pathname.startsWith("/words")  // Word list files
+  );
+
+  if (!user && !isPublicRoute) {
+    // no user and not a public route, redirect to login
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
     return NextResponse.redirect(url);
