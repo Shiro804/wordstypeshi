@@ -241,13 +241,14 @@ export default function Game() {
     // Filter out already-played words
     const availableWords = solutions.filter((word) => !playedWords.has(word.toUpperCase()));
 
+    let a;
     if (availableWords.length === 0) {
       // If all words have been played, reset and pick any word
       showToast("You've played all words! Starting fresh...");
       setPlayedWords(new Set());
-      var a = pickRandom(solutions);
+      a = pickRandom(solutions);
     } else {
-      var a = pickRandom(availableWords);
+      a = pickRandom(availableWords);
     }
 
     setAnswer(a);
