@@ -6,7 +6,6 @@ import GameShell from "@/components/shared/GameShell";
 import GameResultOverlay from "@/components/games/common/GameResultOverlay";
 import Leaderboard from "@/components/games/common/Leaderboard";
 import StatsModal from "@/components/shared/StatsModal";
-import EnglishWordsHint from "@/components/games/common/EnglishWordsHint";
 import { useLanguage } from "@/lib/i18n";
 import {
     wordSearchEngine,

@@ -1,8 +1,6 @@
 "use client";
 
-import { useState } from "react";
 import Modal from "./Modal";
-import { HelpCircle } from "lucide-react";
 
 type GameId = "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors";
 
@@ -50,16 +48,6 @@ const BatasBlastBlock = ({ status }: { status: "filled" | "empty" | "preview" })
         ${status === "empty" ? "bg-zinc-800/50 border-zinc-700" : ""}
         ${status === "preview" ? "bg-gradient-to-br from-amber-400/40 to-orange-500/40 border-orange-400/50 border-dashed" : ""}
     `} />
-);
-
-const BatasColorsPieSegment = ({ color, percentage }: { color: string; percentage: number }) => (
-    <div className="flex items-center gap-2">
-        <div
-            className="h-8 w-8 rounded-lg border-2 border-white/20"
-            style={{ backgroundColor: color }}
-        />
-        <span className="text-sm font-medium text-[color:var(--fg)]">{percentage}%</span>
-    </div>
 );
 
 // Mini pie chart for HowToPlay visualization

@@ -13,7 +13,6 @@ import {
 } from "@/lib/games/batascolors/engine";
 import { batascolorsUIAdapter, type BatasColorsRenderModel } from "@/lib/games/batascolors/ui-adapter";
 import { rgbToHex } from "@/lib/games/batascolors/ruleset";
-import { generateDailySeed } from "@/lib/games/sdk";
 import { loadActiveGame, saveActiveGame } from "@/lib/storage/active-game-storage";
 import { loadDifficulty, saveDifficulty } from "@/lib/storage/settings-storage";
 import type { Difficulty } from "@/lib/difficulty";
@@ -243,11 +242,6 @@ function AttemptHistory({ attempts, palette }: AttemptHistoryProps) {
                     : attempt.accuracy >= 70
                         ? 'ring-yellow-400'
                         : 'ring-rose-400';
-                const textColor = attempt.accuracy >= 90
-                    ? 'text-emerald-400'
-                    : attempt.accuracy >= 70
-                        ? 'text-yellow-400'
-                        : 'text-rose-400';
 
                 return (
                     <div
@@ -441,7 +435,7 @@ export default function BatasColorsGame({ initialMode }: BatasColorsGameProps) {
             });
             setSessionId(session?.id ?? null);
         }
-    }, [mode, params, userId, difficulty, timer]);
+    }, [params, userId, difficulty, timer]);
 
     const forfeitCurrentGame = useCallback(async () => {
         if (!gameState) return;

@@ -41,7 +41,7 @@ const difficultyColors: Record<Difficulty, string> = {
 export default function Settings({
   open,
   onClose,
-  gameId,
+  gameId: _gameId,
   preferences,
   onPreferencesChange,
   difficulty,

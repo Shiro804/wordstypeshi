@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import { RotateCcw, Flame, Zap, Sparkles, X } from "lucide-react";
+import { Flame, Zap, Sparkles, X } from "lucide-react";
 import GameShell from "@/components/shared/GameShell";
 import GameResultOverlay from "@/components/games/common/GameResultOverlay";
 import FloatingGameOver from "@/components/games/common/FloatingGameOver";
@@ -556,7 +556,7 @@ export default function BatasBlastGame() {
     const [hoverOrigin, setHoverOrigin] = useState<{ r: number; c: number } | null>(null);
     const [ghostPosition, setGhostPosition] = useState<{ x: number; y: number } | null>(null);
     const [showBlast, setShowBlast] = useState(false);
-    const [lastClearedLines, setLastClearedLines] = useState<number>(0);
+    const [, setLastClearedLines] = useState<number>(0);
 
     // Color tracking: -1 = empty, 0+ = tray color index
     const [colorBoard, setColorBoard] = useState<number[][]>(() =>

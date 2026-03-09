@@ -1,9 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { 
-  wordSearchEngine, 
+import {
+  wordSearchEngine,
   getModeParams,
-  type WordSearchParams,
-  type SelectPathAction 
+  type SelectPathAction
 } from '../engine';
 
 describe('wordSearchEngine', () => {

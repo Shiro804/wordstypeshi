@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import type { GamePreferences } from "@/lib/storage/preferences-storage";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/lib/i18n";

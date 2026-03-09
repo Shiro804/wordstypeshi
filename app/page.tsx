@@ -74,7 +74,7 @@ const getGameInfo = (gameId: string, t: ReturnType<typeof useLanguage>['t']) => 
 
 export default function Page() {
   const router = useRouter();
-  const { language, setLanguage, t } = useLanguage();
+  const { t } = useLanguage();
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [showUsernameModal, setShowUsernameModal] = useState(false);

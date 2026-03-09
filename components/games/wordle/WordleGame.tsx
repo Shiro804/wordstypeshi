@@ -2,8 +2,8 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { RotateCcw, Skull, CheckCircle2, Book } from "lucide-react";
-import { marksToEmoji, pickRandom, scoreGuess } from "@/lib/game";
+import { RotateCcw, Skull, CheckCircle2 } from "lucide-react";
+import { marksToEmoji, pickRandom, scoreGuess, type Mark } from "@/lib/game";
 import { loadWordLists } from "@/lib/words";
 import type { Difficulty } from "@/lib/difficulty";
 import { loadDifficulty, saveDifficulty } from "@/lib/storage/settings-storage";
@@ -50,7 +50,7 @@ interface WordleState {
 export default function WordleGame() {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const keyboardRef = useRef<HTMLDivElement | null>(null);
-    const [keyboardHeight, setKeyboardHeight] = useState(0);
+    const [, setKeyboardHeight] = useState(0);
 
 
     const [difficulty, setDifficulty] = useState<Difficulty>(() => loadDifficulty());
@@ -351,8 +351,8 @@ export default function WordleGame() {
     }, [startedAtMs, nowMs, endedAtMs]);
 
     const keyMarks = useMemo(() => {
-        const best: Record<string, any> = {};
-        const rank = (m: any) => (m === "correct" ? 3 : m === "present" ? 2 : 1);
+        const best: Record<string, Mark> = {};
+        const rank = (m: Mark) => (m === "correct" ? 3 : m === "present" ? 2 : 1);
 
         for (const r of rows) {
             if (!r.marks) continue;
@@ -587,7 +587,7 @@ export default function WordleGame() {
             if (difficulty === "easy" && hintUsed) {
                 setStats(applyGameResult(stats, { outcome: "lose", durationSec }));
             } else {
-                setStats(applyGameResult(stats, { outcome: "win", guessesUsed: (idx + 1) as any, durationSec }));
+                setStats(applyGameResult(stats, { outcome: "win", guessesUsed: (idx + 1) as 1|2|3|4|5|6, durationSec }));
             }
             if (userId) void trackPlayedWord(userId, difficulty, answer);
         } else if (lost) {

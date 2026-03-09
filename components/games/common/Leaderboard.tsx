@@ -309,7 +309,7 @@ export default function Leaderboard({ open, onClose, gameId }: Props) {
             stats: r.stats,
             updated_at: r.updated_at ?? null,
             username: u?.username ?? null,
-            avatar_path: (u as any)?.avatar_path ?? null,
+            avatar_path: ((u as Record<string, unknown>)?.avatar_path as string) ?? null,
           };
         });
 

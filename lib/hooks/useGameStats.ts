@@ -5,7 +5,6 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
 import type { Stats } from "@/lib/storage/storage";
 import { applyGameResult, type GameResult } from "@/lib/storage/storage";
 import {
@@ -34,22 +33,6 @@ export interface UseGameStatsReturn {
   recordGameResult: (result: GameResult) => void;
   /** Force sync with remote */
   forceSync: () => Promise<void>;
-}
-
-function defaultStats(): Stats {
-  return {
-    played: 0,
-    wins: 0,
-    losses: 0,
-    currentStreak: 0,
-    maxStreak: 0,
-    distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
-    bestTimeSec: null,
-    avgTimeSec: null,
-    lastTimesSec: [],
-    bestScore: null,
-    updatedAt: Date.now(),
-  };
 }
 
 export function useGameStats({ gameId, mode }: UseGameStatsOptions): UseGameStatsReturn {

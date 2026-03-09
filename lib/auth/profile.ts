@@ -4,7 +4,7 @@ export type UserProfile = {
   id: string;
   username: string | null;
   avatar_path: string | null;
-  preferences: Record<string, any>;
+  preferences: Record<string, unknown>;
 };
 
 export async function getMyProfile(): Promise<UserProfile | null> {
@@ -25,15 +25,15 @@ export async function getMyProfile(): Promise<UserProfile | null> {
   return {
     id: data.id,
     username: data.username ?? null,
-    avatar_path: (data as any).avatar_path ?? null,
-    preferences: (data as any).preferences ?? {},
+    avatar_path: ((data as Record<string, unknown>).avatar_path as string) ?? null,
+    preferences: (data as Record<string, unknown>).preferences as Record<string, unknown> ?? {},
   };
 }
 
 export async function upsertMyProfile(profile: {
   username: string | null;
   avatar_path?: string | null;
-  preferences?: Record<string, any>;
+  preferences?: Record<string, unknown>;
 }): Promise<void> {
   const supabase = createClient();
   const { data: auth } = await supabase.auth.getUser();
@@ -42,7 +42,7 @@ export async function upsertMyProfile(profile: {
 
   const username = profile.username?.trim() ? profile.username.trim() : null;
 
-  const updates: any = {
+  const updates: Record<string, unknown> = {
     id: user.id,
     username,
   };

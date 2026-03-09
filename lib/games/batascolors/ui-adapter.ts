@@ -5,7 +5,7 @@
  */
 
 import type { UIAdapter, RenderModel, InputConfig } from '../sdk/types';
-import type { BatasColorsState, Attempt } from './engine';
+import type { BatasColorsState } from './engine';
 import { rgbToHex, type RGB } from './ruleset';
 
 // ============================================================================

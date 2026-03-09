@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import { Trophy, X, CheckCircle2, RotateCcw } from "lucide-react";
+import { useState, useCallback, useMemo, useEffect } from "react";
+import { X, CheckCircle2, RotateCcw } from "lucide-react";
 import GameShell from "@/components/shared/GameShell";
 import GameResultOverlay from "@/components/games/common/GameResultOverlay";
 import FloatingGameOver from "@/components/games/common/FloatingGameOver";
@@ -21,7 +21,7 @@ import { createOrReuseActiveSession, endSession } from "@/lib/sync/sessions-sync
 import { trackGuess } from "@/lib/sync/game-guesses-sync";
 import Leaderboard from "@/components/games/common/Leaderboard";
 import StatsModal from "@/components/shared/StatsModal";
-import { type Stats, applyGameResult, formatDuration } from "@/lib/storage/storage";
+import { type Stats, applyGameResult } from "@/lib/storage/storage";
 import { useGameTimer } from "@/lib/hooks/useGameTimer";
 import Modal from "../common/Modal";
 import { useLanguage } from "@/lib/i18n";

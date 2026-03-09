@@ -203,7 +203,7 @@ function TimerBadge({ text }: { text: string }) {
 
 export default function GameShell({
     gameId,
-    gameName,
+    gameName: _gameName,
     onNewGame,
     difficulty,
     onDifficultyChange,

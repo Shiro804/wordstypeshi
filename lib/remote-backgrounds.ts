@@ -39,7 +39,7 @@ export async function uploadRemoteBackground(file: File, gameId: string): Promis
   const preferences = profile?.preferences || {};
   
   // Ensure 'backgrounds' object exists
-  const backgrounds = preferences.backgrounds || {};
+  const backgrounds = (preferences.backgrounds || {}) as Record<string, string>;
   backgrounds[gameId] = publicUrl;
 
   // Save back
@@ -59,7 +59,7 @@ export async function clearRemoteBackground(gameId: string): Promise<void> {
   if (!profile) return;
 
   const preferences = profile.preferences || {};
-  const backgrounds = preferences.backgrounds || {};
+  const backgrounds = (preferences.backgrounds || {}) as Record<string, string>;
 
   if (backgrounds[gameId]) {
     delete backgrounds[gameId];
@@ -76,6 +76,7 @@ export async function clearRemoteBackground(gameId: string): Promise<void> {
  */
 export async function fetchRemoteBackground(gameId: string): Promise<string | null> {
   const profile = await getMyProfile();
-  if (!profile?.preferences?.backgrounds) return null;
-  return profile.preferences.backgrounds[gameId] || null;
+  const backgrounds = profile?.preferences?.backgrounds as Record<string, string> | undefined;
+  if (!backgrounds) return null;
+  return backgrounds[gameId] || null;
 }

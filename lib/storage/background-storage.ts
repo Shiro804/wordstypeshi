@@ -85,7 +85,7 @@ export async function setCustomBackground(file: File, gameId?: string): Promise<
         try {
           localStorage.setItem(getStorageKey(gameId), compressed);
           resolve(compressed);
-        } catch (e) {
+        } catch {
           reject(new Error("Image too large for storage. Try a smaller image."));
         }
       };
