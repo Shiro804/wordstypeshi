@@ -309,6 +309,7 @@ export default function GameShell({
                         {gameId === 'wordsearch' && 'SEARCH'}
                         {gameId === 'batasblast' && 'BLAST'}
                         {gameId === 'batascolors' && 'COLORS'}
+                        {gameId === 'bataspairs' && 'PAIRS'}
                     </span>
                 </div>
 
