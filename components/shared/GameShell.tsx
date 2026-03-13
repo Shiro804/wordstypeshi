@@ -354,7 +354,7 @@ export default function GameShell({
 
             {/* How to Play Modal (shared across all games) */}
             <HowToPlay
-                gameId={gameId as "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors"}
+                gameId={gameId as "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors" | "bataspairs"}
                 isOpen={howToPlayOpen}
                 onClose={() => setHowToPlayOpen(false)}
             />
