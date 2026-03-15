@@ -216,6 +216,14 @@ export const translations = {
       hitMine: "You hit a mine!",
     },
 
+    // BatasFlow
+    batasflow: {
+      name: "BatasFlow",
+      description: "Connect pairs of colored dots",
+      flowsConnected: "flows connected",
+      solvedIn: "Solved with {moves} moves ({flows} flows)",
+    },
+
     // Leaderboard
     leaderboard: {
       title: "Leaderboard",
@@ -456,6 +464,14 @@ export const translations = {
       flagModeOff: "Flaggen-Modus (aus)",
       solvedIn: "{cells} Felder in {time} geräumt",
       hitMine: "Du hast eine Mine getroffen!",
+    },
+
+    // BatasFlow
+    batasflow: {
+      name: "BatasFlow",
+      description: "Verbinde farbige Punktepaare",
+      flowsConnected: "Flows verbunden",
+      solvedIn: "Gelöst mit {moves} Zügen ({flows} Flows)",
     },
 
     // Leaderboard

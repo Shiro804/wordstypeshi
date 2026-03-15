@@ -311,6 +311,7 @@ export default function GameShell({
                         {gameId === 'batascolors' && 'COLORS'}
                         {gameId === 'bataspairs' && 'PAIRS'}
                         {gameId === 'batasmine' && 'MINE'}
+                        {gameId === 'batasflow' && 'FLOW'}
                     </span>
                 </div>
 
@@ -355,7 +356,7 @@ export default function GameShell({
 
             {/* How to Play Modal (shared across all games) */}
             <HowToPlay
-                gameId={gameId as "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors" | "bataspairs" | "batasmine"}
+                gameId={gameId as "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors" | "bataspairs" | "batasmine" | "batasflow"}
                 isOpen={howToPlayOpen}
                 onClose={() => setHowToPlayOpen(false)}
             />

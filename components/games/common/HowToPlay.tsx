@@ -2,7 +2,7 @@
 
 import Modal from "./Modal";
 
-type GameId = "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors" | "bataspairs" | "batasmine";
+type GameId = "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors" | "bataspairs" | "batasmine" | "batasflow";
 
 interface HowToPlayProps {
     gameId: GameId;
@@ -431,6 +431,50 @@ const GAME_INSTRUCTIONS: Record<GameId, {
             {
                 heading: "Tips",
                 content: "The first click is always safe! Use the flag button or long-press to mark mines. Count carefully – the numbers are your best clue.",
+            },
+        ],
+    },
+    batasflow: {
+        title: "How to Play BatasFlow",
+        sections: [
+            {
+                heading: "Objective",
+                content: "Connect pairs of colored dots by drawing paths. Fill the entire grid to win!",
+            },
+            {
+                heading: "How to Play",
+                content: "Tap a colored dot to start drawing a path. Drag to adjacent cells to extend the path toward the matching dot. Release to finish. Paths cannot cross or overlap.",
+                examples: [
+                    {
+                        label: <div className="w-8 h-8 rounded-full bg-red-500 shadow-lg shadow-red-500/40" />,
+                        description: "Colored dot – tap to start a path"
+                    },
+                    {
+                        label: <div className="w-8 h-8 rounded-md bg-blue-500/80 animate-pulse" />,
+                        description: "Active path – currently drawing"
+                    },
+                    {
+                        label: <div className="w-8 h-8 rounded-md bg-green-500" />,
+                        description: "Completed path – flow connected"
+                    },
+                ],
+            },
+            {
+                heading: "Tap to Clear",
+                content: "Tap on any existing path cell to clear that flow and try a different route.",
+            },
+            {
+                heading: "Difficulty Levels",
+                content: "",
+                examples: [
+                    { label: <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-xs font-bold">EASY</span>, description: "5×5 grid, 5 flows" },
+                    { label: <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 text-xs font-bold">MEDIUM</span>, description: "7×7 grid, 7 flows" },
+                    { label: <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-xs font-bold">HARD</span>, description: "9×9 grid, 9 flows" },
+                ],
+            },
+            {
+                heading: "Tips",
+                content: "Start with flows whose dots are close together or at the edges. Every cell must be filled – no empty spaces allowed!",
             },
         ],
     },
