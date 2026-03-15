@@ -81,7 +81,152 @@ function getNeighbors(pos: number, rows: number, cols: number): number[] {
 }
 
 /**
+ * Build a grid from mine positions, computing adjacency counts.
+ */
+function buildGrid(
+  total: number,
+  rows: number,
+  cols: number,
+  minePositions: Set<number>
+): Cell[] {
+  const grid: Cell[] = Array.from({ length: total }, (_, i) => ({
+    hasMine: minePositions.has(i),
+    adjacentMines: 0,
+    state: 'hidden' as CellState,
+  }));
+
+  for (let i = 0; i < total; i++) {
+    if (grid[i].hasMine) continue;
+    const neighbors = getNeighbors(i, rows, cols);
+    grid[i].adjacentMines = neighbors.filter(n => grid[n].hasMine).length;
+  }
+
+  return grid;
+}
+
+/**
+ * Generate mine positions using Fisher-Yates shuffle with a seeded random,
+ * avoiding the safe zone (first click + neighbors).
+ */
+function generateMinePositions(
+  random: () => number,
+  total: number,
+  numMines: number,
+  excluded: Set<number>
+): Set<number> {
+  const candidates: number[] = [];
+  for (let i = 0; i < total; i++) {
+    if (!excluded.has(i)) candidates.push(i);
+  }
+
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+
+  return new Set(candidates.slice(0, numMines));
+}
+
+/**
+ * Constraint-based solver that simulates logical Minesweeper play.
+ * Returns true if the board is fully solvable without guessing from safePos.
+ */
+function isSolvableWithoutGuessing(
+  grid: Cell[],
+  rows: number,
+  cols: number,
+  safePos: number
+): boolean {
+  const total = rows * cols;
+  const totalSafe = total - grid.filter(c => c.hasMine).length;
+
+  // Solver state: track which cells are revealed/flagged during simulation
+  const revealed = new Array<boolean>(total).fill(false);
+  const flagged = new Array<boolean>(total).fill(false);
+
+  // Initial flood-fill from safePos (same logic as floodReveal)
+  const revealStack = [safePos];
+  while (revealStack.length > 0) {
+    const p = revealStack.pop()!;
+    if (revealed[p] || grid[p].hasMine) continue;
+    revealed[p] = true;
+
+    if (grid[p].adjacentMines === 0) {
+      for (const n of getNeighbors(p, rows, cols)) {
+        if (!revealed[n] && !grid[n].hasMine) {
+          revealStack.push(n);
+        }
+      }
+    }
+  }
+
+  // Iteratively apply constraint-based deductions
+  let changed = true;
+  while (changed) {
+    changed = false;
+
+    for (let i = 0; i < total; i++) {
+      if (!revealed[i]) continue;
+      if (grid[i].adjacentMines === 0) continue;
+
+      const neighbors = getNeighbors(i, rows, cols);
+      const hiddenNeighbors: number[] = [];
+      let flagCount = 0;
+
+      for (const n of neighbors) {
+        if (flagged[n]) {
+          flagCount++;
+        } else if (!revealed[n]) {
+          hiddenNeighbors.push(n);
+        }
+      }
+
+      if (hiddenNeighbors.length === 0) continue;
+
+      const mineCount = grid[i].adjacentMines;
+
+      // Rule 1: all remaining hidden neighbors are mines
+      if (mineCount - flagCount === hiddenNeighbors.length) {
+        for (const n of hiddenNeighbors) {
+          flagged[n] = true;
+          changed = true;
+        }
+      }
+
+      // Rule 2: all mines accounted for, remaining hidden neighbors are safe
+      if (mineCount === flagCount && hiddenNeighbors.length > 0) {
+        for (const n of hiddenNeighbors) {
+          if (grid[n].hasMine) continue; // shouldn't happen in valid board
+          if (!revealed[n]) {
+            // Reveal and flood-fill if zero
+            const stack = [n];
+            while (stack.length > 0) {
+              const p = stack.pop()!;
+              if (revealed[p] || grid[p].hasMine) continue;
+              revealed[p] = true;
+              changed = true;
+
+              if (grid[p].adjacentMines === 0) {
+                for (const nb of getNeighbors(p, rows, cols)) {
+                  if (!revealed[nb] && !grid[nb].hasMine) {
+                    stack.push(nb);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const revealedCount = revealed.filter(Boolean).length;
+  return revealedCount >= totalSafe;
+}
+
+/**
  * Place mines on the grid, avoiding the first-click position and its neighbors.
+ * Uses a solver-backed generator to ensure boards are solvable without guessing.
  */
 function placeMines(
   seed: string,
@@ -91,40 +236,24 @@ function placeMines(
   safePos: number
 ): Cell[] {
   const total = rows * cols;
-  const random = createSeededRandom(seed);
-
-  // Positions to exclude (first click + neighbors)
   const excluded = new Set<number>([safePos, ...getNeighbors(safePos, rows, cols)]);
+  const maxAttempts = 100;
 
-  // Collect candidate positions
-  const candidates: number[] = [];
-  for (let i = 0; i < total; i++) {
-    if (!excluded.has(i)) candidates.push(i);
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const attemptSeed = attempt === 0 ? seed : seed + '_retry_' + attempt;
+    const random = createSeededRandom(attemptSeed);
+    const minePositions = generateMinePositions(random, total, numMines, excluded);
+    const grid = buildGrid(total, rows, cols, minePositions);
+
+    if (isSolvableWithoutGuessing(grid, rows, cols, safePos)) {
+      return grid;
+    }
   }
 
-  // Fisher-Yates to pick mine positions
-  for (let i = candidates.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
-  }
-
-  const minePositions = new Set(candidates.slice(0, numMines));
-
-  // Build grid
-  const grid: Cell[] = Array.from({ length: total }, (_, i) => ({
-    hasMine: minePositions.has(i),
-    adjacentMines: 0,
-    state: 'hidden' as CellState,
-  }));
-
-  // Calculate adjacent mine counts
-  for (let i = 0; i < total; i++) {
-    if (grid[i].hasMine) continue;
-    const neighbors = getNeighbors(i, rows, cols);
-    grid[i].adjacentMines = neighbors.filter(n => grid[n].hasMine).length;
-  }
-
-  return grid;
+  // Fallback: return the last generated board (should rarely happen)
+  const fallbackRandom = createSeededRandom(seed);
+  const fallbackMines = generateMinePositions(fallbackRandom, total, numMines, excluded);
+  return buildGrid(total, rows, cols, fallbackMines);
 }
 
 /**
