@@ -61,17 +61,38 @@ function ensureMaps(state: BatasFlowState): BatasFlowState {
   if (state.paths instanceof Map && state.completedFlows instanceof Set) {
     return state;
   }
-  return {
-    ...state,
-    paths: state.paths instanceof Map
-      ? state.paths
-      : new Map(Object.entries(state.paths as unknown as Record<string, PathCell[]>).map(
-          ([k, v]) => [Number(k), v]
-        )),
-    completedFlows: state.completedFlows instanceof Set
-      ? state.completedFlows
-      : new Set(state.completedFlows as unknown as number[]),
-  };
+  // After JSON round-trip, Map becomes {} or {__mapEntries: [...]}, Set becomes {} or {__setValues: [...]}
+  const rawPaths = state.paths as unknown;
+  const rawCompleted = state.completedFlows as unknown;
+
+  let paths: Map<number, PathCell[]>;
+  if (rawPaths instanceof Map) {
+    paths = rawPaths;
+  } else if (
+    rawPaths && typeof rawPaths === 'object' && '__mapEntries' in rawPaths && Array.isArray((rawPaths as { __mapEntries: unknown }).__mapEntries)
+  ) {
+    paths = new Map((rawPaths as { __mapEntries: [number, PathCell[]][] }).__mapEntries);
+  } else if (rawPaths && typeof rawPaths === 'object') {
+    const entries = Object.entries(rawPaths as Record<string, PathCell[]>);
+    paths = new Map(entries.filter(([, v]) => Array.isArray(v)).map(([k, v]) => [Number(k), v]));
+  } else {
+    paths = new Map();
+  }
+
+  let completedFlows: Set<number>;
+  if (rawCompleted instanceof Set) {
+    completedFlows = rawCompleted;
+  } else if (
+    rawCompleted && typeof rawCompleted === 'object' && '__setValues' in rawCompleted && Array.isArray((rawCompleted as { __setValues: unknown }).__setValues)
+  ) {
+    completedFlows = new Set((rawCompleted as { __setValues: number[] }).__setValues);
+  } else if (Array.isArray(rawCompleted)) {
+    completedFlows = new Set(rawCompleted);
+  } else {
+    completedFlows = new Set();
+  }
+
+  return { ...state, paths, completedFlows };
 }
 
 // ============================================================================

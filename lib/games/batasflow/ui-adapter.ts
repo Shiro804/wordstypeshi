@@ -76,20 +76,39 @@ function toRenderModel(state: BatasFlowState): BatasFlowRenderModel {
 
   // Build set of completed path cells
   const completedPathCells = new Set<string>();
-  const paths = state.paths instanceof Map
-    ? state.paths
-    : new Map(Object.entries(state.paths as unknown as Record<string, { row: number; col: number }[]>).map(
-        ([k, v]) => [Number(k), v]
-      ));
+  let paths: Map<number, { row: number; col: number }[]>;
+  if (state.paths instanceof Map) {
+    paths = state.paths;
+  } else {
+    const raw = state.paths as unknown;
+    if (raw && typeof raw === 'object' && '__mapEntries' in raw && Array.isArray((raw as { __mapEntries: unknown }).__mapEntries)) {
+      paths = new Map((raw as { __mapEntries: [number, { row: number; col: number }[]][] }).__mapEntries);
+    } else if (raw && typeof raw === 'object') {
+      const entries = Object.entries(raw as Record<string, { row: number; col: number }[]>);
+      paths = new Map(entries.filter(([, v]) => Array.isArray(v)).map(([k, v]) => [Number(k), v]));
+    } else {
+      paths = new Map();
+    }
+  }
   for (const [, path] of paths) {
     for (const cell of path) {
       completedPathCells.add(`${cell.row},${cell.col}`);
     }
   }
 
-  const completedFlows = state.completedFlows instanceof Set
-    ? state.completedFlows
-    : new Set(state.completedFlows as unknown as number[]);
+  let completedFlows: Set<number>;
+  if (state.completedFlows instanceof Set) {
+    completedFlows = state.completedFlows;
+  } else {
+    const raw = state.completedFlows as unknown;
+    if (raw && typeof raw === 'object' && '__setValues' in raw && Array.isArray((raw as { __setValues: unknown }).__setValues)) {
+      completedFlows = new Set((raw as { __setValues: number[] }).__setValues);
+    } else if (Array.isArray(raw)) {
+      completedFlows = new Set(raw);
+    } else {
+      completedFlows = new Set();
+    }
+  }
 
   // Build 2D render grid
   const grid: FlowCellRenderData[][] = [];

@@ -162,6 +162,10 @@ export function saveActiveGame<T extends { startedAtMs: number }>(
       savedAtMs: Date.now(),
       v: 2,
     };
-    window.localStorage.setItem(key, JSON.stringify(wrapper));
+    window.localStorage.setItem(key, JSON.stringify(wrapper, (_k, v) => {
+      if (v instanceof Map) return { __mapEntries: Array.from(v.entries()) };
+      if (v instanceof Set) return { __setValues: Array.from(v) };
+      return v;
+    }));
   }
 }
