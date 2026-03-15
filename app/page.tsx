@@ -73,7 +73,7 @@ const GAMES = [
     id: "batasflow" as const,
     icon: Route,
     href: "/batasflow",
-    color: "from-cyan-500 to-blue-600",
+    color: "from-teal-500 to-emerald-600",
     enabled: true,
   },
 ];

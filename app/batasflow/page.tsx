@@ -2,12 +2,12 @@ import { Metadata } from 'next';
 import BatasFlowGame from "@/components/games/batasflow/BatasFlowGame";
 
 export const metadata: Metadata = {
-    title: 'BatasFlow – Verbinde farbige Punkte',
-    description: 'Verbinde farbige Punktepaare durch Pfade, die das gesamte Spielfeld ausfüllen – komplett werbefrei.',
-    keywords: ['Flow Puzzle', 'Verbindungsspiel', 'Logikspiel', 'Punkte verbinden', 'kostenlos', 'werbefrei'],
+    title: 'BatasFlow - Connect the Dots | BataGames',
+    description: 'Connect matching colored dots by drawing paths. Fill the entire grid in this flow free puzzle game – completely ad-free.',
+    keywords: ['flow free puzzle', 'connect dots', 'path puzzle', 'logic game', 'free', 'ad-free', 'BatasFlow'],
     openGraph: {
-        title: 'BatasFlow – Verbinde farbige Punkte',
-        description: 'Verbinde farbige Punktepaare durch Pfade!',
+        title: 'BatasFlow - Connect the Dots | BataGames',
+        description: 'Connect matching colored dots by drawing paths. Fill the entire grid!',
         images: ['/og-batasflow.png'],
         type: 'website',
     },

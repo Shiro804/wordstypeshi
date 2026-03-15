@@ -219,9 +219,12 @@ export const translations = {
     // BatasFlow
     batasflow: {
       name: "BatasFlow",
-      description: "Connect pairs of colored dots",
-      flowsConnected: "flows connected",
-      solvedIn: "Solved with {moves} moves ({flows} flows)",
+      description: "Connect matching dots",
+      flowsConnected: "Flows connected",
+      flowsRemaining: "Flows remaining",
+      cellsFilled: "Cells filled",
+      allFlowsConnected: "All flows connected!",
+      solvedIn: "Solved in {moves} moves",
     },
 
     // Leaderboard
@@ -469,9 +472,12 @@ export const translations = {
     // BatasFlow
     batasflow: {
       name: "BatasFlow",
-      description: "Verbinde farbige Punktepaare",
+      description: "Verbinde passende Punkte",
       flowsConnected: "Flows verbunden",
-      solvedIn: "Gelöst mit {moves} Zügen ({flows} Flows)",
+      flowsRemaining: "Flows übrig",
+      cellsFilled: "Zellen gefüllt",
+      allFlowsConnected: "Alle Flows verbunden!",
+      solvedIn: "Gelöst in {moves} Zügen",
     },
 
     // Leaderboard
