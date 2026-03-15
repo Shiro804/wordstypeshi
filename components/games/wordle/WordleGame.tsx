@@ -90,6 +90,7 @@ export default function WordleGame() {
     const [wordDefinition, setWordDefinition] = useState<WordDefinition | null>(null);
     const [isWordDefinitionLoading, setIsWordDefinitionLoading] = useState(false);
     const [definitionPopupOpen, setDefinitionPopupOpen] = useState(false);
+    const [showGameOverOverlay, setShowGameOverOverlay] = useState(false);
 
     const theme = "dark" as const;
 
@@ -259,6 +260,15 @@ export default function WordleGame() {
         const lost = committedCount >= MAX_TRIES && !won;
         return { won, lost, done: won || lost };
     }, [rows, committedCount]);
+
+    // Show overlay when game ends
+    useEffect(() => {
+        if (gameOver.done) {
+            setShowGameOverOverlay(true);
+        } else {
+            setShowGameOverOverlay(false);
+        }
+    }, [gameOver.done]);
 
     useEffect(() => {
         const handleVisibility = () => {
@@ -677,9 +687,9 @@ export default function WordleGame() {
             difficulty={difficulty}
             onDifficultyChange={requestDifficultyChange}
             timerText={formatDuration(Math.round(durationSec))}
-            onOpenStats={() => setStatsOpen(true)}
+            onOpenStats={() => { setShowGameOverOverlay(false); setStatsOpen(true); }}
             onOpenWordHistory={() => setWordHistoryOpen(true)}
-            onOpenLeaderboard={() => setLeaderboardOpen(true)}
+            onOpenLeaderboard={() => { setShowGameOverOverlay(false); setLeaderboardOpen(true); }}
             fullHeight={true}
             hintSlot={
                 !gameOver.done && answer ? (
@@ -820,12 +830,12 @@ export default function WordleGame() {
 
             {/* Game Result Overlay */}
             <GameResultOverlay
-                open={gameOver.done}
+                open={showGameOverOverlay}
                 outcome={gameOver.won ? 'win' : 'lose'}
                 title={gameOver.won ? 'You Won!' : 'Game Over'}
                 subtitle={gameOver.won ? `Solved in ${committedCount} tries` : undefined}
                 onPlayAgain={newGame}
-                onOpenStats={() => setStatsOpen(true)}
+                onOpenStats={() => { setShowGameOverOverlay(false); setStatsOpen(true); }}
                 playAgainLabel="New Game"
             >
                 {/* Answer */}

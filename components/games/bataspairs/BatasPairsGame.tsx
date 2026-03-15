@@ -409,8 +409,8 @@ export default function BatasPairsGame() {
             gameId={GAME_ID}
             gameName="BatasPairs"
             onNewGame={requestReset}
-            onOpenLeaderboard={() => setLeaderboardOpen(true)}
-            onOpenStats={() => setStatsOpen(true)}
+            onOpenLeaderboard={() => { setShowGameOverOverlay(false); setLeaderboardOpen(true); }}
+            onOpenStats={() => { setShowGameOverOverlay(false); setStatsOpen(true); }}
             difficulty={difficulty}
             onDifficultyChange={requestDifficultyChange}
             timerText={timer.timerText}
@@ -492,7 +492,7 @@ export default function BatasPairsGame() {
                     .replace('{flips}', String(data.totalFlips))
                     .replace('{mismatches}', String(data.mismatches))}
                 onPlayAgain={initGame}
-                onOpenStats={() => setStatsOpen(true)}
+                onOpenStats={() => { setShowGameOverOverlay(false); setStatsOpen(true); }}
             />
 
             <Modal open={confirmResetOpen} title={t.modals.resetTitle} onClose={() => setConfirmResetOpen(false)} footer={

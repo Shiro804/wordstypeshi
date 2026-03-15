@@ -475,8 +475,8 @@ export default function BatasMineGame() {
             gameId={GAME_ID}
             gameName="BatasMine"
             onNewGame={requestReset}
-            onOpenLeaderboard={() => setLeaderboardOpen(true)}
-            onOpenStats={() => setStatsOpen(true)}
+            onOpenLeaderboard={() => { setShowGameOverOverlay(false); setLeaderboardOpen(true); }}
+            onOpenStats={() => { setShowGameOverOverlay(false); setStatsOpen(true); }}
             difficulty={difficulty}
             onDifficultyChange={requestDifficultyChange}
             timerText={timer.timerText}
@@ -576,7 +576,7 @@ export default function BatasMineGame() {
                         .replace('{time}', timer.timerText)
                     : t.batasmine.hitMine}
                 onPlayAgain={initGame}
-                onOpenStats={() => setStatsOpen(true)}
+                onOpenStats={() => { setShowGameOverOverlay(false); setStatsOpen(true); }}
             />
 
             <Modal open={confirmResetOpen} title={t.modals.resetTitle} onClose={() => setConfirmResetOpen(false)} footer={

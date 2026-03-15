@@ -136,6 +136,7 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
     const [playedWords, setPlayedWords] = useState<Set<string>>(new Set());
     const [wordList, setWordList] = useState<string[]>([]);
     const [isLoadingWords, setIsLoadingWords] = useState(true);
+    const [showGameOverOverlay, setShowGameOverOverlay] = useState(false);
 
     // Use shared hooks
     const timer = useGameTimer({ pauseOnHidden: true });
@@ -342,6 +343,15 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
         }
     }, [renderModel?.isTerminal, renderModel?.status, gameCompletedTracked, timer, recordGameResult, gameState?.foundCount, sessionId, userId, difficulty, gameState]);
 
+    // Show overlay when game ends
+    useEffect(() => {
+        if (renderModel?.isTerminal) {
+            setShowGameOverOverlay(true);
+        } else {
+            setShowGameOverOverlay(false);
+        }
+    }, [renderModel?.isTerminal]);
+
     // Get selected cells
     const selectedCells = useMemo(() => {
         if (!selectionStart || !selectionEnd) return new Set<string>();
@@ -503,8 +513,8 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
             difficulty={difficulty}
             onDifficultyChange={requestDifficultyChange}
             timerText={timer.timerText}
-            onOpenStats={() => setStatsOpen(true)}
-            onOpenLeaderboard={() => setLeaderboardOpen(true)}
+            onOpenStats={() => { setShowGameOverOverlay(false); setStatsOpen(true); }}
+            onOpenLeaderboard={() => { setShowGameOverOverlay(false); setLeaderboardOpen(true); }}
             fullHeight={true}
             actionsSlot={
                 isInProgress ? (
@@ -612,12 +622,12 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
 
             {/* Game Result Overlay */}
             <GameResultOverlay
-                open={renderModel.isTerminal}
+                open={showGameOverOverlay}
                 outcome="win"
                 title={t.wordsearch.done}
                 subtitle={`${t.wordsearch.allWordsFound} (${data?.totalWords ?? 0})`}
                 onPlayAgain={initGame}
-                onOpenStats={() => setStatsOpen(true)}
+                onOpenStats={() => { setShowGameOverOverlay(false); setStatsOpen(true); }}
             />
 
             {/* Confirm Reset Modal */}

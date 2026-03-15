@@ -1120,8 +1120,8 @@ export default function BatasBlastGame() {
             gameId={GAME_ID}
             gameName="BatasBlast"
             onNewGame={requestReset}
-            onOpenLeaderboard={() => setLeaderboardOpen(true)}
-            onOpenStats={() => setStatsOpen(true)}
+            onOpenLeaderboard={() => { setShowGameOverOverlay(false); setLeaderboardOpen(true); }}
+            onOpenStats={() => { setShowGameOverOverlay(false); setStatsOpen(true); }}
             fullHeight={true}
         >
             {/* Floating ghost that follows finger */}
@@ -1331,7 +1331,7 @@ export default function BatasBlastGame() {
                 title={t.batasblast.gameOver}
                 subtitle={t.batasblast.noMovesLeft}
                 onPlayAgain={initGame}
-                onOpenStats={() => setStatsOpen(true)}
+                onOpenStats={() => { setShowGameOverOverlay(false); setStatsOpen(true); }}
             >
                 {/* Score display */}
                 <div className="text-center">
