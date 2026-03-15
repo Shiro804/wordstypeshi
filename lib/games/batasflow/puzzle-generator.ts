@@ -1,9 +1,11 @@
 /**
  * BatasFlow - Puzzle Generator
  *
- * Deterministic puzzle generator that creates valid Flow puzzles from a seed.
- * Algorithm: Start with empty grid, place random snake-like paths (no crossings),
- * store start/end points as "dots". Each path has its own color.
+ * Deterministic puzzle generator that creates always-solvable Flow puzzles.
+ * Algorithm: Generate a Hamiltonian path (visits every cell exactly once)
+ * using Warnsdorff's heuristic, then split it into segments.
+ * Each segment's endpoints become "dots". Since the solution fills
+ * the entire grid, the puzzle is guaranteed solvable.
  */
 
 import { createSeededRandom } from '../sdk';
@@ -34,9 +36,6 @@ export interface FlowPuzzle {
 // Constants
 // ============================================================================
 
-/**
- * Flow colors used for paths.
- */
 export const FLOW_COLORS = [
   '#EF4444', // red
   '#3B82F6', // blue
@@ -70,18 +69,113 @@ function getFlowRange(gridSize: number): [number, number] {
 }
 
 // ============================================================================
+// Hamiltonian Path Generation (Warnsdorff's Heuristic)
+// ============================================================================
+
+/**
+ * Generate a Hamiltonian path through the grid using Warnsdorff's heuristic.
+ * The path visits every cell exactly once, guaranteeing full grid coverage.
+ * Returns null if the greedy approach gets stuck (retry with different start).
+ */
+function generateHamiltonianPath(
+  gridSize: number,
+  random: () => number
+): PathCell[] | null {
+  const totalCells = gridSize * gridSize;
+  const visited: boolean[][] = Array.from({ length: gridSize }, () =>
+    Array(gridSize).fill(false)
+  );
+
+  const startRow = Math.floor(random() * gridSize);
+  const startCol = Math.floor(random() * gridSize);
+
+  const path: PathCell[] = [{ row: startRow, col: startCol }];
+  visited[startRow][startCol] = true;
+
+  while (path.length < totalCells) {
+    const { row, col } = path[path.length - 1];
+
+    // Collect unvisited neighbors with their Warnsdorff scores
+    const neighbors: { row: number; col: number; score: number; tiebreak: number }[] = [];
+    for (const [dr, dc] of DIRECTIONS) {
+      const nr = row + dr;
+      const nc = col + dc;
+      if (nr >= 0 && nr < gridSize && nc >= 0 && nc < gridSize && !visited[nr][nc]) {
+        // Count onward moves from this neighbor (excluding current cell)
+        let score = 0;
+        for (const [dr2, dc2] of DIRECTIONS) {
+          const nnr = nr + dr2;
+          const nnc = nc + dc2;
+          if (nnr >= 0 && nnr < gridSize && nnc >= 0 && nnc < gridSize && !visited[nnr][nnc]) {
+            score++;
+          }
+        }
+        neighbors.push({ row: nr, col: nc, score, tiebreak: random() });
+      }
+    }
+
+    if (neighbors.length === 0) return null; // stuck
+
+    // Warnsdorff: pick neighbor with fewest onward moves, break ties randomly
+    neighbors.sort((a, b) => a.score !== b.score ? a.score - b.score : a.tiebreak - b.tiebreak);
+
+    const next = neighbors[0];
+    path.push({ row: next.row, col: next.col });
+    visited[next.row][next.col] = true;
+  }
+
+  return path;
+}
+
+// ============================================================================
+// Path Splitting
+// ============================================================================
+
+/**
+ * Split a Hamiltonian path into flow segments.
+ * Each segment has at least 3 cells (non-trivial path between two dots).
+ */
+function splitIntoFlows(
+  fullPath: PathCell[],
+  numFlows: number,
+  random: () => number
+): PathCell[][] {
+  const totalCells = fullPath.length;
+  const minLen = 3;
+
+  // Ensure we can fit all flows with minimum length
+  const maxFlows = Math.floor(totalCells / minLen);
+  numFlows = Math.min(numFlows, maxFlows);
+
+  // Each flow gets minLen cells, then distribute remaining randomly
+  const extra = totalCells - numFlows * minLen;
+  const lengths: number[] = Array(numFlows).fill(minLen);
+  for (let i = 0; i < extra; i++) {
+    lengths[Math.floor(random() * numFlows)]++;
+  }
+
+  const segments: PathCell[][] = [];
+  let pos = 0;
+  for (const len of lengths) {
+    segments.push(fullPath.slice(pos, pos + len));
+    pos += len;
+  }
+
+  return segments;
+}
+
+// ============================================================================
 // Puzzle Generation
 // ============================================================================
 
 /**
- * Generate a valid Flow puzzle deterministically from a seed.
+ * Generate a valid, always-solvable Flow puzzle deterministically from a seed.
  *
  * Algorithm:
- * 1. Create an empty grid
- * 2. For each flow, grow a random snake-like path from a random unoccupied cell
- * 3. Paths cannot cross each other
- * 4. Start and end points of each path become the "dots"
- * 5. The puzzle is guaranteed solvable because it was generated from a solution
+ * 1. Generate a Hamiltonian path (visits every cell exactly once)
+ * 2. Split the path into N segments (one per flow)
+ * 3. Each segment's start and end become "dots"
+ * 4. The puzzle is guaranteed solvable because the solution fills the entire grid
  */
 export function generatePuzzle(
   seed: string,
@@ -92,116 +186,30 @@ export function generatePuzzle(
   const [minFlows, maxFlows] = getFlowRange(gridSize);
   const targetFlows = minFlows + Math.floor(random() * (maxFlows - minFlows + 1));
 
-  // Grid tracks which pairId occupies each cell (-1 = empty)
-  const grid: number[][] = Array.from({ length: gridSize }, () =>
-    Array.from({ length: gridSize }, () => -1)
-  );
+  // Try to generate a Hamiltonian path (Warnsdorff usually succeeds on first try)
+  const maxRetries = 30;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const hamiltonianPath = generateHamiltonianPath(gridSize, random);
+    if (!hamiltonianPath) continue;
 
-  const solution = new Map<number, PathCell[]>();
-  const dots: Dot[] = [];
+    const segments = splitIntoFlows(hamiltonianPath, targetFlows, random);
 
-  let placedFlows = 0;
-  let attempts = 0;
-  const maxAttempts = targetFlows * 50;
+    const solution = new Map<number, PathCell[]>();
+    const dots: Dot[] = [];
 
-  while (placedFlows < targetFlows && attempts < maxAttempts) {
-    attempts++;
-    const path = generatePath(grid, gridSize, placedFlows, random);
-    if (path.length < 2) continue;
-
-    // Place path on grid
-    for (const cell of path) {
-      grid[cell.row][cell.col] = placedFlows;
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
+      solution.set(i, seg);
+      const color = FLOW_COLORS[i % FLOW_COLORS.length];
+      dots.push(
+        { row: seg[0].row, col: seg[0].col, color, pairId: i },
+        { row: seg[seg.length - 1].row, col: seg[seg.length - 1].col, color, pairId: i }
+      );
     }
 
-    solution.set(placedFlows, path);
-
-    const color = FLOW_COLORS[placedFlows % FLOW_COLORS.length];
-    dots.push(
-      { row: path[0].row, col: path[0].col, color, pairId: placedFlows },
-      { row: path[path.length - 1].row, col: path[path.length - 1].col, color, pairId: placedFlows }
-    );
-
-    placedFlows++;
+    return { dots, solution, gridSize };
   }
 
-  // If we couldn't place enough flows, retry with a modified seed
-  if (placedFlows < minFlows) {
-    return generatePuzzle(seed + '_retry', params);
-  }
-
-  return { dots, solution, gridSize };
-}
-
-/**
- * Generate a single snake-like path on the grid.
- * Starts from a random empty cell and grows in random directions.
- */
-function generatePath(
-  grid: number[][],
-  gridSize: number,
-  _pairId: number,
-  random: () => number
-): PathCell[] {
-  // Find all empty cells
-  const emptyCells: PathCell[] = [];
-  for (let r = 0; r < gridSize; r++) {
-    for (let c = 0; c < gridSize; c++) {
-      if (grid[r][c] === -1) {
-        emptyCells.push({ row: r, col: c });
-      }
-    }
-  }
-
-  if (emptyCells.length < 2) return [];
-
-  // Pick a random starting cell
-  const startIdx = Math.floor(random() * emptyCells.length);
-  const start = emptyCells[startIdx];
-
-  const path: PathCell[] = [start];
-  const visited = new Set<string>();
-  visited.add(`${start.row},${start.col}`);
-
-  // Target path length: between 3 and a reasonable max based on grid size
-  const minLength = 3;
-  const maxLength = Math.min(Math.floor(gridSize * 1.5) + 2, emptyCells.length);
-  const targetLength = minLength + Math.floor(random() * (maxLength - minLength + 1));
-
-  for (let step = 1; step < targetLength; step++) {
-    const current = path[path.length - 1];
-
-    // Shuffle directions for randomness
-    const dirs = [...DIRECTIONS];
-    for (let i = dirs.length - 1; i > 0; i--) {
-      const j = Math.floor(random() * (i + 1));
-      [dirs[i], dirs[j]] = [dirs[j], dirs[i]];
-    }
-
-    let moved = false;
-    for (const [dr, dc] of dirs) {
-      const nr = current.row + dr;
-      const nc = current.col + dc;
-      const key = `${nr},${nc}`;
-
-      if (
-        nr >= 0 && nr < gridSize &&
-        nc >= 0 && nc < gridSize &&
-        grid[nr][nc] === -1 &&
-        !visited.has(key)
-      ) {
-        path.push({ row: nr, col: nc });
-        visited.add(key);
-        moved = true;
-        break;
-      }
-    }
-
-    if (!moved) break;
-  }
-
-  // Path must be at least 2 cells
-  if (path.length < 2) return [];
-
-  return path;
+  // Fallback: retry with modified seed (extremely rare)
+  return generatePuzzle(seed + '_r', params);
 }
