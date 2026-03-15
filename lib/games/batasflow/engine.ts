@@ -142,18 +142,6 @@ function buildGrid(gridSize: number, paths: Map<number, PathCell[]>, dots: Dot[]
 }
 
 /**
- * Check if all cells in the grid are filled.
- */
-function isGridFull(grid: (number | null)[][]): boolean {
-  for (const row of grid) {
-    for (const cell of row) {
-      if (cell === null) return false;
-    }
-  }
-  return true;
-}
-
-/**
  * Check if a path connects both dots of a pair.
  */
 function isFlowComplete(path: PathCell[], dots: Dot[], pairId: number): boolean {
@@ -409,10 +397,9 @@ function applyAction(
 
       const newGrid = buildGrid(state.gridSize, newPaths, state.dots);
 
-      // Check terminal: all flows connected AND all cells filled
+      // Check terminal: all flows connected
       const allConnected = newCompleted.size === state.flowsTotal;
-      const gridFull = allConnected && isGridFull(newGrid);
-      const won = allConnected && gridFull;
+      const won = allConnected;
 
       const events: GameEvent[] = [{
         type: 'path_finished',
