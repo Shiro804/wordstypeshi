@@ -11,6 +11,7 @@ import {
     type BatasPairsState,
     type BatasPairsAction
 } from "@/lib/games/bataspairs/engine";
+import { calculateScore } from "@/lib/games/bataspairs/ruleset";
 import { batasPairsUIAdapter, type BatasPairsRenderModel } from "@/lib/games/bataspairs/ui-adapter";
 import { loadActiveGame, saveActiveGame } from "@/lib/storage/active-game-storage";
 import { loadDifficulty, saveDifficulty } from "@/lib/storage/settings-storage";
@@ -342,6 +343,14 @@ export default function BatasPairsGame() {
                 guessesUsed: result.state.totalFlips,
                 durationSec,
             });
+
+            // BatasPairs-specific metrics
+            const durationMs = result.state.endedAtMs! - result.state.startedAtMs;
+            const score = calculateScore(result.state.mismatches, durationMs);
+            newStats.bestScore = newStats.bestScore == null ? score : Math.max(newStats.bestScore, score);
+            newStats.bestMismatches = newStats.bestMismatches == null
+                ? result.state.mismatches
+                : Math.min(newStats.bestMismatches, result.state.mismatches);
 
             setStats(newStats);
             saveLocalStats(GAME_ID, difficulty, newStats);

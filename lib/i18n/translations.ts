@@ -220,6 +220,7 @@ export const translations = {
       bestTime: "Best time",
       avgTime: "Avg time",
       highScore: "Highscore",
+      bestMismatches: "Fewest Misses",
     },
 
     // Modals
@@ -449,6 +450,7 @@ export const translations = {
       bestTime: "Beste Zeit",
       avgTime: "Ø Zeit",
       highScore: "Highscore",
+      bestMismatches: "Wenigste Fehler",
     },
 
     // Modals
