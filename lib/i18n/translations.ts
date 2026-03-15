@@ -204,6 +204,18 @@ export const translations = {
       solvedIn: "Solved in {flips} flips with {mismatches} misses",
     },
 
+    // BatasMine
+    batasmine: {
+      name: "BatasMine",
+      description: "Reveal all safe cells",
+      cellsRevealed: "revealed",
+      minesRemaining: "mines left",
+      flagModeOn: "Flag mode (on)",
+      flagModeOff: "Flag mode (off)",
+      solvedIn: "Cleared {cells} cells in {time}",
+      hitMine: "You hit a mine!",
+    },
+
     // Leaderboard
     leaderboard: {
       title: "Leaderboard",
@@ -432,6 +444,18 @@ export const translations = {
       mismatches: "Fehlversuche",
       allPairsFound: "Alle Paare gefunden!",
       solvedIn: "Gelöst in {flips} Zügen mit {mismatches} Fehlversuchen",
+    },
+
+    // BatasMine
+    batasmine: {
+      name: "BatasMine",
+      description: "Decke alle sicheren Felder auf",
+      cellsRevealed: "aufgedeckt",
+      minesRemaining: "Minen übrig",
+      flagModeOn: "Flaggen-Modus (an)",
+      flagModeOff: "Flaggen-Modus (aus)",
+      solvedIn: "{cells} Felder in {time} geräumt",
+      hitMine: "Du hast eine Mine getroffen!",
     },
 
     // Leaderboard
