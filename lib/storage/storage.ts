@@ -1,6 +1,7 @@
 // lib/storage.ts
 
 import type { Difficulty } from "@/lib/difficulty";
+import type { LevelProgress } from "@/lib/games/sdk/levels";
 
 export type GuessDistribution = Record<number, number>;
 
@@ -19,6 +20,8 @@ export type Stats = {
   bestScore: number | null;
   // memory games (BatasPairs): lowest mismatches in a won game
   bestMismatches: number | null;
+  // Optional per-game level progress; only set for games that opt into the level SDK.
+  levelProgress?: LevelProgress;
   updatedAt: number;
 };
 

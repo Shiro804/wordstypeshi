@@ -5,7 +5,7 @@
  *
  * Algorithm:
  * 1. Pick a target color and N−1 filler colors from the palette
- * 2. Build a pool containing exactly BIG_BOTTLE_CAPACITY target units
+ * 2. Build a pool containing exactly `bigBottleCapacity` target units
  *    plus enough filler units to saturate the non-empty small bottles
  * 3. Seed-shuffle the pool and distribute it into the non-empty small
  *    bottles layer-by-layer
@@ -14,9 +14,12 @@
  *
  * The greedy solver is intentionally weaker than an optimal one so that
  * puzzles passing the check are *robustly* solvable by mere humans.
+ *
+ * Version 2.0.0: bottle capacities are now per-puzzle parameters so the
+ * level system can vary difficulty without touching engine internals.
  */
 
-import { createSeededRandom } from '../sdk';
+import { createSeededRandom } from '../sdk/prng';
 import {
   BIG_BOTTLE_CAPACITY,
   SMALL_BOTTLE_CAPACITY,
@@ -45,12 +48,21 @@ export interface BottlesPuzzle {
   palette: string[];
   /** Initial bottle states. Index 0 = target bottle. */
   bottles: BottleSnapshot[];
+  /**
+   * Number of moves the greedy solver needed to solve the puzzle.
+   * This is the "reference" difficulty used to compute star thresholds.
+   */
+  solverMoves: number;
 }
 
 export interface PuzzleParams {
   numSmallBottles: number;
   numEmptyBottles: number;
   numColors: number;
+  /** Capacity of each small bottle. Defaults to `SMALL_BOTTLE_CAPACITY`. */
+  smallBottleCapacity?: number;
+  /** Capacity of the big target bottle. Defaults to `BIG_BOTTLE_CAPACITY`. */
+  bigBottleCapacity?: number;
 }
 
 // ============================================================================
@@ -95,8 +107,10 @@ function topRunSize(bottle: BottleSnapshot): number {
 // ============================================================================
 
 /**
- * Attempt to solve the puzzle greedily. Returns true iff the greedy heuristic
- * finds a full solution (big bottle full of target color) within the move cap.
+ * Attempt to solve the puzzle greedily. Returns `{ solved, moves }` where
+ * `moves` is the number of pours the solver actually performed. When the
+ * solver couldn't finish, `solved` is false and `moves` reflects the
+ * partial progress (not meaningful for difficulty tuning).
  *
  * Priority:
  *   1. Pour ready target runs straight into the big bottle.
@@ -104,14 +118,15 @@ function topRunSize(bottle: BottleSnapshot): number {
  *      target by dumping its blockers onto valid small-bottle destinations.
  *   3. Consolidate matching small-bottle tops to free up slots.
  */
-function greedySolvable(
+function greedySolve(
   initial: BottleSnapshot[],
   targetColor: string,
   maxSteps: number
-): boolean {
+): { solved: boolean; moves: number } {
   const bottles = clone(initial);
   const big = bottles[TARGET_BOTTLE_ID];
   const smalls = () => bottles.filter(b => !b.isTarget);
+  let moves = 0;
 
   const pour = (fromId: number, toId: number): boolean => {
     const from = bottles[fromId];
@@ -128,6 +143,7 @@ function greedySolvable(
     for (let i = 0; i < moveAmount; i++) {
       to.layers.push(from.layers.pop()!);
     }
+    moves++;
     return true;
   };
 
@@ -136,7 +152,7 @@ function greedySolvable(
     big.layers.every(c => c === targetColor);
 
   for (let step = 0; step < maxSteps; step++) {
-    if (isWon()) return true;
+    if (isWon()) return { solved: true, moves };
 
     // 1. Any small bottle whose top is the target color → pour into big.
     let poured = false;
@@ -151,8 +167,6 @@ function greedySolvable(
     if (poured) continue;
 
     // 2. Peel the least-buried target somewhere.
-    //    Find a small bottle with target *below* its current top, and move
-    //    the topmost blocking run to any valid destination.
     type Candidate = { bottleId: number; blockersToRemove: number };
     let best: Candidate | null = null;
     for (const b of smalls()) {
@@ -168,10 +182,8 @@ function greedySolvable(
     if (best !== null) {
       const source = bottles[best.bottleId];
       const blockerColor = topColor(source);
-      if (blockerColor === null) return false;
+      if (blockerColor === null) return { solved: false, moves };
 
-      // Try to pour the blocker run onto a valid destination (not the big
-      // bottle, not the same bottle).
       let moved = false;
       for (const dest of smalls()) {
         if (dest.id === source.id) continue;
@@ -206,10 +218,10 @@ function greedySolvable(
     if (consolidated) continue;
 
     // No progress possible.
-    return isWon();
+    return { solved: isWon(), moves };
   }
 
-  return isWon();
+  return { solved: isWon(), moves };
 }
 
 // ============================================================================
@@ -222,8 +234,26 @@ function greedySolvable(
  * The generator retries on the rare unsolvable shuffle; if nothing valid is
  * found within the retry budget, the seed is perturbed and we try again.
  */
-export function generatePuzzle(seed: string, params: PuzzleParams): BottlesPuzzle {
-  const { numSmallBottles, numEmptyBottles, numColors } = params;
+export function generatePuzzle(
+  seed: string,
+  params: PuzzleParams,
+  _retryDepth: number = 0
+): BottlesPuzzle {
+  if (_retryDepth > 8) {
+    throw new Error(
+      `generatePuzzle: unable to produce a valid shuffle after ${_retryDepth} seed perturbations — ` +
+        `params are too constrained (numSmallBottles=${params.numSmallBottles}, ` +
+        `numEmptyBottles=${params.numEmptyBottles}, numColors=${params.numColors}, ` +
+        `smallBottleCapacity=${params.smallBottleCapacity}, bigBottleCapacity=${params.bigBottleCapacity})`
+    );
+  }
+  const {
+    numSmallBottles,
+    numEmptyBottles,
+    numColors,
+    smallBottleCapacity = SMALL_BOTTLE_CAPACITY,
+    bigBottleCapacity = BIG_BOTTLE_CAPACITY,
+  } = params;
 
   if (numColors < 2) throw new Error('numColors must be ≥ 2');
   if (numColors > BOTTLE_COLORS.length) {
@@ -232,6 +262,8 @@ export function generatePuzzle(seed: string, params: PuzzleParams): BottlesPuzzl
   if (numEmptyBottles >= numSmallBottles) {
     throw new Error('numEmptyBottles must be strictly less than numSmallBottles');
   }
+  if (smallBottleCapacity < 2) throw new Error('smallBottleCapacity must be ≥ 2');
+  if (bigBottleCapacity < 2) throw new Error('bigBottleCapacity must be ≥ 2');
 
   const random = createSeededRandom(seed);
 
@@ -243,21 +275,21 @@ export function generatePuzzle(seed: string, params: PuzzleParams): BottlesPuzzl
   const fillerColors = palette.slice(1);
 
   const filledBottleCount = numSmallBottles - numEmptyBottles;
-  const totalFilledCells = filledBottleCount * SMALL_BOTTLE_CAPACITY;
+  const totalFilledCells = filledBottleCount * smallBottleCapacity;
 
-  if (totalFilledCells < BIG_BOTTLE_CAPACITY) {
+  if (totalFilledCells < bigBottleCapacity) {
     throw new Error(
-      `Not enough small bottle capacity (${totalFilledCells}) to hold all ${BIG_BOTTLE_CAPACITY} target units`
+      `Not enough small bottle capacity (${totalFilledCells}) to hold all ${bigBottleCapacity} target units`
     );
   }
 
-  const fillerUnitsTotal = totalFilledCells - BIG_BOTTLE_CAPACITY;
+  const fillerUnitsTotal = totalFilledCells - bigBottleCapacity;
 
   const maxAttempts = 60;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     // Build the content pool
     const pool: string[] = [];
-    for (let i = 0; i < BIG_BOTTLE_CAPACITY; i++) pool.push(targetColor);
+    for (let i = 0; i < bigBottleCapacity; i++) pool.push(targetColor);
 
     if (fillerColors.length > 0) {
       // Distribute filler units across filler colors as evenly as possible
@@ -279,7 +311,7 @@ export function generatePuzzle(seed: string, params: PuzzleParams): BottlesPuzzl
     const bottles: BottleSnapshot[] = [];
     bottles.push({
       id: 0,
-      capacity: BIG_BOTTLE_CAPACITY,
+      capacity: bigBottleCapacity,
       layers: [],
       isTarget: true,
     });
@@ -294,32 +326,32 @@ export function generatePuzzle(seed: string, params: PuzzleParams): BottlesPuzzl
       const isEmpty = emptyIds.has(i);
       const layers: string[] = [];
       if (!isEmpty) {
-        for (let j = 0; j < SMALL_BOTTLE_CAPACITY; j++) {
+        for (let j = 0; j < smallBottleCapacity; j++) {
           layers.push(pool[cursor++]);
         }
       }
       bottles.push({
         id: i,
-        capacity: SMALL_BOTTLE_CAPACITY,
+        capacity: smallBottleCapacity,
         layers,
         isTarget: false,
       });
     }
 
-    // Reject trivial cases: a bottle that is already all-target (the player
-    // would just pour it straight into the big bottle in a single move).
+    // Reject trivial cases: a small bottle that is already all-target.
     const trivial = bottles
-      .filter(b => !b.isTarget && b.layers.length === SMALL_BOTTLE_CAPACITY)
+      .filter(b => !b.isTarget && b.layers.length === smallBottleCapacity)
       .some(b => b.layers.every(c => c === targetColor));
     if (trivial) continue;
 
     // Verify solvability with a bounded greedy solver.
-    const moveCap = 300;
-    if (greedySolvable(bottles, targetColor, moveCap)) {
-      return { targetColor, palette, bottles };
+    const moveCap = 600;
+    const { solved, moves } = greedySolve(bottles, targetColor, moveCap);
+    if (solved) {
+      return { targetColor, palette, bottles, solverMoves: moves };
     }
   }
 
   // Fallback: perturb the seed and try again. Extremely rare in practice.
-  return generatePuzzle(seed + '_r', params);
+  return generatePuzzle(seed + '_r', params, _retryDepth + 1);
 }

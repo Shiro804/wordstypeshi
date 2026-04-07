@@ -1,21 +1,29 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import { RotateCcw, Undo2 } from "lucide-react";
+import { RotateCcw, Undo2, Star, ArrowLeft, ChevronRight } from "lucide-react";
 import GameShell from "@/components/shared/GameShell";
-import GameResultOverlay from "@/components/games/common/GameResultOverlay";
-import FloatingGameOver from "@/components/games/common/FloatingGameOver";
 import {
     batasBottlesEngine,
+    computeStars,
     type BatasBottlesState,
     type BatasBottlesAction,
     type BatasBottlesParams,
 } from "@/lib/games/batasbottles/engine";
-import { calculateScore, BATASBOTTLES_MODES, type BatasBottlesModeId } from "@/lib/games/batasbottles/ruleset";
-import { batasBottlesUIAdapter, type BatasBottlesRenderModel, type BottleRenderData } from "@/lib/games/batasbottles/ui-adapter";
+import { BATASBOTTLES_LEVEL_COUNT } from "@/lib/games/batasbottles/ruleset";
+import { batasBottlesLevelSystem } from "@/lib/games/batasbottles/level-generator";
+import {
+    batasBottlesUIAdapter,
+    type BatasBottlesRenderModel,
+    type BottleRenderData,
+} from "@/lib/games/batasbottles/ui-adapter";
+import {
+    type LevelProgress,
+    type StarCount,
+    emptyLevelProgress,
+    recordLevelResult,
+} from "@/lib/games/sdk/levels";
 import { loadActiveGame, saveActiveGame } from "@/lib/storage/active-game-storage";
-import { loadDifficulty, saveDifficulty } from "@/lib/storage/settings-storage";
-import type { Difficulty } from "@/lib/difficulty";
 import {
     getCurrentUserId,
     upsertRemoteGameStats,
@@ -26,9 +34,10 @@ import {
 import { createOrReuseActiveSession, endSession } from "@/lib/sync/sessions-sync";
 import Leaderboard from "@/components/games/common/Leaderboard";
 import StatsModal from "@/components/shared/StatsModal";
-import { type Stats, applyGameResult } from "@/lib/storage/storage";
+import type { Stats } from "@/lib/storage/storage";
 import { useGameTimer } from "@/lib/hooks/useGameTimer";
 import Modal from "../common/Modal";
+import LevelSelectScreen from "@/components/games/common/LevelSelectScreen";
 import { useLanguage } from "@/lib/i18n";
 
 // ============================================================================
@@ -36,12 +45,7 @@ import { useLanguage } from "@/lib/i18n";
 // ============================================================================
 
 const GAME_ID = "batasbottles";
-
-const DIFFICULTY_TO_MODE: Record<Difficulty, BatasBottlesModeId> = {
-    easy: "easy",
-    medium: "medium",
-    hard: "hard",
-};
+const STATS_MODE = "level";
 
 /** Duration of the pour animation in milliseconds. */
 const POUR_ANIM_MS = 550;
@@ -57,7 +61,7 @@ interface BottleProps {
     onTap: (id: number) => void;
     disabled: boolean;
     tiltDeg?: number;
-    /** Whether to render the dashed legal-destination ring (easy mode only). */
+    /** Whether to render the dashed legal-destination ring (tutorial phase). */
     showHint?: boolean;
 }
 
@@ -72,7 +76,6 @@ function BottleSVG({
 }: BottleProps) {
     const { layers, capacity, isTarget, isSelected, isLegalDestination, topColor } = bottle;
 
-    // Overall dimensions — the bottle occupies most of its allotted box.
     const padX = Math.max(2, width * 0.1);
     const innerW = width - padX * 2;
     const neckH = height * 0.08;
@@ -80,7 +83,6 @@ function BottleSVG({
     const bodyH = height - bodyTop - height * 0.05;
     const layerH = bodyH / capacity;
 
-    // Outline — classic bottle shape: narrow neck + rounded body
     const bodyX = padX;
     const bodyY = bodyTop;
     const neckW = innerW * 0.42;
@@ -171,7 +173,7 @@ function BottleSVG({
                     />
                 </g>
 
-                {/* Legal-destination ring pulse — only on easy mode */}
+                {/* Legal-destination ring pulse — only on tutorial phase */}
                 {renderHintRing && (
                     <path
                         d={buildBottlePath(bodyX, bodyY, innerW, bodyH, neckX, neckW, neckH)}
@@ -203,27 +205,17 @@ function buildBottlePath(
     const neckRight = neckX + neckW;
     const neckTop = bodyY - neckH;
 
-    // Start at top of neck (left)
     return [
         `M ${neckX} ${neckTop}`,
         `L ${neckRight} ${neckTop}`,
-        // Right side of neck
         `L ${neckRight} ${bodyY}`,
-        // Shoulder curve to body
         `Q ${neckRight + shoulderRadius} ${bodyY}, ${bodyRight} ${bodyY + shoulderRadius}`,
-        // Right wall
         `L ${bodyRight} ${bodyBottom - bodyBottomRadius}`,
-        // Bottom right curve
         `Q ${bodyRight} ${bodyBottom}, ${bodyRight - bodyBottomRadius} ${bodyBottom}`,
-        // Bottom
         `L ${bodyX + bodyBottomRadius} ${bodyBottom}`,
-        // Bottom left curve
         `Q ${bodyX} ${bodyBottom}, ${bodyX} ${bodyBottom - bodyBottomRadius}`,
-        // Left wall
         `L ${bodyX} ${bodyY + shoulderRadius}`,
-        // Shoulder curve to neck
         `Q ${bodyX - shoulderRadius + shoulderRadius} ${bodyY}, ${neckX} ${bodyY}`,
-        // Left side of neck
         `L ${neckX} ${neckTop}`,
         `Z`,
     ].join(" ");
@@ -241,7 +233,6 @@ interface PourOverlayProps {
 }
 
 function PourOverlay({ fromRect, toRect, containerRect, color }: PourOverlayProps) {
-    // Compute arc from source bottle top to destination bottle top in container-local coords
     const fromX = fromRect.left - containerRect.left + fromRect.width / 2;
     const fromY = fromRect.top - containerRect.top + fromRect.height * 0.18;
     const toX = toRect.left - containerRect.left + toRect.width / 2;
@@ -305,10 +296,6 @@ function PourOverlay({ fromRect, toRect, containerRect, color }: PourOverlayProp
 // Bottle layout helpers
 // ============================================================================
 
-/**
- * Split the small bottles into a left and right group with a balanced count
- * so the layout is symmetric around the big central bottle.
- */
 function splitLeftRight(smalls: BottleRenderData[]): {
     left: BottleRenderData[];
     right: BottleRenderData[];
@@ -325,24 +312,28 @@ function splitLeftRight(smalls: BottleRenderData[]): {
 // ============================================================================
 
 export default function BatasBottlesGame() {
-    // State
-    const [difficulty, setDifficulty] = useState<Difficulty>(() => loadDifficulty());
+    const { t } = useLanguage();
+    const timer = useGameTimer();
+
+    // ---------- Core state
     const [gameState, setGameState] = useState<BatasBottlesState | null>(null);
+    const [progress, setProgress] = useState<LevelProgress>(() => {
+        const base = loadLocalStats(GAME_ID, STATS_MODE);
+        return base.levelProgress ?? emptyLevelProgress();
+    });
 
-    // Confirmation state
+    // ---------- UI state
     const [confirmResetOpen, setConfirmResetOpen] = useState(false);
-    const [confirmDifficultyOpen, setConfirmDifficultyOpen] = useState(false);
-    const [pendingDifficulty, setPendingDifficulty] = useState<Difficulty | null>(null);
-
-    // UI state
     const [leaderboardOpen, setLeaderboardOpen] = useState(false);
     const [statsOpen, setStatsOpen] = useState(false);
-    const [stats, setStats] = useState<Stats>(() => loadLocalStats(GAME_ID, difficulty));
+    const [stats, setStats] = useState<Stats>(() => loadLocalStats(GAME_ID, STATS_MODE));
     const [userId, setUserId] = useState<string | null>(null);
     const [sessionId, setSessionId] = useState<string | null>(null);
 
-    const [showFloatingText, setShowFloatingText] = useState(false);
-    const [showGameOverOverlay, setShowGameOverOverlay] = useState(false);
+    // Result overlay — shown once on terminal, with a memento of the "new best" flag
+    const [overlayOpen, setOverlayOpen] = useState(false);
+    const [wasNewBest, setWasNewBest] = useState(false);
+    const [priorBest, setPriorBest] = useState<number | null>(null);
 
     // Pour animation state
     const [pourAnim, setPourAnim] = useState<
@@ -354,159 +345,112 @@ export default function BatasBottlesGame() {
     const boardRef = useRef<HTMLDivElement>(null);
     const bottleRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
-    const { t } = useLanguage();
-    const timer = useGameTimer();
-
-    // Derived
-    const mode: BatasBottlesModeId = DIFFICULTY_TO_MODE[difficulty];
-    const params: BatasBottlesParams = useMemo(() => ({ mode }), [mode]);
-
-    const isInProgress = useMemo(() => {
-        return gameState && !batasBottlesEngine.isTerminal(gameState) && gameState.moveCount > 0;
+    // ---------- Derived
+    const renderModel = useMemo((): BatasBottlesRenderModel | null => {
+        if (!gameState) return null;
+        return batasBottlesUIAdapter.toRenderModel(gameState) as BatasBottlesRenderModel;
     }, [gameState]);
 
-    // Initial user load
+    const isInProgress = useMemo(() => {
+        return (
+            gameState != null &&
+            !batasBottlesEngine.isTerminal(gameState) &&
+            gameState.moveCount > 0
+        );
+    }, [gameState]);
+
+    // ---------- Initial user load
     useEffect(() => {
         getCurrentUserId().then(uid => setUserId(uid));
     }, []);
 
-    // Load active game or init new
+    // ---------- Load active game (once we know the user)
     useEffect(() => {
-        const loadGame = async () => {
-            const active = loadActiveGame<BatasBottlesState>(GAME_ID, userId);
-            const paramsMatch = active && active.mode === params.mode;
-
-            if (paramsMatch && !batasBottlesEngine.isTerminal(active)) {
-                setGameState(active);
-                if (active.moveCount > 0) {
-                    timer.setStartedAt(active.startedAtMs);
-                    if (active.endedAtMs) timer.setEndedAt(active.endedAtMs);
-                } else {
-                    timer.reset();
-                }
-                if (userId) {
-                    const session = await createOrReuseActiveSession({
-                        userId,
-                        gameId: GAME_ID,
-                        difficulty,
-                        answer: params.mode,
-                        startedAtMs: active.startedAtMs,
-                    });
-                    setSessionId(session?.id ?? null);
-                }
+        const active = loadActiveGame<BatasBottlesState>(GAME_ID, userId);
+        if (active && !batasBottlesEngine.isTerminal(active)) {
+            setGameState(active);
+            if (active.moveCount > 0) {
+                timer.setStartedAt(active.startedAtMs);
+                if (active.endedAtMs) timer.setEndedAt(active.endedAtMs);
             } else {
-                const newSeed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-                const state = batasBottlesEngine.init(newSeed, params);
-                setGameState(state);
-                saveActiveGame(GAME_ID, state, userId);
                 timer.reset();
-                if (userId) {
-                    const session = await createOrReuseActiveSession({
-                        userId,
-                        gameId: GAME_ID,
-                        difficulty,
-                        answer: params.mode,
-                        startedAtMs: state.startedAtMs,
-                    });
-                    setSessionId(session?.id ?? null);
-                }
             }
-        };
-        loadGame();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [userId, params]);
-
-    // Save active game
-    useEffect(() => {
-        if (gameState) {
-            saveActiveGame(
-                GAME_ID,
-                batasBottlesEngine.isTerminal(gameState) ? null : gameState,
-                userId
-            );
+            if (userId) {
+                createOrReuseActiveSession({
+                    userId,
+                    gameId: GAME_ID,
+                    difficulty: "medium",
+                    answer: String(active.level),
+                    startedAtMs: active.startedAtMs,
+                }).then(s => setSessionId(s?.id ?? null));
+            }
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId]);
+
+    // ---------- Persist active game
+    useEffect(() => {
+        if (!gameState) {
+            saveActiveGame(GAME_ID, null, userId);
+            return;
+        }
+        saveActiveGame(
+            GAME_ID,
+            batasBottlesEngine.isTerminal(gameState) ? null : gameState,
+            userId
+        );
     }, [gameState, userId]);
 
-    // Sync stats
+    // ---------- Sync stats
     useEffect(() => {
-        const local = loadLocalStats(GAME_ID, difficulty);
+        const local = loadLocalStats(GAME_ID, STATS_MODE);
         setStats(local);
+        if (local.levelProgress) setProgress(local.levelProgress);
         if (userId) {
-            syncGameStats(userId, GAME_ID, difficulty, local).then(synced => {
+            syncGameStats(userId, GAME_ID, STATS_MODE, local).then(synced => {
                 setStats(synced);
-                saveLocalStats(GAME_ID, difficulty, synced);
+                saveLocalStats(GAME_ID, STATS_MODE, synced);
+                if (synced.levelProgress) setProgress(synced.levelProgress);
             });
         }
-    }, [userId, difficulty]);
+    }, [userId]);
 
-    // Game actions
-    const handleGameEnd = useCallback(
-        async (state: BatasBottlesState) => {
-            timer.stop();
-            const durationSec = (state.endedAtMs! - state.startedAtMs) / 1000;
-            const durationMs = state.endedAtMs! - state.startedAtMs;
-
-            const newStats = applyGameResult(stats, {
-                outcome: "win",
-                guessesUsed: state.moveCount,
-                durationSec,
-            });
-
-            const score = calculateScore(state.moveCount, durationMs);
-            newStats.bestScore =
-                newStats.bestScore == null ? score : Math.max(newStats.bestScore, score);
-
-            setStats(newStats);
-            saveLocalStats(GAME_ID, difficulty, newStats);
+    // ---------- Game lifecycle
+    const startLevel = useCallback(
+        async (level: number) => {
+            const clamped = Math.max(1, Math.min(BATASBOTTLES_LEVEL_COUNT, level));
+            const params: BatasBottlesParams = { level: clamped };
+            const state = batasBottlesEngine.init("", params);
+            setGameState(state);
+            saveActiveGame(GAME_ID, state, userId);
+            timer.reset();
+            setPourAnim(null);
+            setShakeId(null);
+            setOverlayOpen(false);
+            setWasNewBest(false);
+            setPriorBest(null);
 
             if (userId) {
-                upsertRemoteGameStats(userId, GAME_ID, difficulty, newStats);
-            }
-
-            if (sessionId) {
-                await endSession({
-                    sessionId,
-                    outcome: "win",
-                    guessesUsed: state.moveCount,
-                    durationSec,
-                    endedAtMs: state.endedAtMs!,
+                const session = await createOrReuseActiveSession({
+                    userId,
+                    gameId: GAME_ID,
+                    difficulty: "medium",
+                    answer: String(clamped),
+                    startedAtMs: state.startedAtMs,
                 });
-                setSessionId(null);
+                setSessionId(session?.id ?? null);
             }
         },
-        [stats, difficulty, userId, sessionId, timer]
+        [userId, timer]
     );
 
-    const initGame = useCallback(async () => {
-        const newSeed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        const state = batasBottlesEngine.init(newSeed, params);
-        setGameState(state);
-        saveActiveGame(GAME_ID, state, userId);
-        timer.reset();
-        setPourAnim(null);
-        setShakeId(null);
-
-        if (userId) {
-            const session = await createOrReuseActiveSession({
-                userId,
-                gameId: GAME_ID,
-                difficulty,
-                answer: params.mode,
-                startedAtMs: state.startedAtMs,
-            });
-            setSessionId(session?.id ?? null);
-        }
-    }, [params, userId, difficulty, timer]);
-
-    const forfeitCurrentGame = useCallback(async () => {
-        if (!gameState) return;
+    const backToLevels = useCallback(async () => {
         timer.stop();
-        const durationSec = Math.max(0, (Date.now() - gameState.startedAtMs) / 1000);
-        const newStats = applyGameResult(stats, { outcome: "lose", durationSec });
-        setStats(newStats);
-        saveLocalStats(GAME_ID, difficulty, newStats);
-        if (userId) upsertRemoteGameStats(userId, GAME_ID, difficulty, newStats);
-        if (sessionId) {
+        if (sessionId && gameState) {
+            const durationSec = Math.max(
+                0,
+                (Date.now() - gameState.startedAtMs) / 1000
+            );
             await endSession({
                 sessionId,
                 outcome: "forfeit",
@@ -516,87 +460,135 @@ export default function BatasBottlesGame() {
             });
             setSessionId(null);
         }
+        setGameState(null);
         saveActiveGame(GAME_ID, null, userId);
-    }, [gameState, stats, difficulty, userId, sessionId, timer]);
+        setOverlayOpen(false);
+        setPourAnim(null);
+        setShakeId(null);
+    }, [sessionId, gameState, userId, timer]);
 
-    const applyDifficultyChange = useCallback((d: Difficulty) => {
-        setDifficulty(d);
-        saveDifficulty(d);
-    }, []);
+    // ---------- Handle game end (win or loss)
+    const handleGameEnd = useCallback(
+        async (state: BatasBottlesState) => {
+            timer.stop();
+            const durationSec = state.endedAtMs
+                ? (state.endedAtMs - state.startedAtMs) / 1000
+                : (Date.now() - state.startedAtMs) / 1000;
 
-    const requestDifficultyChange = useCallback(
-        (d: Difficulty) => {
-            if (d === difficulty) return;
-            if (isInProgress) {
-                setPendingDifficulty(d);
-                setConfirmDifficultyOpen(true);
-                return;
+            const baseStats = loadLocalStats(GAME_ID, STATS_MODE);
+
+            if (state.status === "won") {
+                const earnedStars: StarCount = computeStars(state);
+                const levelKey = String(state.level);
+                const prevBest = baseStats.levelProgress?.bestMoves?.[levelKey];
+                setPriorBest(prevBest ?? null);
+                const isNewBest =
+                    prevBest == null ? true : state.moveCount < prevBest;
+                setWasNewBest(isNewBest);
+
+                const updated = recordLevelResult(
+                    progress,
+                    state.level,
+                    earnedStars,
+                    state.moveCount
+                );
+                setProgress(updated);
+
+                const newStats: Stats = {
+                    ...baseStats,
+                    played: baseStats.played + 1,
+                    wins: baseStats.wins + 1,
+                    levelProgress: updated,
+                    lastTimesSec: [
+                        durationSec,
+                        ...(baseStats.lastTimesSec ?? []),
+                    ].slice(0, 20),
+                    updatedAt: Date.now(),
+                };
+                setStats(newStats);
+                saveLocalStats(GAME_ID, STATS_MODE, newStats);
+                if (userId) {
+                    upsertRemoteGameStats(userId, GAME_ID, STATS_MODE, newStats);
+                }
+            } else if (state.status === "lost") {
+                setWasNewBest(false);
+                setPriorBest(null);
+                const newStats: Stats = {
+                    ...baseStats,
+                    played: baseStats.played + 1,
+                    losses: baseStats.losses + 1,
+                    updatedAt: Date.now(),
+                };
+                setStats(newStats);
+                saveLocalStats(GAME_ID, STATS_MODE, newStats);
+                if (userId) {
+                    upsertRemoteGameStats(userId, GAME_ID, STATS_MODE, newStats);
+                }
             }
-            applyDifficultyChange(d);
+
+            if (sessionId) {
+                await endSession({
+                    sessionId,
+                    outcome: state.status === "won" ? "win" : "lose",
+                    guessesUsed: state.moveCount,
+                    durationSec,
+                    endedAtMs: state.endedAtMs ?? Date.now(),
+                });
+                setSessionId(null);
+            }
+
+            setOverlayOpen(true);
         },
-        [difficulty, isInProgress, applyDifficultyChange]
+        [progress, userId, sessionId, timer]
     );
 
-    const forfeitCurrentGameAndReset = useCallback(() => {
-        forfeitCurrentGame();
-        initGame();
-        setConfirmResetOpen(false);
-    }, [forfeitCurrentGame, initGame]);
-
-    const requestReset = useCallback(() => {
-        if (isInProgress) {
-            setConfirmResetOpen(true);
-            return;
-        }
-        initGame();
-    }, [isInProgress, initGame]);
-
-    // Apply an engine action with animation hooks
+    // ---------- Apply an engine action with animation hooks
+    //
+    // NOTE: side effects (timer start, pour animation, terminal handling) must
+    // live OUTSIDE the `setGameState` updater. React StrictMode intentionally
+    // double-invokes functional updaters in development, which would cause
+    // `handleGameEnd` to fire twice and double-credit wins / losses.
     const applyAction = useCallback(
         (action: BatasBottlesAction) => {
-            setGameState(prev => {
-                if (!prev || batasBottlesEngine.isTerminal(prev)) return prev;
-                const result = batasBottlesEngine.applyAction(prev, action);
+            if (!gameState || batasBottlesEngine.isTerminal(gameState)) return;
+            const result = batasBottlesEngine.applyAction(gameState, action);
 
-                if (result.invalidReason) {
-                    // Rejected pour — shake the offender briefly
-                    if (action.type === "tap_bottle") {
-                        setShakeId(action.bottleId);
-                        setTimeout(() => setShakeId(null), 400);
-                    }
-                    return prev;
+            if (result.invalidReason) {
+                if (action.type === "tap_bottle") {
+                    setShakeId(action.bottleId);
+                    setTimeout(() => setShakeId(null), 400);
                 }
+                return;
+            }
 
-                // Start timer on first move
-                if (!timer.startedAtMs && result.state.moveCount > 0) {
-                    timer.start();
-                }
+            setGameState(result.state);
 
-                // If this pour just poured — capture animation data
-                const pourEvent = result.events.find(e => e.type === "poured");
-                if (pourEvent) {
-                    const payload = pourEvent.payload as {
-                        fromId: number;
-                        toId: number;
-                        color: string;
-                    };
-                    setPourAnim({ ...payload, startedAt: Date.now() });
-                    setTimeout(() => setPourAnim(null), POUR_ANIM_MS);
-                }
+            if (!timer.startedAtMs && result.state.moveCount > 0) {
+                timer.start();
+            }
 
-                if (batasBottlesEngine.isTerminal(result.state)) {
-                    handleGameEnd(result.state);
-                }
-                return result.state;
-            });
+            const pourEvent = result.events.find(e => e.type === "poured");
+            if (pourEvent) {
+                const payload = pourEvent.payload as {
+                    fromId: number;
+                    toId: number;
+                    color: string;
+                };
+                setPourAnim({ ...payload, startedAt: Date.now() });
+                setTimeout(() => setPourAnim(null), POUR_ANIM_MS);
+            }
+
+            if (batasBottlesEngine.isTerminal(result.state)) {
+                handleGameEnd(result.state);
+            }
         },
-        [timer, handleGameEnd]
+        [gameState, timer, handleGameEnd]
     );
 
     const handleBottleTap = useCallback(
         (bottleId: number) => {
             if (!gameState || batasBottlesEngine.isTerminal(gameState)) return;
-            if (pourAnim) return; // ignore taps during animation
+            if (pourAnim) return;
             applyAction({ type: "tap_bottle", bottleId });
         },
         [gameState, pourAnim, applyAction]
@@ -608,27 +600,39 @@ export default function BatasBottlesGame() {
         applyAction({ type: "undo" });
     }, [gameState, applyAction]);
 
-    // Render model
-    const renderModel = useMemo((): BatasBottlesRenderModel | null => {
-        if (!gameState) return null;
-        return batasBottlesUIAdapter.toRenderModel(gameState) as BatasBottlesRenderModel;
-    }, [gameState]);
-
-    // Trigger game over animation
-    useEffect(() => {
-        if (renderModel?.isTerminal) setShowFloatingText(true);
-        else {
-            setShowFloatingText(false);
-            setShowGameOverOverlay(false);
+    const forfeitCurrentGameAndReset = useCallback(async () => {
+        if (!gameState) return;
+        const level = gameState.level;
+        timer.stop();
+        if (sessionId) {
+            const durationSec = Math.max(
+                0,
+                (Date.now() - gameState.startedAtMs) / 1000
+            );
+            await endSession({
+                sessionId,
+                outcome: "forfeit",
+                guessesUsed: gameState.moveCount,
+                durationSec,
+                endedAtMs: Date.now(),
+            });
+            setSessionId(null);
         }
-    }, [renderModel?.isTerminal]);
+        setConfirmResetOpen(false);
+        await startLevel(level);
+    }, [gameState, sessionId, timer, startLevel]);
 
-    const handleFloatingComplete = useCallback(() => {
-        setShowFloatingText(false);
-        setShowGameOverOverlay(true);
-    }, []);
+    const requestReset = useCallback(() => {
+        if (isInProgress) {
+            setConfirmResetOpen(true);
+            return;
+        }
+        if (gameState) {
+            startLevel(gameState.level);
+        }
+    }, [isInProgress, gameState, startLevel]);
 
-    // Pour-animation overlay coordinates
+    // ---------- Pour animation overlay coordinates
     const [pourRects, setPourRects] = useState<{
         fromRect: DOMRect;
         toRect: DOMRect;
@@ -650,9 +654,53 @@ export default function BatasBottlesGame() {
         });
     }, [pourAnim]);
 
+    // ============================================================================
+    // Render
+    // ============================================================================
+
+    // --- No active game: show level-select screen inside the shell
+    if (!gameState) {
+        return (
+            <GameShell
+                gameId={GAME_ID}
+                gameName="BatasBottles"
+                onNewGame={() => {
+                    /* handled by level select */
+                }}
+                onOpenLeaderboard={() => setLeaderboardOpen(true)}
+                onOpenStats={() => setStatsOpen(true)}
+            >
+                <LevelSelectScreen
+                    levelSystem={batasBottlesLevelSystem}
+                    progress={progress}
+                    onSelect={(lvl: number) => startLevel(lvl)}
+                    t={{
+                        levelSelect: t.levels.levelSelect,
+                        locked: t.levels.locked,
+                        totalStars: t.levels.totalStars,
+                        phase: t.levels.phase,
+                        resume: t.levels.resume,
+                        levelNumber: t.levels.level,
+                    }}
+                />
+                <StatsModal
+                    open={statsOpen}
+                    onClose={() => setStatsOpen(false)}
+                    stats={stats}
+                    onLeaderboard={() => setLeaderboardOpen(true)}
+                />
+                <Leaderboard
+                    open={leaderboardOpen}
+                    onClose={() => setLeaderboardOpen(false)}
+                    gameId={GAME_ID}
+                />
+            </GameShell>
+        );
+    }
+
     if (!renderModel) {
         return (
-            <GameShell gameId={GAME_ID} gameName="BatasBottles" onNewGame={initGame}>
+            <GameShell gameId={GAME_ID} gameName="BatasBottles" onNewGame={requestReset}>
                 <div className="flex items-center justify-center h-64">
                     <div className="animate-pulse text-[color:var(--fg)]">Loading...</div>
                 </div>
@@ -664,33 +712,49 @@ export default function BatasBottlesGame() {
     const smalls = data.bottles.filter(b => !b.isTarget);
     const { left, right } = splitLeftRight(smalls);
 
-    // Hints (legal-destination ring on candidate bottles) only on easy mode.
-    const showHints = difficulty === "easy";
+    const currentLevel = data.level;
+    const showHints = currentLevel <= 50;
 
-    const modeCfg = BATASBOTTLES_MODES[mode];
-    const cols = modeCfg.numSmallBottles <= 6 ? 1 : modeCfg.numSmallBottles <= 8 ? 2 : 2;
-
-    // Bottle sizing — big bottle gets a dominant box
+    // Bottle sizing — scale by live small-bottle count
     const bigWidth = 108;
     const bigHeight = 240;
-    const smallWidth = modeCfg.numSmallBottles <= 6 ? 64 : modeCfg.numSmallBottles <= 8 ? 58 : 52;
+    const smallBottleCount = data.bottles.length - 1;
+    const smallWidth =
+        smallBottleCount <= 6
+            ? 64
+            : smallBottleCount <= 10
+                ? 56
+                : smallBottleCount <= 14
+                    ? 48
+                    : smallBottleCount <= 18
+                        ? 42
+                        : 36;
     const smallHeight = smallWidth * 1.9;
+    const cols =
+        smallBottleCount <= 6
+            ? 1
+            : smallBottleCount <= 12
+                ? 2
+                : smallBottleCount <= 18
+                    ? 3
+                    : 3;
+
+    const atMaxLevel = currentLevel >= BATASBOTTLES_LEVEL_COUNT;
+
+    // Star projection icons
+    const projectionWarn =
+        data.starProjection === 0 &&
+        data.moveLimit !== null &&
+        data.movesLeft !== null &&
+        data.movesLeft <= Math.max(3, Math.floor(data.moveLimit * 0.1));
 
     return (
         <GameShell
             gameId={GAME_ID}
             gameName="BatasBottles"
             onNewGame={requestReset}
-            onOpenLeaderboard={() => {
-                setShowGameOverOverlay(false);
-                setLeaderboardOpen(true);
-            }}
-            onOpenStats={() => {
-                setShowGameOverOverlay(false);
-                setStatsOpen(true);
-            }}
-            difficulty={difficulty}
-            onDifficultyChange={requestDifficultyChange}
+            onOpenLeaderboard={() => setLeaderboardOpen(true)}
+            onOpenStats={() => setStatsOpen(true)}
             timerText={timer.timerText}
             actionsSlot={
                 isInProgress ? (
@@ -717,10 +781,36 @@ export default function BatasBottlesGame() {
             }
         >
             <div className="max-w-2xl mx-auto p-4 space-y-3 flex flex-col items-center">
-                {/* Status bar */}
+                {/* Top bar: back + level + star projection */}
+                <div className="flex items-center justify-between w-full gap-2">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (isInProgress) {
+                                setConfirmResetOpen(true);
+                            } else {
+                                backToLevels();
+                            }
+                        }}
+                        className="inline-flex items-center gap-1 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-1.5 text-xs font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                        title={t.levels.backToLevels}
+                    >
+                        <ArrowLeft size={14} />
+                        <span>{t.levels.backToLevels}</span>
+                    </button>
+                    <div className="text-sm font-bold text-[color:var(--fg)]">
+                        {t.batasbottles.levelLabel.replace("{n}", String(currentLevel))}
+                    </div>
+                    <StarProjection
+                        stars={data.starProjection}
+                        warn={projectionWarn}
+                    />
+                </div>
+
+                {/* HUD: target color + moves + filled */}
                 {!renderModel.isTerminal && (
-                    <div className="flex flex-col items-center gap-1 text-sm text-[color:var(--muted)]">
-                        <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between w-full gap-3 text-xs sm:text-sm text-[color:var(--muted)]">
+                        <div className="flex items-center gap-1.5">
                             <span>{t.batasbottles.targetColor}:</span>
                             <span
                                 className="inline-block h-4 w-4 rounded-full border border-white/30"
@@ -730,14 +820,24 @@ export default function BatasBottlesGame() {
                                 }}
                             />
                         </div>
-                        <div className="flex items-center gap-4">
-                            <span>
-                                {data.filledLayers}/{data.totalLayers} {t.batasbottles.layersFilled}
-                            </span>
-                            <span>-</span>
-                            <span>
-                                {data.moveCount} {t.common.moves}
-                            </span>
+                        <div className="flex items-center gap-1">
+                            {data.moveLimit === null ? (
+                                <span>{data.moveCount} / ∞</span>
+                            ) : (
+                                <span
+                                    className={
+                                        data.movesLeft !== null && data.movesLeft <= 3
+                                            ? "text-rose-300 font-semibold"
+                                            : ""
+                                    }
+                                >
+                                    {data.moveCount} / {data.moveLimit} {t.common.moves}
+                                </span>
+                            )}
+                        </div>
+                        <div>
+                            {data.filledLayers}/{data.totalLayers}{" "}
+                            {t.batasbottles.layersFilled}
                         </div>
                     </div>
                 )}
@@ -860,24 +960,30 @@ export default function BatasBottlesGame() {
                 gameId={GAME_ID}
             />
 
-            <FloatingGameOver
-                active={showFloatingText}
-                text={t.common.youWin}
-                outcome="win"
-                duration={1500}
-                onComplete={handleFloatingComplete}
-            />
-
-            <GameResultOverlay
-                open={showGameOverOverlay}
-                outcome="win"
-                title={t.common.youWin}
-                subtitle={t.batasbottles.solvedIn.replace("{moves}", String(data.moveCount))}
-                onPlayAgain={initGame}
-                onOpenStats={() => {
-                    setShowGameOverOverlay(false);
-                    setStatsOpen(true);
+            <LevelResultOverlay
+                open={overlayOpen}
+                won={renderModel.status === "won"}
+                stars={data.stars}
+                moveCount={data.moveCount}
+                priorBest={priorBest}
+                isNewBest={wasNewBest}
+                atMaxLevel={atMaxLevel}
+                t={t}
+                onRetry={() => {
+                    setOverlayOpen(false);
+                    startLevel(currentLevel);
                 }}
+                onBackToLevels={() => {
+                    setOverlayOpen(false);
+                    backToLevels();
+                }}
+                onNextLevel={() => {
+                    setOverlayOpen(false);
+                    startLevel(
+                        Math.min(currentLevel + 1, BATASBOTTLES_LEVEL_COUNT)
+                    );
+                }}
+                onClose={() => setOverlayOpen(false)}
             />
 
             <Modal
@@ -905,45 +1011,202 @@ export default function BatasBottlesGame() {
             >
                 <div className="text-sm text-[color:var(--fg)]/85">{t.modals.resetMessage}</div>
             </Modal>
-
-            <Modal
-                open={confirmDifficultyOpen}
-                title={t.modals.difficultyTitle}
-                onClose={() => {
-                    setConfirmDifficultyOpen(false);
-                    setPendingDifficulty(null);
-                }}
-                footer={
-                    <div className="flex items-center justify-end gap-2">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setConfirmDifficultyOpen(false);
-                                setPendingDifficulty(null);
-                            }}
-                            className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
-                        >
-                            {t.common.cancel}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                const next = pendingDifficulty;
-                                setConfirmDifficultyOpen(false);
-                                setPendingDifficulty(null);
-                                forfeitCurrentGame();
-                                if (next) applyDifficultyChange(next);
-                            }}
-                            className="rounded-xl border border-[color:var(--border)] bg-rose-500/20 px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-rose-500/30"
-                        >
-                            {t.modals.difficultyConfirm}
-                        </button>
-                    </div>
-                }
-            >
-                <div className="text-sm text-[color:var(--fg)]/85">{t.modals.difficultyMessage}</div>
-            </Modal>
         </GameShell>
+    );
+}
+
+// ============================================================================
+// Star projection HUD badge
+// ============================================================================
+
+function StarProjection({
+    stars,
+    warn,
+}: {
+    stars: StarCount;
+    warn: boolean;
+}) {
+    return (
+        <div className="flex items-center gap-0.5">
+            {[1, 2, 3].map(slot => {
+                const earned = slot <= stars;
+                const color = earned
+                    ? "text-amber-300"
+                    : warn
+                        ? "text-rose-400/80"
+                        : "text-zinc-700";
+                return (
+                    <Star
+                        key={slot}
+                        size={16}
+                        fill={earned ? "currentColor" : "none"}
+                        className={color}
+                    />
+                );
+            })}
+        </div>
+    );
+}
+
+// ============================================================================
+// Level result overlay
+// ============================================================================
+
+interface LevelResultOverlayProps {
+    open: boolean;
+    won: boolean;
+    stars: StarCount;
+    moveCount: number;
+    priorBest: number | null;
+    isNewBest: boolean;
+    atMaxLevel: boolean;
+    t: ReturnType<typeof useLanguage>["t"];
+    onRetry: () => void;
+    onBackToLevels: () => void;
+    onNextLevel: () => void;
+    onClose: () => void;
+}
+
+function LevelResultOverlay({
+    open,
+    won,
+    stars,
+    moveCount,
+    priorBest,
+    isNewBest,
+    atMaxLevel,
+    t,
+    onRetry,
+    onBackToLevels,
+    onNextLevel,
+    onClose,
+}: LevelResultOverlayProps) {
+    const title = won ? t.levels.levelComplete : t.levels.levelFailed;
+
+    return (
+        <Modal
+            open={open}
+            title={title}
+            onClose={onClose}
+            footer={
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                    {won ? (
+                        <>
+                            <button
+                                type="button"
+                                onClick={onRetry}
+                                className="inline-flex items-center gap-1 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                            >
+                                <RotateCcw size={14} />
+                                {t.levels.retry}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={onBackToLevels}
+                                className="inline-flex items-center gap-1 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                            >
+                                <ArrowLeft size={14} />
+                                {t.levels.backToLevels}
+                            </button>
+                            {!atMaxLevel && (
+                                <button
+                                    type="button"
+                                    onClick={onNextLevel}
+                                    className="inline-flex items-center gap-1 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-amber-500/20 transition hover:from-amber-400 hover:to-orange-400"
+                                >
+                                    {t.levels.nextLevel}
+                                    <ChevronRight size={14} />
+                                </button>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <button
+                                type="button"
+                                onClick={onBackToLevels}
+                                className="inline-flex items-center gap-1 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                            >
+                                <ArrowLeft size={14} />
+                                {t.levels.backToLevels}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={onRetry}
+                                className="inline-flex items-center gap-1 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-amber-500/20 transition hover:from-amber-400 hover:to-orange-400"
+                            >
+                                <RotateCcw size={14} />
+                                {t.levels.retry}
+                            </button>
+                        </>
+                    )}
+                </div>
+            }
+        >
+            <div className="flex flex-col items-center gap-4 py-2">
+                {/* Stars */}
+                <div className="flex items-center gap-3">
+                    {[1, 2, 3].map(slot => {
+                        const earned = won && slot <= stars;
+                        return (
+                            <Star
+                                key={slot}
+                                size={52}
+                                fill={earned ? "currentColor" : "none"}
+                                className={
+                                    earned
+                                        ? "text-amber-300 bb-star-pop"
+                                        : "text-zinc-700"
+                                }
+                                style={{
+                                    animationDelay: `${(slot - 1) * 120}ms`,
+                                }}
+                            />
+                        );
+                    })}
+                </div>
+
+                {/* Subline */}
+                {won ? (
+                    <div className="flex flex-col items-center gap-1 text-sm text-[color:var(--fg)]/90">
+                        <div>
+                            {t.batasbottles.movesUsed.replace(
+                                "{moves}",
+                                String(moveCount)
+                            )}
+                            {priorBest != null && !isNewBest && (
+                                <span className="ml-2 text-[color:var(--muted)]">
+                                    · {t.levels.bestMoves} {priorBest}
+                                </span>
+                            )}
+                        </div>
+                        {isNewBest && (
+                            <div className="inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-300">
+                                <Star
+                                    size={12}
+                                    fill="currentColor"
+                                />
+                                {t.levels.newBest}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="text-sm text-[color:var(--fg)]/85">
+                        {t.batasbottles.outOfMoves}
+                    </div>
+                )}
+
+                <style>{`
+                    .bb-star-pop {
+                        animation: bb-star-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+                    }
+                    @keyframes bb-star-pop {
+                        0%   { transform: scale(0.2); opacity: 0; }
+                        60%  { transform: scale(1.15); opacity: 1; }
+                        100% { transform: scale(1); opacity: 1; }
+                    }
+                `}</style>
+            </div>
+        </Modal>
     );
 }
 

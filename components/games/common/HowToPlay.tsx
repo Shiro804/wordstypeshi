@@ -548,13 +548,19 @@ const GAME_INSTRUCTIONS: Record<GameId, {
                 content: "Two bottles always start completely empty so you have room to maneuver. Use them to peel away unwanted layers and uncover the target color buried below.",
             },
             {
-                heading: "Difficulty Levels",
-                content: "",
+                heading: "Level Progression",
+                content: "BatasBottles features 1000 hand-tuned levels grouped into 5 phases that gradually ramp up the challenge.",
                 examples: [
-                    { label: <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-xs font-bold">EASY</span>, description: "6 small bottles, 3 colors" },
-                    { label: <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 text-xs font-bold">MEDIUM</span>, description: "8 small bottles, 5 colors" },
-                    { label: <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-xs font-bold">HARD</span>, description: "12 small bottles, 7 colors" },
+                    { label: <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-xs font-bold">1–50</span>, description: "Tutorial: 5–7 bottles, 3 colors, gentle introduction" },
+                    { label: <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 text-xs font-bold">51–200</span>, description: "Easy: 6–10 bottles, 4–5 colors, generous move limit" },
+                    { label: <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-xs font-bold">201–500</span>, description: "Medium: 10–14 bottles, 5–6 colors, moderate move limit" },
+                    { label: <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-xs font-bold">501–800</span>, description: "Hard: 14–18 bottles, 6–7 colors, tight move limit" },
+                    { label: <span className="px-2 py-0.5 rounded bg-violet-500/20 text-violet-300 text-xs font-bold">801–1000</span>, description: "Expert: 18–22 bottles, 7–8 colors, very tight" },
                 ],
+            },
+            {
+                heading: "Stars & Move Limit",
+                content: "Each level has a move limit (except early tutorials). Finish in fewer moves to earn more stars: ≤ threshold → 3 stars, then 2, then 1. Running out of moves ends the level.",
             },
             {
                 heading: "Tap Again to Cancel",
@@ -562,7 +568,7 @@ const GAME_INSTRUCTIONS: Record<GameId, {
             },
             {
                 heading: "Scoring",
-                content: "Fewer pours and faster solves earn more points. Every puzzle is guaranteed to be solvable.",
+                content: "Earn up to 3 stars per level by solving efficiently. Your total stars and highest reached level appear on the leaderboard. Every level is guaranteed solvable.",
             },
         ],
     },

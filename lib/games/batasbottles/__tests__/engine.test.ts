@@ -15,7 +15,6 @@ import {
 } from '../engine';
 import { generatePuzzle, TARGET_BOTTLE_ID } from '../puzzle-generator';
 import {
-  BATASBOTTLES_MODES,
   BIG_BOTTLE_CAPACITY,
   SMALL_BOTTLE_CAPACITY,
   SCORING,
@@ -24,10 +23,25 @@ import {
 // ============================================================================
 // Fixtures
 // ============================================================================
+//
+// The engine is now level-based — the old easy/medium/hard modes are gone.
+// We use representative levels from different phases so every test that
+// needs a "small", "medium" or "large" puzzle keeps working.
 
-const easyParams: BatasBottlesParams = { mode: 'easy' };
-const mediumParams: BatasBottlesParams = { mode: 'medium' };
-const hardParams: BatasBottlesParams = { mode: 'hard' };
+const easyParams: BatasBottlesParams = { level: 1 };     // Tutorial phase
+const mediumParams: BatasBottlesParams = { level: 250 }; // Medium phase
+const hardParams: BatasBottlesParams = { level: 700 };   // Hard phase
+
+/**
+ * Default test-state bookkeeping for the new engine fields. Hand-crafted
+ * state fixtures below spread this in so they don't need to repeat the
+ * level/moveLimit/starThresholds trio.
+ */
+const TEST_LEVEL_FIELDS = {
+  level: 1,
+  moveLimit: null as number | null,
+  starThresholds: [10, 14, 20] as [number, number, number],
+};
 
 function makeBottle(
   id: number,
@@ -77,13 +91,13 @@ describe('generatePuzzle', () => {
   });
 
   it('always includes exactly numSmallBottles + 1 bottles', () => {
-    for (const mode of ['easy', 'medium', 'hard'] as const) {
-      const cfg = BATASBOTTLES_MODES[mode];
-      const puzzle = generatePuzzle(`count-${mode}`, {
-        numSmallBottles: cfg.numSmallBottles,
-        numEmptyBottles: cfg.numEmptyBottles,
-        numColors: cfg.numColors,
-      });
+    const fixtures = [
+      { numSmallBottles: 6, numEmptyBottles: 2, numColors: 3 },
+      { numSmallBottles: 8, numEmptyBottles: 2, numColors: 5 },
+      { numSmallBottles: 12, numEmptyBottles: 2, numColors: 7 },
+    ];
+    for (const [i, cfg] of fixtures.entries()) {
+      const puzzle = generatePuzzle(`count-${i}`, cfg);
       expect(puzzle.bottles).toHaveLength(cfg.numSmallBottles + 1);
     }
   });
@@ -124,13 +138,13 @@ describe('generatePuzzle', () => {
   });
 
   it('total target-color units across small bottles equals big bottle capacity', () => {
-    for (const mode of ['easy', 'medium', 'hard'] as const) {
-      const cfg = BATASBOTTLES_MODES[mode];
-      const puzzle = generatePuzzle(`target-count-${mode}`, {
-        numSmallBottles: cfg.numSmallBottles,
-        numEmptyBottles: cfg.numEmptyBottles,
-        numColors: cfg.numColors,
-      });
+    const fixtures = [
+      { numSmallBottles: 6, numEmptyBottles: 2, numColors: 3 },
+      { numSmallBottles: 8, numEmptyBottles: 2, numColors: 5 },
+      { numSmallBottles: 12, numEmptyBottles: 2, numColors: 7 },
+    ];
+    for (const [i, cfg] of fixtures.entries()) {
+      const puzzle = generatePuzzle(`target-count-${i}`, cfg);
       const totalTarget = puzzle.bottles
         .filter(b => !b.isTarget)
         .reduce(
@@ -169,17 +183,15 @@ describe('generatePuzzle', () => {
     }
   });
 
-  it('generates solvable puzzles across many seeds for every difficulty', () => {
-    for (const mode of ['easy', 'medium', 'hard'] as const) {
-      const cfg = BATASBOTTLES_MODES[mode];
+  it('generates solvable puzzles across many seeds at different sizes', () => {
+    const fixtures = [
+      { numSmallBottles: 6, numEmptyBottles: 2, numColors: 3 },
+      { numSmallBottles: 8, numEmptyBottles: 2, numColors: 5 },
+      { numSmallBottles: 12, numEmptyBottles: 2, numColors: 7 },
+    ];
+    for (const [idx, cfg] of fixtures.entries()) {
       for (let i = 0; i < 5; i++) {
-        expect(() =>
-          generatePuzzle(`solvable-${mode}-${i}`, {
-            numSmallBottles: cfg.numSmallBottles,
-            numEmptyBottles: cfg.numEmptyBottles,
-            numColors: cfg.numColors,
-          })
-        ).not.toThrow();
+        expect(() => generatePuzzle(`solvable-${idx}-${i}`, cfg)).not.toThrow();
       }
     }
   });
@@ -322,18 +334,40 @@ describe('batasBottlesEngine.init', () => {
     expect(state.endedAtMs).toBeNull();
   });
 
-  it('honours the requested mode for all difficulty levels', () => {
-    for (const [mode, params] of [
-      ['easy', easyParams],
-      ['medium', mediumParams],
-      ['hard', hardParams],
-    ] as const) {
-      const state = batasBottlesEngine.init(`mode-${mode}`, params);
-      const cfg = BATASBOTTLES_MODES[mode];
-      expect(state.mode).toBe(mode);
-      expect(state.bottles).toHaveLength(cfg.numSmallBottles + 1);
+  it('stores the requested level and produces increasingly larger puzzles across phases', () => {
+    const tut = batasBottlesEngine.init('', { level: 1 });
+    const med = batasBottlesEngine.init('', { level: 250 });
+    const hard = batasBottlesEngine.init('', { level: 700 });
+
+    expect(tut.level).toBe(1);
+    expect(med.level).toBe(250);
+    expect(hard.level).toBe(700);
+
+    // Later phases use more small bottles. bottles length = smalls + 1 target.
+    expect(tut.bottles.length).toBeLessThan(med.bottles.length);
+    expect(med.bottles.length).toBeLessThan(hard.bottles.length);
+
+    // Big target bottle is always first and always empty at init.
+    for (const state of [tut, med, hard]) {
       expect(state.bottles[0].isTarget).toBe(true);
-      expect(state.bottles[0].capacity).toBe(BIG_BOTTLE_CAPACITY);
+      expect(state.bottles[0].layers).toEqual([]);
+      expect(state.bottles[0].capacity).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('tutorial levels have no move limit; later levels do', () => {
+    expect(batasBottlesEngine.init('', { level: 1 }).moveLimit).toBeNull();
+    expect(batasBottlesEngine.init('', { level: 25 }).moveLimit).toBeNull();
+    expect(batasBottlesEngine.init('', { level: 100 }).moveLimit).not.toBeNull();
+    expect(batasBottlesEngine.init('', { level: 900 }).moveLimit).not.toBeNull();
+  });
+
+  it('star thresholds are strictly increasing', () => {
+    for (const level of [1, 100, 400, 700, 1000]) {
+      const state = batasBottlesEngine.init('', { level });
+      const [t1, t2, t3] = state.starThresholds;
+      expect(t2).toBeGreaterThan(t1);
+      expect(t3).toBeGreaterThan(t2);
     }
   });
 
@@ -439,7 +473,7 @@ describe('tap_bottle — pour execution', () => {
       selectedBottleId: null,
       moveCount: 0,
       history: [],
-      mode: 'easy',
+      ...TEST_LEVEL_FIELDS,
       ...overrides,
     };
   }
@@ -591,7 +625,7 @@ describe('win condition', () => {
       selectedBottleId: null,
       moveCount: 0,
       history: [],
-      mode: 'easy',
+      ...TEST_LEVEL_FIELDS,
     };
     state = batasBottlesEngine.applyAction(state, { type: 'tap_bottle', bottleId: 1 }).state;
     const res = batasBottlesEngine.applyAction(state, { type: 'tap_bottle', bottleId: 0 });
@@ -618,7 +652,7 @@ describe('win condition', () => {
       selectedBottleId: null,
       moveCount: 1,
       history: [],
-      mode: 'easy',
+      ...TEST_LEVEL_FIELDS,
     };
     const res = batasBottlesEngine.applyAction(won, {
       type: 'tap_bottle',
@@ -649,7 +683,7 @@ describe('undo and restart', () => {
       selectedBottleId: null,
       moveCount: 0,
       history: [],
-      mode: 'easy',
+      ...TEST_LEVEL_FIELDS,
     };
   }
 
@@ -743,14 +777,129 @@ describe('getSummary', () => {
       selectedBottleId: null,
       moveCount: 7,
       history: [],
-      mode: 'easy',
+      ...TEST_LEVEL_FIELDS,
     };
     const s = batasBottlesEngine.getSummary(state);
     expect(s.outcome).toBe('win');
     expect(s.attemptsUsed).toBe(7);
     expect(s.score).toBeGreaterThan(0);
     expect(s.details).toBeDefined();
-    expect((s.details as { mode: string }).mode).toBe('easy');
+    expect((s.details as { level: number }).level).toBe(1);
+  });
+});
+
+// ============================================================================
+// Engine — move limit / loss condition
+// ============================================================================
+
+describe('move limit and loss', () => {
+  it('running out of moves without winning sets status to lost', () => {
+    // Hand-craft a state whose next pour will push moveCount to the limit
+    // without winning.
+    const state: BatasBottlesState = {
+      status: 'playing',
+      startedAtMs: 0,
+      endedAtMs: null,
+      bottles: [
+        { id: 0, capacity: 12, layers: [], isTarget: true },
+        { id: 1, capacity: 6, layers: ['A'], isTarget: false },
+        { id: 2, capacity: 6, layers: [], isTarget: false },
+      ],
+      targetColor: 'T',
+      palette: ['T', 'A'],
+      selectedBottleId: null,
+      moveCount: 0,
+      history: [],
+      level: 100,
+      moveLimit: 1,
+      starThresholds: [1, 2, 3],
+    };
+
+    let s = batasBottlesEngine.applyAction(state, { type: 'tap_bottle', bottleId: 1 }).state;
+    const res = batasBottlesEngine.applyAction(s, { type: 'tap_bottle', bottleId: 2 });
+
+    expect(res.state.status).toBe('lost');
+    expect(res.state.endedAtMs).not.toBeNull();
+    expect(res.events.some(e =>
+      e.type === 'game_ended' &&
+      (e.payload as { outcome: string }).outcome === 'lost'
+    )).toBe(true);
+    expect(batasBottlesEngine.isTerminal(res.state)).toBe(true);
+  });
+
+  it('a winning pour on the last allowed move still wins, not loses', () => {
+    const state: BatasBottlesState = {
+      status: 'playing',
+      startedAtMs: 0,
+      endedAtMs: null,
+      bottles: [
+        { id: 0, capacity: 2, layers: [], isTarget: true },
+        { id: 1, capacity: 6, layers: ['T', 'T'], isTarget: false },
+      ],
+      targetColor: 'T',
+      palette: ['T'],
+      selectedBottleId: null,
+      moveCount: 0,
+      history: [],
+      level: 100,
+      moveLimit: 1,
+      starThresholds: [1, 2, 3],
+    };
+    let s = batasBottlesEngine.applyAction(state, { type: 'tap_bottle', bottleId: 1 }).state;
+    const res = batasBottlesEngine.applyAction(s, { type: 'tap_bottle', bottleId: 0 });
+    expect(res.state.status).toBe('won');
+  });
+
+  it('restart resets a terminal state even when history is empty (defensive)', () => {
+    // Defensive edge case: a rehydrated-from-storage terminal state with
+    // no in-memory history should still be unstickable via restart.
+    const big: Bottle = { id: 0, capacity: 2, layers: [], isTarget: true };
+    const terminal: BatasBottlesState = {
+      status: 'lost',
+      startedAtMs: 0,
+      endedAtMs: 500,
+      bottles: [big, { id: 1, capacity: 6, layers: ['A'], isTarget: false }],
+      targetColor: 'T',
+      palette: ['T', 'A'],
+      selectedBottleId: null,
+      moveCount: 5,
+      history: [],
+      level: 100,
+      moveLimit: 5,
+      starThresholds: [1, 2, 3],
+    };
+    const res = batasBottlesEngine.applyAction(terminal, { type: 'restart' });
+    expect(res.state.status).toBe('playing');
+    expect(res.state.endedAtMs).toBeNull();
+    expect(res.state.moveCount).toBe(0);
+  });
+
+  it('restart revives a lost run back to playing', () => {
+    const state: BatasBottlesState = {
+      status: 'playing',
+      startedAtMs: 0,
+      endedAtMs: null,
+      bottles: [
+        { id: 0, capacity: 12, layers: [], isTarget: true },
+        { id: 1, capacity: 6, layers: ['A'], isTarget: false },
+        { id: 2, capacity: 6, layers: [], isTarget: false },
+      ],
+      targetColor: 'T',
+      palette: ['T', 'A'],
+      selectedBottleId: null,
+      moveCount: 0,
+      history: [],
+      level: 100,
+      moveLimit: 1,
+      starThresholds: [1, 2, 3],
+    };
+    let s = batasBottlesEngine.applyAction(state, { type: 'tap_bottle', bottleId: 1 }).state;
+    s = batasBottlesEngine.applyAction(s, { type: 'tap_bottle', bottleId: 2 }).state;
+    expect(s.status).toBe('lost');
+
+    const restarted = batasBottlesEngine.applyAction(s, { type: 'restart' });
+    expect(restarted.state.status).toBe('playing');
+    expect(restarted.state.moveCount).toBe(0);
   });
 });
 

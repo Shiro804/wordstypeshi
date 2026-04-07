@@ -1,51 +1,32 @@
 /**
  * BatasBottles - Ruleset Configuration
- * Version: 1.0.0
+ * Version: 2.0.0
  *
  * Color-sort / bottle-pour puzzle: pour liquid between small bottles and
  * fill the big central target bottle with a single uniform target color.
+ *
+ * Version 2.0.0 adds a 1000-level progression system. Bottle capacities
+ * are no longer fixed global constants — each level configures its own
+ * `smallBottleCapacity` and `bigBottleCapacity`. The constants below are
+ * kept as *defaults* so older code paths (tests, fallbacks) keep working.
  */
 
-export const BATASBOTTLES_RULESET_VERSION = '1.0.0';
+export const BATASBOTTLES_RULESET_VERSION = '2.0.0';
 
 /**
- * Capacity (= number of stackable color layers) of the big central
- * target bottle. It is twice the height of a small bottle.
+ * Default capacity of the big central target bottle.
+ * Individual levels may override this.
  */
 export const BIG_BOTTLE_CAPACITY = 12;
 
 /**
- * Capacity of a small source bottle — "6 stacks of color" as spec'd.
+ * Default capacity of a small source bottle.
+ * Individual levels may override this.
  */
 export const SMALL_BOTTLE_CAPACITY = 6;
 
-/**
- * Game mode configurations.
- *
- * numSmallBottles  — total small bottles surrounding the target
- * numEmptyBottles  — of those, how many start completely empty
- *                    (buffer space needed for maneuvering)
- * numColors        — total distinct colors (including the target)
- */
-export const BATASBOTTLES_MODES = {
-  easy: {
-    numSmallBottles: 6,
-    numEmptyBottles: 2,
-    numColors: 3,
-  },
-  medium: {
-    numSmallBottles: 8,
-    numEmptyBottles: 2,
-    numColors: 5,
-  },
-  hard: {
-    numSmallBottles: 12,
-    numEmptyBottles: 2,
-    numColors: 7,
-  },
-} as const;
-
-export type BatasBottlesModeId = keyof typeof BATASBOTTLES_MODES;
+/** Total number of levels the game exposes. */
+export const BATASBOTTLES_LEVEL_COUNT = 1000;
 
 /**
  * Vivid, clearly distinguishable liquid colors.

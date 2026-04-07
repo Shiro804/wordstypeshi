@@ -5,6 +5,8 @@
  * All game modules must implement these interfaces to integrate with the platform.
  */
 
+import type { LevelSystem } from './levels';
+
 // ============================================================================
 // Core Game Types
 // ============================================================================
@@ -203,4 +205,22 @@ export interface GameDefinition<
   
   /** Whether this game is enabled */
   isEnabled: boolean;
+
+  /**
+   * Optional level system. If present, the game exposes a numbered
+   * progression (1..levelSystem.maxLevel) and the hub will render a
+   * level-select screen instead of difficulty buttons.
+   *
+   * The generic parameter on the level system is intentionally decoupled
+   * from the engine's `TParams`: levels carry a richer, game-specific
+   * config object (bottle counts, capacities, variants, …) which the
+   * game's own code unpacks before handing off to the engine.
+   * Consumers that only need the UI facet (maxLevel, phases, generateLevel)
+   * can treat it as `LevelSystem<unknown>`.
+   *
+   * Games that don't set this field continue to work exactly as
+   * before — the level system is purely additive.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  levelSystem?: LevelSystem<any>;
 }

@@ -6,6 +6,7 @@
  */
 
 import type { UIAdapter, RenderModel, InputConfig } from '../sdk/types';
+import { calculateStars, type StarCount } from '../sdk/levels';
 import type { BatasBottlesState, Bottle } from './engine';
 import { canPour, topColorOf, topRunSizeOf } from './engine';
 import { TARGET_BOTTLE_ID } from './puzzle-generator';
@@ -52,6 +53,25 @@ export interface BatasBottlesRenderModel extends RenderModel {
     totalLayers: number;
     /** Whether the undo stack has anything to unwind. */
     canUndo: boolean;
+    /** 1-based level number this run is playing. */
+    level: number;
+    /**
+     * Moves still allowed before the run is forced to a loss.
+     * `null` means the level has no move limit (tutorial phase).
+     */
+    movesLeft: number | null;
+    /** Total move budget for the level, or `null` for unlimited. */
+    moveLimit: number | null;
+    /** Star thresholds used by the results overlay / HUD. */
+    starThresholds: [number, number, number];
+    /**
+     * How many stars the player is currently on track for *if the run
+     * ended right now with a win*. 3 = still on 3-star pace, 0 = busted.
+     * Provides a live HUD hint without committing to a terminal score.
+     */
+    starProjection: StarCount;
+    /** Final stars — only meaningful once `isTerminal && status==='won'`. */
+    stars: StarCount;
   };
 }
 
@@ -98,6 +118,23 @@ function toRenderModel(state: BatasBottlesState): BatasBottlesRenderModel {
 
   const target = renderedBottles[TARGET_BOTTLE_ID];
 
+  const movesLeft =
+    state.moveLimit === null
+      ? null
+      : Math.max(0, state.moveLimit - state.moveCount);
+
+  // Projection: stars the player would earn IF they solved the puzzle
+  // right now. Useful as a live HUD hint.
+  const starProjection: StarCount = calculateStars(
+    state.moveCount,
+    state.starThresholds
+  );
+
+  const stars: StarCount =
+    state.status === 'won'
+      ? calculateStars(state.moveCount, state.starThresholds)
+      : 0;
+
   return {
     status: state.status,
     isTerminal,
@@ -111,6 +148,12 @@ function toRenderModel(state: BatasBottlesState): BatasBottlesRenderModel {
       filledLayers: target.layers.length,
       totalLayers: target.capacity,
       canUndo: state.history.length > 0,
+      level: state.level,
+      movesLeft,
+      moveLimit: state.moveLimit,
+      starThresholds: state.starThresholds,
+      starProjection,
+      stars,
     },
   };
 }

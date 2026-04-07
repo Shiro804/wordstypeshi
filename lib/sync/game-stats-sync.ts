@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import type { Stats } from "@/lib/storage/storage";
+import { mergeLevelProgress } from "@/lib/games/sdk/levels";
 
 const LOCAL_STORAGE_PREFIX = "puzzlehub.stats";
 
@@ -86,6 +87,7 @@ export async function fetchRemoteGameStats(
     lastTimesSec: rawStats.lastTimesSec ?? [],
     bestScore: rawStats.bestScore ?? null,
     bestMismatches: rawStats.bestMismatches ?? null,
+    levelProgress: rawStats.levelProgress ?? undefined,
     updatedAt: Number.isNaN(updatedAtMs) ? Date.now() : updatedAtMs,
   };
 }
@@ -125,7 +127,10 @@ export function mergeStats(local: Stats, remote: Stats): Stats {
   const remoteMoreGames = remote.played > local.played;
 
   if (remoteNewer && remoteMoreGames) {
-    return remote;
+    return {
+      ...remote,
+      levelProgress: mergeLevelProgress(local.levelProgress, remote.levelProgress),
+    };
   }
 
   return {
@@ -160,6 +165,7 @@ export function mergeStats(local: Stats, remote: Stats): Stats {
       local.bestMismatches == null ? remote.bestMismatches :
       remote.bestMismatches == null ? local.bestMismatches :
       Math.min(local.bestMismatches, remote.bestMismatches),
+    levelProgress: mergeLevelProgress(local.levelProgress, remote.levelProgress),
     updatedAt: Math.max(local.updatedAt ?? 0, remote.updatedAt ?? 0),
   };
 }

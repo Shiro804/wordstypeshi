@@ -237,6 +237,39 @@ export const translations = {
       bigBottleFilled: "Big bottle filled!",
       solvedIn: "Solved in {moves} pours",
       tapToPour: "Tap a bottle, then tap another to pour",
+      levelLabel: "Level {n}",
+      filledOfTotal: "{filled} / {total} filled",
+      movesUsed: "{moves} moves",
+      outOfMoves: "Out of moves — try again!",
+    },
+
+    // Shared level system UI
+    levels: {
+      levelSelect: "Select level",
+      level: "Level",
+      locked: "Locked",
+      unlocked: "Unlocked",
+      complete: "Complete",
+      resume: "Continue",
+      phase: "Phase",
+      totalStars: "Total stars",
+      allLevelsComplete: "All levels complete!",
+      movesLeft: "Moves left",
+      noMoveLimit: "No move limit",
+      starsEarned: "Stars earned",
+      levelComplete: "Level complete!",
+      levelFailed: "Out of moves",
+      nextLevel: "Next level",
+      retry: "Retry",
+      backToLevels: "Back to levels",
+      newBest: "New best!",
+      bestMoves: "Best",
+      // Phase labels used by batasbottles (reusable generic labels)
+      phaseTutorial: "Tutorial",
+      phaseEasy: "Easy",
+      phaseMedium: "Medium",
+      phaseHard: "Hard",
+      phaseExpert: "Expert",
     },
 
     // Leaderboard
@@ -256,6 +289,8 @@ export const translations = {
       avgTime: "Avg time",
       highScore: "Highscore",
       bestMismatches: "Fewest Misses",
+      maxLevel: "Max level",
+      totalStars: "Total stars",
     },
 
     // Modals
@@ -502,6 +537,39 @@ export const translations = {
       bigBottleFilled: "Große Flasche gefüllt!",
       solvedIn: "Gelöst in {moves} Güssen",
       tapToPour: "Tippe eine Flasche, dann eine andere zum Umfüllen",
+      levelLabel: "Level {n}",
+      filledOfTotal: "{filled} / {total} gefüllt",
+      movesUsed: "{moves} Züge",
+      outOfMoves: "Züge aufgebraucht — versuch's nochmal!",
+    },
+
+    // Shared level system UI
+    levels: {
+      levelSelect: "Level wählen",
+      level: "Level",
+      locked: "Gesperrt",
+      unlocked: "Freigeschaltet",
+      complete: "Abgeschlossen",
+      resume: "Weiter",
+      phase: "Phase",
+      totalStars: "Sterne gesamt",
+      allLevelsComplete: "Alle Level abgeschlossen!",
+      movesLeft: "Züge übrig",
+      noMoveLimit: "Kein Zuglimit",
+      starsEarned: "Sterne erhalten",
+      levelComplete: "Level geschafft!",
+      levelFailed: "Keine Züge mehr",
+      nextLevel: "Nächstes Level",
+      retry: "Nochmal",
+      backToLevels: "Zur Levelauswahl",
+      newBest: "Neuer Rekord!",
+      bestMoves: "Beste",
+      // Phase labels used by batasbottles (reusable generic labels)
+      phaseTutorial: "Tutorial",
+      phaseEasy: "Einfach",
+      phaseMedium: "Mittel",
+      phaseHard: "Schwer",
+      phaseExpert: "Experte",
     },
 
     // Leaderboard
@@ -521,6 +589,8 @@ export const translations = {
       avgTime: "Ø Zeit",
       highScore: "Highscore",
       bestMismatches: "Wenigste Fehler",
+      maxLevel: "Max Level",
+      totalStars: "Sterne gesamt",
     },
 
     // Modals

@@ -7,10 +7,9 @@
 export * from './engine';
 export {
   BATASBOTTLES_RULESET_VERSION,
-  BATASBOTTLES_MODES,
+  BATASBOTTLES_LEVEL_COUNT,
   BOTTLE_COLORS,
   SCORING,
-  type BatasBottlesModeId,
 } from './ruleset';
 export * from './ui-adapter';
 export * from './definition';
@@ -20,3 +19,9 @@ export {
   type PuzzleParams,
   generatePuzzle,
 } from './puzzle-generator';
+export {
+  generateLevel,
+  batasBottlesLevelSystem,
+  BATASBOTTLES_PHASES,
+  type BatasBottlesLevelParams,
+} from './level-generator';

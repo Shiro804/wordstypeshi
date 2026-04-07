@@ -2,6 +2,11 @@
  * BatasBottles - Game Definition
  *
  * Complete definition for registering BatasBottles in the game registry.
+ *
+ * Version 2: BatasBottles is a pure level-based game. The legacy
+ * easy/medium/hard modes have been replaced by a single `level` mode; the
+ * actual difficulty is driven entirely by the level number via the
+ * generic `LevelSystem` hook on the definition.
  */
 
 import type { GameDefinition, GameMode } from '../sdk/types';
@@ -12,30 +17,25 @@ import {
   type BatasBottlesParams,
 } from './engine';
 import { batasBottlesUIAdapter } from './ui-adapter';
-import { BATASBOTTLES_MODES, BATASBOTTLES_RULESET_VERSION } from './ruleset';
+import { BATASBOTTLES_RULESET_VERSION } from './ruleset';
+import { batasBottlesLevelSystem } from './level-generator';
 
 // ============================================================================
 // Game modes
 // ============================================================================
 
+/**
+ * The game exposes a single "level" mode. All difficulty comes from the
+ * specific level number passed in `defaultParams.level`. The hub UI picks
+ * the real level from the player's saved progress; this default is only
+ * used when no progress exists yet.
+ */
 const modes: GameMode[] = [
   {
-    modeId: 'easy',
-    displayName: `Easy (${BATASBOTTLES_MODES.easy.numSmallBottles} bottles)`,
-    description: `${BATASBOTTLES_MODES.easy.numSmallBottles} small bottles, ${BATASBOTTLES_MODES.easy.numColors} colors — gentle introduction.`,
-    defaultParams: { mode: 'easy' } as BatasBottlesParams,
-  },
-  {
-    modeId: 'medium',
-    displayName: `Medium (${BATASBOTTLES_MODES.medium.numSmallBottles} bottles)`,
-    description: `${BATASBOTTLES_MODES.medium.numSmallBottles} small bottles, ${BATASBOTTLES_MODES.medium.numColors} colors — planning required.`,
-    defaultParams: { mode: 'medium' } as BatasBottlesParams,
-  },
-  {
-    modeId: 'hard',
-    displayName: `Hard (${BATASBOTTLES_MODES.hard.numSmallBottles} bottles)`,
-    description: `${BATASBOTTLES_MODES.hard.numSmallBottles} small bottles, ${BATASBOTTLES_MODES.hard.numColors} colors — a real juggling act.`,
-    defaultParams: { mode: 'hard' } as BatasBottlesParams,
+    modeId: 'level',
+    displayName: 'Level',
+    description: '1000 increasingly tricky bottle-pour levels.',
+    defaultParams: { level: 1 } as BatasBottlesParams,
   },
 ];
 
@@ -50,7 +50,7 @@ export const batasBottlesDefinition: GameDefinition<
 > = {
   gameId: 'batasbottles',
   displayName: 'BatasBottles',
-  description: 'Pour liquid between bottles to fill the big one with a single color!',
+  description: 'Pour liquid between bottles to fill the big one — 1000 levels!',
   icon: 'FlaskConical',
   modes,
   rulesetVersions: [BATASBOTTLES_RULESET_VERSION],
@@ -58,4 +58,5 @@ export const batasBottlesDefinition: GameDefinition<
   engine: batasBottlesEngine,
   uiAdapter: batasBottlesUIAdapter,
   isEnabled: true,
+  levelSystem: batasBottlesLevelSystem,
 };

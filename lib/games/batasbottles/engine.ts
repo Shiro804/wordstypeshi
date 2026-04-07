@@ -15,7 +15,9 @@
  * Win condition: the big target bottle is completely filled with the
  * target color.
  *
- * There is no hard loss. Forfeits are surfaced by the UI layer.
+ * Loss condition (v2): if the level declares a `moveLimit`, exceeding it
+ * without winning marks the run as `lost`. Levels without a move limit
+ * (tutorial phase) cannot be lost by running out of moves.
  */
 
 import type {
@@ -27,6 +29,11 @@ import type {
   GameParams,
 } from '../sdk/types';
 import {
+  calculateStars,
+  type LevelConfig,
+  type StarCount,
+} from '../sdk/levels';
+import {
   generatePuzzle,
   TARGET_BOTTLE_ID,
   type BottleSnapshot,
@@ -35,18 +42,24 @@ import {
 import {
   BIG_BOTTLE_CAPACITY,
   SMALL_BOTTLE_CAPACITY,
-  BATASBOTTLES_MODES,
-  type BatasBottlesModeId,
   SCORING,
 } from './ruleset';
+import {
+  generateLevel,
+  type BatasBottlesLevelParams,
+} from './level-generator';
 
 // ============================================================================
 // Types
 // ============================================================================
 
+/**
+ * Engine parameters. The game is pure level-based: callers pass a level
+ * number and the engine resolves the full `LevelConfig` internally.
+ */
 export interface BatasBottlesParams extends GameParams {
-  /** Mode id — drives numSmallBottles / numEmptyBottles / numColors. */
-  mode: BatasBottlesModeId;
+  /** 1-based level number (1..1000). */
+  level: number;
 }
 
 export interface Bottle {
@@ -68,8 +81,12 @@ export interface BatasBottlesState extends BaseGameState {
   moveCount: number;
   /** Undo stack of prior bottle states (most recent last). */
   history: Bottle[][];
-  /** The mode used to init the game — surfaced for persistence. */
-  mode: BatasBottlesModeId;
+  /** Level number this run is playing. */
+  level: number;
+  /** Maximum moves before the run counts as lost, or null for unlimited. */
+  moveLimit: number | null;
+  /** Star thresholds [3★, 2★, 1★] — cached so the UI can show progress. */
+  starThresholds: [number, number, number];
 }
 
 export type BatasBottlesAction =
@@ -187,19 +204,6 @@ function puzzleToBottles(puzzle: BottlesPuzzle): Bottle[] {
   }));
 }
 
-function modeParams(mode: BatasBottlesModeId): {
-  numSmallBottles: number;
-  numEmptyBottles: number;
-  numColors: number;
-} {
-  const m = BATASBOTTLES_MODES[mode];
-  return {
-    numSmallBottles: m.numSmallBottles,
-    numEmptyBottles: m.numEmptyBottles,
-    numColors: m.numColors,
-  };
-}
-
 // ============================================================================
 // Scoring
 // ============================================================================
@@ -212,13 +216,29 @@ function calculateScore(moveCount: number, durationMs: number): number {
   return baseScore + timeBonus;
 }
 
+/**
+ * Compute stars for a finished run.
+ * Returns 0 if the game hasn't been won yet.
+ */
+export function computeStars(state: BatasBottlesState): StarCount {
+  if (state.status !== 'won') return 0;
+  return calculateStars(state.moveCount, state.starThresholds);
+}
+
 // ============================================================================
 // Engine implementation
 // ============================================================================
 
-function init(seed: string, params: BatasBottlesParams): BatasBottlesState {
-  const mode = params.mode;
-  const puzzle = generatePuzzle(seed, modeParams(mode));
+/**
+ * Initialise a new game state for a given level.
+ *
+ * `seed` is accepted for interface parity with other engines but ignored —
+ * the level system fully determines the seed. If callers want different
+ * seeds for the same level they can pick a different level.
+ */
+function init(_seed: string, params: BatasBottlesParams): BatasBottlesState {
+  const config: LevelConfig<BatasBottlesLevelParams> = generateLevel(params.level);
+  const puzzle = generatePuzzle(config.seed, config.params);
 
   return {
     status: 'playing',
@@ -230,7 +250,9 @@ function init(seed: string, params: BatasBottlesParams): BatasBottlesState {
     selectedBottleId: null,
     moveCount: 0,
     history: [],
-    mode,
+    level: config.level,
+    moveLimit: config.moveLimit,
+    starThresholds: config.starThresholds,
   };
 }
 
@@ -238,6 +260,12 @@ function validateAction(
   state: BatasBottlesState,
   action: BatasBottlesAction
 ): string | null {
+  // `restart` and `deselect` are always legal — they're how the player
+  // gets out of a terminal (won/lost) state or cleans up selection.
+  if (action.type === 'restart' || action.type === 'deselect') {
+    return null;
+  }
+
   if (state.status !== 'playing') return 'Game is already finished';
 
   switch (action.type) {
@@ -253,12 +281,8 @@ function validateAction(
       }
       return null;
     }
-    case 'deselect':
-      return null;
     case 'undo':
       if (state.history.length === 0) return 'Nothing to undo';
-      return null;
-    case 'restart':
       return null;
     default:
       return 'Unknown action';
@@ -322,7 +346,13 @@ function applyAction(
         toIndex
       );
 
+      const newMoveCount = state.moveCount + 1;
       const won = isWonState(newBottles, state.targetColor);
+      // Loss: move limit exhausted without winning.
+      const lost =
+        !won &&
+        state.moveLimit !== null &&
+        newMoveCount >= state.moveLimit;
 
       const events: GameEvent[] = [
         {
@@ -332,17 +362,25 @@ function applyAction(
       ];
       if (won) {
         events.push({ type: 'game_ended', payload: { outcome: 'won' } });
+      } else if (lost) {
+        events.push({ type: 'game_ended', payload: { outcome: 'lost' } });
       }
+
+      const nextStatus: BatasBottlesState['status'] = won
+        ? 'won'
+        : lost
+          ? 'lost'
+          : 'playing';
 
       return {
         state: {
           ...state,
           bottles: newBottles,
           selectedBottleId: null,
-          moveCount: state.moveCount + 1,
+          moveCount: newMoveCount,
           history: [...state.history, snapshot],
-          status: won ? 'won' : 'playing',
-          endedAtMs: won ? Date.now() : null,
+          status: nextStatus,
+          endedAtMs: won || lost ? Date.now() : null,
         },
         events,
       };
@@ -375,15 +413,16 @@ function applyAction(
     }
 
     case 'restart': {
-      // Replay to the very first snapshot in the history if it exists,
-      // otherwise the state is already the initial one.
-      if (state.history.length === 0) {
-        return {
-          state: { ...state, selectedBottleId: null },
-          events: [{ type: 'restarted', payload: {} }],
-        };
-      }
-      const initialBottles = cloneBottles(state.history[0]);
+      // Replay to the very first snapshot in the history if it exists;
+      // otherwise the current bottles ARE the initial state (no pours yet).
+      // Either way the run is fully reset: status, moveCount, endedAtMs,
+      // selection and history all go back to "fresh playing". This also
+      // covers the defensive case of a terminal state with an empty history
+      // (e.g. rehydrated from storage).
+      const initialBottles =
+        state.history.length > 0
+          ? cloneBottles(state.history[0])
+          : cloneBottles(state.bottles);
       return {
         state: {
           ...state,
@@ -391,6 +430,9 @@ function applyAction(
           history: [],
           selectedBottleId: null,
           moveCount: 0,
+          // If the player was already dead, restarting revives the run.
+          status: 'playing',
+          endedAtMs: null,
         },
         events: [{ type: 'restarted', payload: {} }],
       };
@@ -412,14 +454,24 @@ function getSummary(state: BatasBottlesState): GameSummary {
     ? state.endedAtMs - state.startedAtMs
     : Date.now() - state.startedAtMs;
 
+  const stars = computeStars(state);
+
   return {
-    outcome: state.status === 'won' ? 'win' : 'forfeit',
+    outcome:
+      state.status === 'won'
+        ? 'win'
+        : state.status === 'lost'
+          ? 'lose'
+          : 'forfeit',
     score: getScore(state, durationMs),
     attemptsUsed: state.moveCount,
     durationMs,
     details: {
       moveCount: state.moveCount,
-      mode: state.mode,
+      level: state.level,
+      stars,
+      starThresholds: state.starThresholds,
+      moveLimit: state.moveLimit,
       targetColor: state.targetColor,
       smallBottleCount: state.bottles.length - 1,
     },
