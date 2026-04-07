@@ -49,19 +49,22 @@ export type BatasBottlesModeId = keyof typeof BATASBOTTLES_MODES;
 
 /**
  * Vivid, clearly distinguishable liquid colors.
- * First-come-first-serve — the target color is picked from this palette.
+ *
+ * Hand-picked so that any pair in the list is easily told apart on a dark
+ * background — no near-duplicate reds/pinks, no overlapping greens/limes,
+ * no twin cyan/teal, no amber/orange clash.
  */
 export const BOTTLE_COLORS = [
-  '#EF4444', // red
-  '#3B82F6', // blue
-  '#22C55E', // green
-  '#F59E0B', // amber
-  '#A855F7', // purple
-  '#EC4899', // pink
-  '#06B6D4', // cyan
-  '#F97316', // orange
-  '#84CC16', // lime
-  '#14B8A6', // teal
+  '#DC2626', // red       — pure vivid red
+  '#F97316', // orange    — clearly warm orange
+  '#FACC15', // yellow    — saturated school-bus yellow
+  '#22C55E', // green     — pure green
+  '#06B6D4', // cyan      — bright cyan
+  '#2563EB', // blue      — royal blue (clearly cooler than cyan)
+  '#9333EA', // purple    — saturated violet
+  '#EC4899', // magenta   — hot pink (clearly cooler than red)
+  '#F8FAFC', // white     — off-white "milky" liquid
+  '#92400E', // brown     — earthy brown (clearly darker than orange)
 ] as const;
 
 /**

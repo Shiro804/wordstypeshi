@@ -57,8 +57,8 @@ interface BottleProps {
     onTap: (id: number) => void;
     disabled: boolean;
     tiltDeg?: number;
-    /** If true, hide liquid layers for the top N cells that were just poured away. */
-    hideTopLayers?: number;
+    /** Whether to render the dashed legal-destination ring (easy mode only). */
+    showHint?: boolean;
 }
 
 function BottleSVG({
@@ -68,7 +68,7 @@ function BottleSVG({
     onTap,
     disabled,
     tiltDeg = 0,
-    hideTopLayers = 0,
+    showHint = false,
 }: BottleProps) {
     const { layers, capacity, isTarget, isSelected, isLegalDestination, topColor } = bottle;
 
@@ -86,10 +86,9 @@ function BottleSVG({
     const neckW = innerW * 0.42;
     const neckX = padX + (innerW - neckW) / 2;
 
-    const visibleLayers = Math.max(0, layers.length - hideTopLayers);
-
     const glowColor = isTarget ? topColor ?? "#60A5FA" : topColor ?? "#ffffff";
     const lift = isSelected ? -8 : 0;
+    const renderHintRing = showHint && isLegalDestination;
 
     return (
         <button
@@ -114,7 +113,7 @@ function BottleSVG({
                     overflow: "visible",
                     filter: isSelected
                         ? `drop-shadow(0 0 12px ${glowColor}) drop-shadow(0 0 4px ${glowColor})`
-                        : isLegalDestination
+                        : renderHintRing
                             ? `drop-shadow(0 0 8px rgba(255,255,255,0.6))`
                             : isTarget
                                 ? `drop-shadow(0 0 14px ${glowColor}80)`
@@ -144,7 +143,7 @@ function BottleSVG({
 
                 {/* Liquid layers — rendered bottom up, clipped to bottle outline */}
                 <g clipPath={`url(#bottle-clip-${bottle.id})`}>
-                    {layers.slice(0, visibleLayers).map((color, i) => {
+                    {layers.map((color, i) => {
                         const y = bodyY + bodyH - (i + 1) * layerH;
                         return (
                             <rect
@@ -172,8 +171,8 @@ function BottleSVG({
                     />
                 </g>
 
-                {/* Legal-destination ring pulse */}
-                {isLegalDestination && (
+                {/* Legal-destination ring pulse — only on easy mode */}
+                {renderHintRing && (
                     <path
                         d={buildBottlePath(bodyX, bodyY, innerW, bodyH, neckX, neckW, neckH)}
                         fill="none"
@@ -665,6 +664,9 @@ export default function BatasBottlesGame() {
     const smalls = data.bottles.filter(b => !b.isTarget);
     const { left, right } = splitLeftRight(smalls);
 
+    // Hints (legal-destination ring on candidate bottles) only on easy mode.
+    const showHints = difficulty === "easy";
+
     const modeCfg = BATASBOTTLES_MODES[mode];
     const cols = modeCfg.numSmallBottles <= 6 ? 1 : modeCfg.numSmallBottles <= 8 ? 2 : 2;
 
@@ -762,7 +764,7 @@ export default function BatasBottlesGame() {
                                 disabled={!!pourAnim || renderModel.isTerminal}
                                 shake={shakeId === b.id}
                                 tilt={pourAnim?.fromId === b.id ? -18 : 0}
-                                hideTopLayers={pourAnim?.fromId === b.id ? 1 : 0}
+                                showHint={showHints}
                                 registerRef={el => {
                                     if (el) bottleRefs.current.set(b.id, el);
                                     else bottleRefs.current.delete(b.id);
@@ -781,7 +783,7 @@ export default function BatasBottlesGame() {
                             disabled={!!pourAnim || renderModel.isTerminal}
                             shake={shakeId === 0}
                             tilt={0}
-                            hideTopLayers={0}
+                            showHint={showHints}
                             registerRef={el => {
                                 if (el) bottleRefs.current.set(0, el);
                                 else bottleRefs.current.delete(0);
@@ -806,7 +808,7 @@ export default function BatasBottlesGame() {
                                 disabled={!!pourAnim || renderModel.isTerminal}
                                 shake={shakeId === b.id}
                                 tilt={pourAnim?.fromId === b.id ? 18 : 0}
-                                hideTopLayers={pourAnim?.fromId === b.id ? 1 : 0}
+                                showHint={showHints}
                                 registerRef={el => {
                                     if (el) bottleRefs.current.set(b.id, el);
                                     else bottleRefs.current.delete(b.id);
@@ -957,7 +959,7 @@ function BottleCell({
     disabled,
     shake,
     tilt,
-    hideTopLayers,
+    showHint,
     registerRef,
 }: {
     bottle: BottleRenderData;
@@ -967,7 +969,7 @@ function BottleCell({
     disabled: boolean;
     shake: boolean;
     tilt: number;
-    hideTopLayers: number;
+    showHint: boolean;
     registerRef: (el: HTMLDivElement | null) => void;
 }) {
     return (
@@ -983,7 +985,7 @@ function BottleCell({
                 onTap={onTap}
                 disabled={disabled}
                 tiltDeg={tilt}
-                hideTopLayers={hideTopLayers}
+                showHint={showHint}
             />
             <style>{`
                 .bb-shake {
