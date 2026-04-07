@@ -15,6 +15,7 @@ import { batasBlastDefinition } from '../batasblast/definition';
 import { batasPairsDefinition } from '../bataspairs/definition';
 import { batasMineDefinition } from '../batasmine/definition';
 import { batasFlowDefinition } from '../batasflow/definition';
+import { batasBottlesDefinition } from '../batasbottles/definition';
 
 /**
  * Registry of all available games.
@@ -27,6 +28,7 @@ export const GAMES: Record<string, GameDefinition> = {
   'bataspairs': batasPairsDefinition,
   'batasmine': batasMineDefinition,
   'batasflow': batasFlowDefinition,
+  'batasbottles': batasBottlesDefinition,
 };
 
 /**

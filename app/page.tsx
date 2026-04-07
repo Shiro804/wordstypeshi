@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Palette, Type, Search, LayoutGrid, Droplets, Brain, Bomb, Route, LogIn, UserPlus, Settings, LogOut, User } from "lucide-react";
+import { Palette, Type, Search, LayoutGrid, Droplets, Brain, Bomb, Route, FlaskConical, LogIn, UserPlus, Settings, LogOut, User } from "lucide-react";
 import { getMyProfile, type UserProfile } from "@/lib/auth/profile";
 import UsernameModal from "@/components/auth/UsernameModal";
 import ProfileSettingsModal from "@/components/hub/ProfileSettingsModal";
@@ -74,6 +74,13 @@ const GAMES = [
     icon: Route,
     href: "/batasflow",
     color: "from-teal-500 to-emerald-600",
+    enabled: true,
+  },
+  {
+    id: "batasbottles" as const,
+    icon: FlaskConical,
+    href: "/batasbottles",
+    color: "from-sky-500 to-indigo-600",
     enabled: true,
   },
 ];

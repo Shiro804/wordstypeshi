@@ -34,6 +34,7 @@ export const translations = {
       moves: "Moves",
       guesses: "Guesses",
       hint: "Hint",
+      undo: "Undo",
       leaderboard: "Leaderboard",
       statistics: "Statistics",
       language: "Language",
@@ -227,6 +228,17 @@ export const translations = {
       solvedIn: "Solved in {moves} moves",
     },
 
+    // BatasBottles
+    batasbottles: {
+      name: "BatasBottles",
+      description: "Pour liquids to fill the big bottle",
+      targetColor: "Target color",
+      layersFilled: "layers filled",
+      bigBottleFilled: "Big bottle filled!",
+      solvedIn: "Solved in {moves} pours",
+      tapToPour: "Tap a bottle, then tap another to pour",
+    },
+
     // Leaderboard
     leaderboard: {
       title: "Leaderboard",
@@ -287,6 +299,7 @@ export const translations = {
       moves: "Züge",
       guesses: "Versuche",
       hint: "Hinweis",
+      undo: "Rückgängig",
       leaderboard: "Bestenliste",
       statistics: "Statistiken",
       language: "Sprache",
@@ -478,6 +491,17 @@ export const translations = {
       cellsFilled: "Zellen gefüllt",
       allFlowsConnected: "Alle Flows verbunden!",
       solvedIn: "Gelöst in {moves} Zügen",
+    },
+
+    // BatasBottles
+    batasbottles: {
+      name: "BatasBottles",
+      description: "Gieße Flüssigkeit in die große Flasche",
+      targetColor: "Zielfarbe",
+      layersFilled: "Schichten gefüllt",
+      bigBottleFilled: "Große Flasche gefüllt!",
+      solvedIn: "Gelöst in {moves} Güssen",
+      tapToPour: "Tippe eine Flasche, dann eine andere zum Umfüllen",
     },
 
     // Leaderboard
