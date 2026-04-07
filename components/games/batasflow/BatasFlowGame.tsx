@@ -603,6 +603,10 @@ export default function BatasFlowGame() {
                         </span>
                         <span>-</span>
                         <span>
+                            {data.filledCells}/{data.totalCells} {t.batasflow.cellsFilled}
+                        </span>
+                        <span>-</span>
+                        <span>
                             {data.moveCount} {t.common.moves}
                         </span>
                     </div>

@@ -418,9 +418,13 @@ function applyAction(
 
       const newGrid = buildGrid(state.gridSize, newPaths, state.dots);
 
-      // Check terminal: all flows connected
+      // Check terminal: all flows connected AND every cell of the grid is filled.
+      // The second requirement turns BatasFlow into a "no-empty-cells" puzzle:
+      // just linking each pair is not enough — players must route paths so the
+      // entire board is covered, matching Flow Free's classic rule.
       const allConnected = newCompleted.size === state.flowsTotal;
-      const won = allConnected;
+      const allFilled = newGrid.every(row => row.every(cell => cell !== null));
+      const won = allConnected && allFilled;
 
       const events: GameEvent[] = [{
         type: 'path_finished',

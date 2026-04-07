@@ -38,6 +38,10 @@ export interface BatasFlowRenderModel extends RenderModel {
     currentlyDrawing: boolean;
     /** Grid size (N×N) */
     gridSize: number;
+    /** Number of grid cells currently occupied (dots + paths + current path) */
+    filledCells: number;
+    /** Total number of cells in the grid (gridSize²) */
+    totalCells: number;
   };
 }
 
@@ -112,6 +116,7 @@ function toRenderModel(state: BatasFlowState): BatasFlowRenderModel {
 
   // Build 2D render grid
   const grid: FlowCellRenderData[][] = [];
+  let filledCells = 0;
   for (let r = 0; r < state.gridSize; r++) {
     const row: FlowCellRenderData[] = [];
     for (let c = 0; c < state.gridSize; c++) {
@@ -125,6 +130,8 @@ function toRenderModel(state: BatasFlowState): BatasFlowRenderModel {
       if (cellValue !== null) {
         color = getColorForPairId(state.dots, cellValue);
       }
+
+      if (color !== null) filledCells++;
 
       row.push({
         color,
@@ -146,6 +153,8 @@ function toRenderModel(state: BatasFlowState): BatasFlowRenderModel {
       moveCount: state.moveCount,
       currentlyDrawing: state.currentPath !== null,
       gridSize: state.gridSize,
+      filledCells,
+      totalCells: state.gridSize * state.gridSize,
     },
   };
 }

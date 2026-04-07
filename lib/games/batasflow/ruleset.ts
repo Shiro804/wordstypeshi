@@ -12,15 +12,15 @@ export const BATASFLOW_RULESET_VERSION = '1.0.0';
  */
 export const BATASFLOW_MODES = {
   easy: {
-    gridSize: 5,
+    gridSize: 6,
     numFlows: 5,
   },
   medium: {
-    gridSize: 7,
+    gridSize: 8,
     numFlows: 7,
   },
   hard: {
-    gridSize: 9,
+    gridSize: 10,
     numFlows: 9,
   },
 } as const;

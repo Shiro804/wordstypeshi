@@ -16,20 +16,20 @@ import { BATASFLOW_MODES, BATASFLOW_RULESET_VERSION } from './ruleset';
 const modes: GameMode[] = [
   {
     modeId: 'easy',
-    displayName: 'Easy (5×5)',
-    description: `${BATASFLOW_MODES.easy.numFlows} flows on a 5×5 grid.`,
+    displayName: 'Easy (6×6)',
+    description: `${BATASFLOW_MODES.easy.numFlows} flows on a 6×6 grid — fill every cell.`,
     defaultParams: { gridSize: BATASFLOW_MODES.easy.gridSize },
   },
   {
     modeId: 'medium',
-    displayName: 'Medium (7×7)',
-    description: `${BATASFLOW_MODES.medium.numFlows} flows on a 7×7 grid.`,
+    displayName: 'Medium (8×8)',
+    description: `${BATASFLOW_MODES.medium.numFlows} flows on an 8×8 grid — fill every cell.`,
     defaultParams: { gridSize: BATASFLOW_MODES.medium.gridSize },
   },
   {
     modeId: 'hard',
-    displayName: 'Hard (9×9)',
-    description: `${BATASFLOW_MODES.hard.numFlows} flows on a 9×9 grid.`,
+    displayName: 'Hard (10×10)',
+    description: `${BATASFLOW_MODES.hard.numFlows} flows on a 10×10 grid — fill every cell.`,
     defaultParams: { gridSize: BATASFLOW_MODES.hard.gridSize },
   },
 ];

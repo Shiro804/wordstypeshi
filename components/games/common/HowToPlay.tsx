@@ -467,9 +467,9 @@ const GAME_INSTRUCTIONS: Record<GameId, {
                 heading: "Difficulty Levels",
                 content: "",
                 examples: [
-                    { label: <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-xs font-bold">EASY</span>, description: "5×5 grid, 5 flows" },
-                    { label: <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 text-xs font-bold">MEDIUM</span>, description: "7×7 grid, 7 flows" },
-                    { label: <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-xs font-bold">HARD</span>, description: "9×9 grid, 9 flows" },
+                    { label: <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-xs font-bold">EASY</span>, description: "6×6 grid, 5 flows" },
+                    { label: <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 text-xs font-bold">MEDIUM</span>, description: "8×8 grid, 7 flows" },
+                    { label: <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-xs font-bold">HARD</span>, description: "10×10 grid, 9 flows" },
                 ],
             },
             {

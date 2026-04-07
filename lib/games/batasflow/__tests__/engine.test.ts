@@ -24,30 +24,27 @@ describe('generatePuzzle', () => {
     }
   });
 
-  it('generates correct number of dot pairs for easy (5×5)', () => {
-    const puzzle = generatePuzzle('easy-dots', { gridSize: 5 });
+  it('generates correct number of dot pairs for easy (6×6)', () => {
+    const puzzle = generatePuzzle('easy-dots', { gridSize: BATASFLOW_MODES.easy.gridSize });
     // Each pair has exactly 2 dots
     const pairIds = new Set(puzzle.dots.map(d => d.pairId));
-    expect(pairIds.size).toBeGreaterThanOrEqual(4);
-    expect(pairIds.size).toBeLessThanOrEqual(5);
+    expect(pairIds.size).toBe(BATASFLOW_MODES.easy.numFlows);
   });
 
-  it('generates correct number of dot pairs for medium (7×7)', () => {
-    const puzzle = generatePuzzle('medium-dots', { gridSize: 7 });
+  it('generates correct number of dot pairs for medium (8×8)', () => {
+    const puzzle = generatePuzzle('medium-dots', { gridSize: BATASFLOW_MODES.medium.gridSize });
     const pairIds = new Set(puzzle.dots.map(d => d.pairId));
-    expect(pairIds.size).toBeGreaterThanOrEqual(6);
-    expect(pairIds.size).toBeLessThanOrEqual(7);
+    expect(pairIds.size).toBe(BATASFLOW_MODES.medium.numFlows);
   });
 
-  it('generates correct number of dot pairs for hard (9×9)', () => {
-    const puzzle = generatePuzzle('hard-dots', { gridSize: 9 });
+  it('generates correct number of dot pairs for hard (10×10)', () => {
+    const puzzle = generatePuzzle('hard-dots', { gridSize: BATASFLOW_MODES.hard.gridSize });
     const pairIds = new Set(puzzle.dots.map(d => d.pairId));
-    expect(pairIds.size).toBeGreaterThanOrEqual(8);
-    expect(pairIds.size).toBeLessThanOrEqual(9);
+    expect(pairIds.size).toBe(BATASFLOW_MODES.hard.numFlows);
   });
 
   it('every pair has exactly 2 dots', () => {
-    for (const size of [5, 7, 9]) {
+    for (const size of [6, 8, 10]) {
       const puzzle = generatePuzzle(`pair-check-${size}`, { gridSize: size });
       const counts = new Map<number, number>();
       for (const dot of puzzle.dots) {
@@ -60,7 +57,7 @@ describe('generatePuzzle', () => {
   });
 
   it('generated puzzles are solvable (solution provided)', () => {
-    for (const size of [5, 7, 9]) {
+    for (const size of [6, 8, 10]) {
       const puzzle = generatePuzzle(`solvable-${size}`, { gridSize: size });
       // The solution map should have the same number of entries as pairs
       const pairIds = new Set(puzzle.dots.map(d => d.pairId));
@@ -86,22 +83,22 @@ describe('generatePuzzle', () => {
   });
 
   it('is deterministic (same seed produces same puzzle)', () => {
-    const p1 = generatePuzzle('deterministic', { gridSize: 5 });
-    const p2 = generatePuzzle('deterministic', { gridSize: 5 });
+    const p1 = generatePuzzle('deterministic', { gridSize: 6 });
+    const p2 = generatePuzzle('deterministic', { gridSize: 6 });
     expect(p1.dots).toEqual(p2.dots);
     expect(p1.gridSize).toBe(p2.gridSize);
   });
 
   it('different seeds produce different puzzles', () => {
-    const p1 = generatePuzzle('seed-a', { gridSize: 5 });
-    const p2 = generatePuzzle('seed-b', { gridSize: 5 });
+    const p1 = generatePuzzle('seed-a', { gridSize: 6 });
+    const p2 = generatePuzzle('seed-b', { gridSize: 6 });
     const d1 = p1.dots.map(d => `${d.row},${d.col}`).sort();
     const d2 = p2.dots.map(d => `${d.row},${d.col}`).sort();
     expect(d1).not.toEqual(d2);
   });
 
   it('dots are within grid bounds', () => {
-    for (const size of [5, 7, 9]) {
+    for (const size of [6, 8, 10]) {
       const puzzle = generatePuzzle(`bounds-${size}`, { gridSize: size });
       for (const dot of puzzle.dots) {
         expect(dot.row).toBeGreaterThanOrEqual(0);
@@ -129,9 +126,9 @@ describe('batasFlowEngine', () => {
 
     it('grid has correct dimensions', () => {
       for (const [params, size] of [
-        [easyParams, 5],
-        [mediumParams, 7],
-        [hardParams, 9],
+        [easyParams, BATASFLOW_MODES.easy.gridSize],
+        [mediumParams, BATASFLOW_MODES.medium.gridSize],
+        [hardParams, BATASFLOW_MODES.hard.gridSize],
       ] as const) {
         const state = batasFlowEngine.init('size-test', params);
         expect(state.grid).toHaveLength(size);
