@@ -177,12 +177,19 @@ function scaleParams(level: number): BatasBottlesLevelParams {
  * Derive the three star thresholds and the move limit from the greedy
  * solver's actual move count on the puzzle we just generated.
  *
- * The idea: the greedy solver's move count is a realistic upper bound on
- * a skilled human's solution. Call that S. Then:
- *   - 3 stars if moves ≤ optimal        where optimal ≈ floor(S * 0.65)
- *   - 2 stars if moves ≤ optimal * 1.4
- *   - 1 star  if moves ≤ optimal * 2.0
+ * The greedy solver is a near-optimal heuristic for this puzzle family,
+ * so its move count S is a realistic baseline for a competent human run.
+ * We anchor 3 stars at S itself (matching or beating the solver) and let
+ * the lower tiers fan out from there:
+ *   - 3 stars if moves ≤ S
+ *   - 2 stars if moves ≤ ceil(S * 1.35)
+ *   - 1 star  if moves ≤ ceil(S * 1.75)
  *   - moveLimit scales by phase from generous → tight.
+ *
+ * Previously this used 0.65 * S as the 3-star bar, which demanded a
+ * solution materially better than the greedy solver — effectively
+ * unreachable on most layouts, so even the optimal human path only
+ * earned 1 star.
  *
  * Tutorial levels get a null move limit so the player can mash the board
  * freely while learning the mechanics.
@@ -194,10 +201,10 @@ function deriveLimitsAndStars(
   const phase = phaseOf(level).label;
 
   // Floor 1 so the thresholds are never 0 on very short puzzles.
-  const optimal = Math.max(1, Math.floor(solverMoves * 0.65));
-  const t1 = optimal;
-  const t2 = Math.max(t1 + 1, Math.ceil(optimal * 1.4));
-  const t3 = Math.max(t2 + 1, Math.ceil(optimal * 2.0));
+  const baseline = Math.max(1, solverMoves);
+  const t1 = baseline;
+  const t2 = Math.max(t1 + 1, Math.ceil(baseline * 1.35));
+  const t3 = Math.max(t2 + 1, Math.ceil(baseline * 1.75));
 
   let moveLimit: number | null;
   switch (phase) {
