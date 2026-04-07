@@ -1,18 +1,18 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Flag } from "lucide-react";
 import GameShell from "@/components/shared/GameShell";
 import GameResultOverlay from "@/components/games/common/GameResultOverlay";
 import FloatingGameOver from "@/components/games/common/FloatingGameOver";
 import {
-    batasPairsEngine,
+    batasMineEngine,
     getModeParams,
-    type BatasPairsState,
-    type BatasPairsAction
-} from "@/lib/games/bataspairs/engine";
-import { calculateScore } from "@/lib/games/bataspairs/ruleset";
-import { batasPairsUIAdapter, type BatasPairsRenderModel } from "@/lib/games/bataspairs/ui-adapter";
+    type BatasMineState,
+    type BatasMineAction
+} from "@/lib/games/batasmine/engine";
+import { calculateScore } from "@/lib/games/batasmine/ruleset";
+import { batasMineUIAdapter, type BatasMineRenderModel } from "@/lib/games/batasmine/ui-adapter";
 import { loadActiveGame, saveActiveGame } from "@/lib/storage/active-game-storage";
 import { loadDifficulty, saveDifficulty } from "@/lib/storage/settings-storage";
 import type { Difficulty } from "@/lib/difficulty";
@@ -29,7 +29,7 @@ import { useLanguage } from "@/lib/i18n";
 // Constants & Mapping
 // ============================================================================
 
-const GAME_ID = "bataspairs";
+const GAME_ID = "batasmine";
 
 const DIFFICULTY_TO_MODE = {
     easy: 'easy',
@@ -37,57 +37,122 @@ const DIFFICULTY_TO_MODE = {
     hard: 'hard',
 } as const;
 
-type BatasPairsModeId = keyof typeof DIFFICULTY_TO_MODE;
+type BatasMineModeId = keyof typeof DIFFICULTY_TO_MODE;
 
-/** Delay before hiding mismatched cards (ms) */
-const MISMATCH_DELAY = 800;
+/** Colors for adjacent mine numbers */
+const NUMBER_COLORS: Record<number, string> = {
+    1: 'text-blue-400',
+    2: 'text-emerald-400',
+    3: 'text-red-400',
+    4: 'text-purple-400',
+    5: 'text-amber-600',
+    6: 'text-cyan-400',
+    7: 'text-pink-400',
+    8: 'text-gray-400',
+};
+
+/** Long press duration for flagging (ms) */
+const LONG_PRESS_MS = 400;
 
 // ============================================================================
 // Sub-components
 // ============================================================================
 
-function MemoryCard({
-    icon,
-    status,
+function MineCell({
+    state,
+    adjacentMines,
     onClick,
+    onFlag,
     disabled,
+    cellSize,
 }: {
-    icon: string;
-    status: 'hidden' | 'revealed' | 'matched';
+    state: 'hidden' | 'revealed' | 'flagged' | 'mine_exploded' | 'mine_revealed';
+    adjacentMines: number;
     onClick: () => void;
+    onFlag: () => void;
     disabled: boolean;
+    cellSize: string;
 }) {
-    const isVisible = status === 'revealed' || status === 'matched';
+    const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const didLongPress = useRef(false);
+
+    const handlePointerDown = useCallback(() => {
+        if (disabled || state === 'revealed') return;
+        didLongPress.current = false;
+        longPressRef.current = setTimeout(() => {
+            didLongPress.current = true;
+            onFlag();
+        }, LONG_PRESS_MS);
+    }, [disabled, state, onFlag]);
+
+    const handlePointerUp = useCallback(() => {
+        if (longPressRef.current) {
+            clearTimeout(longPressRef.current);
+            longPressRef.current = null;
+        }
+    }, []);
+
+    const handleClick = useCallback(() => {
+        if (didLongPress.current) return;
+        onClick();
+    }, [onClick]);
+
+    useEffect(() => {
+        return () => {
+            if (longPressRef.current) clearTimeout(longPressRef.current);
+        };
+    }, []);
+
+    const bgClass =
+        state === 'revealed'
+            ? 'bg-[color:var(--surface2)] border-[color:var(--border)]'
+            : state === 'mine_exploded'
+                ? 'bg-red-500/40 border-red-500'
+                : state === 'mine_revealed'
+                    ? 'bg-zinc-700/50 border-zinc-600'
+                    : state === 'flagged'
+                        ? 'bg-amber-500/10 border-amber-500/40'
+                        : 'bg-[color:var(--surface)] border-[color:var(--border)] hover:bg-[color:var(--surface2)] cursor-pointer active:scale-95';
 
     return (
         <button
             type="button"
-            onClick={onClick}
-            disabled={disabled || status !== 'hidden'}
+            onClick={handleClick}
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerUp}
+            onContextMenu={(e) => {
+                e.preventDefault();
+                if (!disabled && state !== 'revealed') onFlag();
+            }}
+            disabled={disabled && state !== 'hidden' && state !== 'flagged'}
             className={`
-                aspect-square rounded-xl
-                transition-all duration-300
+                ${cellSize} rounded-md border transition-all duration-150
+                flex items-center justify-center select-none
                 transform-gpu
-                ${status === 'matched'
-                    ? 'bg-emerald-500/20 border-2 border-emerald-500/40 scale-95'
-                    : isVisible
-                        ? 'bg-[color:var(--surface2)] border-2 border-violet-500/50 scale-105'
-                        : 'bg-[color:var(--surface)] border-2 border-[color:var(--border)] hover:border-violet-500/30 hover:bg-[color:var(--surface2)] cursor-pointer active:scale-95'
-                }
-                ${disabled && status === 'hidden' ? 'opacity-60 cursor-not-allowed' : ''}
+                ${bgClass}
+                ${disabled && (state === 'hidden' || state === 'flagged') ? 'opacity-60 cursor-not-allowed' : ''}
             `}
-            aria-label={isVisible ? `Card: ${icon}` : 'Hidden card'}
+            aria-label={
+                state === 'revealed'
+                    ? adjacentMines > 0 ? `${adjacentMines} adjacent mines` : 'Empty cell'
+                    : state === 'flagged' ? 'Flagged cell'
+                        : state === 'mine_exploded' ? 'Mine (exploded)'
+                            : state === 'mine_revealed' ? 'Mine'
+                                : 'Hidden cell'
+            }
         >
-            <span
-                className={`
-                    text-2xl sm:text-3xl md:text-4xl
-                    transition-all duration-300
-                    select-none
-                    ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}
-                `}
-            >
-                {icon}
-            </span>
+            {state === 'revealed' && adjacentMines > 0 && (
+                <span className={`font-bold text-xs sm:text-sm ${NUMBER_COLORS[adjacentMines] || 'text-white'}`}>
+                    {adjacentMines}
+                </span>
+            )}
+            {state === 'flagged' && (
+                <Flag size={12} className="text-amber-400" />
+            )}
+            {(state === 'mine_exploded' || state === 'mine_revealed') && (
+                <span className="text-xs sm:text-sm">💣</span>
+            )}
         </button>
     );
 }
@@ -96,10 +161,11 @@ function MemoryCard({
 // Main Game Component
 // ============================================================================
 
-export default function BatasPairsGame() {
+export default function BatasMineGame() {
     // State
     const [difficulty, setDifficulty] = useState<Difficulty>(() => loadDifficulty());
-    const [gameState, setGameState] = useState<BatasPairsState | null>(null);
+    const [gameState, setGameState] = useState<BatasMineState | null>(null);
+    const [flagMode, setFlagMode] = useState(false);
 
     // Confirmation State
     const [confirmResetOpen, setConfirmResetOpen] = useState(false);
@@ -117,9 +183,6 @@ export default function BatasPairsGame() {
     const [showFloatingText, setShowFloatingText] = useState(false);
     const [showGameOverOverlay, setShowGameOverOverlay] = useState(false);
 
-    // Mismatch resolution timer ref
-    const resolveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
     // Language
     const { t } = useLanguage();
 
@@ -129,12 +192,12 @@ export default function BatasPairsGame() {
     // Derived
     const mode = DIFFICULTY_TO_MODE[difficulty];
     const params = useMemo(() => {
-        return getModeParams(mode as BatasPairsModeId);
+        return getModeParams(mode as BatasMineModeId);
     }, [mode]);
 
     // Check if game is in progress
     const isInProgress = useMemo(() => {
-        return gameState && !batasPairsEngine.isTerminal(gameState) && gameState.totalFlips > 0;
+        return gameState && !batasMineEngine.isTerminal(gameState) && gameState.cellsRevealed > 0;
     }, [gameState]);
 
     // Initial Load
@@ -142,27 +205,19 @@ export default function BatasPairsGame() {
         getCurrentUserId().then(uid => setUserId(uid));
     }, []);
 
-    // Cleanup timer on unmount
-    useEffect(() => {
-        return () => {
-            if (resolveTimerRef.current) {
-                clearTimeout(resolveTimerRef.current);
-            }
-        };
-    }, []);
-
     // Load active game or init new one when params change
     useEffect(() => {
         const loadGame = async () => {
-            const active = loadActiveGame<BatasPairsState>(GAME_ID, userId);
+            const active = loadActiveGame<BatasMineState>(GAME_ID, userId);
             const paramsMatch = active &&
                 active.config.rows === params.rows &&
-                active.config.cols === params.cols;
+                active.config.cols === params.cols &&
+                active.config.mines === params.mines;
 
-            if (paramsMatch && !batasPairsEngine.isTerminal(active)) {
+            if (paramsMatch && !batasMineEngine.isTerminal(active)) {
                 setGameState(active);
 
-                if (active.totalFlips > 0) {
+                if (active.cellsRevealed > 0) {
                     timer.setStartedAt(active.startedAtMs);
                     if (active.endedAtMs) {
                         timer.setEndedAt(active.endedAtMs);
@@ -176,14 +231,14 @@ export default function BatasPairsGame() {
                         userId,
                         gameId: GAME_ID,
                         difficulty,
-                        answer: `${params.rows}x${params.cols}`,
+                        answer: `${params.rows}x${params.cols}:${params.mines}`,
                         startedAtMs: active.startedAtMs,
                     });
                     setSessionId(session?.id ?? null);
                 }
             } else {
                 const newSeed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-                const state = batasPairsEngine.init(newSeed, params);
+                const state = batasMineEngine.init(newSeed, params);
                 setGameState(state);
                 saveActiveGame(GAME_ID, state, userId);
                 timer.reset();
@@ -193,7 +248,7 @@ export default function BatasPairsGame() {
                         userId,
                         gameId: GAME_ID,
                         difficulty,
-                        answer: `${params.rows}x${params.cols}`,
+                        answer: `${params.rows}x${params.cols}:${params.mines}`,
                         startedAtMs: state.startedAtMs,
                     });
                     setSessionId(session?.id ?? null);
@@ -208,7 +263,7 @@ export default function BatasPairsGame() {
     // Save active game
     useEffect(() => {
         if (gameState) {
-            saveActiveGame(GAME_ID, batasPairsEngine.isTerminal(gameState) ? null : gameState, userId);
+            saveActiveGame(GAME_ID, batasMineEngine.isTerminal(gameState) ? null : gameState, userId);
         }
     }, [gameState, userId]);
 
@@ -226,23 +281,19 @@ export default function BatasPairsGame() {
     }, [userId, difficulty]);
 
     const initGame = useCallback(async () => {
-        if (resolveTimerRef.current) {
-            clearTimeout(resolveTimerRef.current);
-            resolveTimerRef.current = null;
-        }
-
         const newSeed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        const state = batasPairsEngine.init(newSeed, params);
+        const state = batasMineEngine.init(newSeed, params);
         setGameState(state);
         saveActiveGame(GAME_ID, state, userId);
         timer.reset();
+        setFlagMode(false);
 
         if (userId) {
             const session = await createOrReuseActiveSession({
                 userId,
                 gameId: GAME_ID,
                 difficulty,
-                answer: `${params.rows}x${params.cols}`,
+                answer: `${params.rows}x${params.cols}:${params.mines}`,
                 startedAtMs: state.startedAtMs,
             });
             setSessionId(session?.id ?? null);
@@ -264,7 +315,7 @@ export default function BatasPairsGame() {
             await endSession({
                 sessionId,
                 outcome: "forfeit",
-                guessesUsed: gameState.totalFlips,
+                guessesUsed: gameState.cellsRevealed,
                 durationSec,
                 endedAtMs: Date.now(),
             });
@@ -303,54 +354,50 @@ export default function BatasPairsGame() {
         initGame();
     }, [isInProgress, initGame]);
 
-    const handleCardClick = useCallback(async (position: number) => {
-        if (!gameState || gameState.isChecking) return;
+    const handleCellClick = useCallback(async (position: number) => {
+        if (!gameState || batasMineEngine.isTerminal(gameState)) return;
 
-        const action: BatasPairsAction = {
-            type: 'flip_card',
-            position,
-        };
+        const cell = gameState.grid[position];
 
-        const result = batasPairsEngine.applyAction(gameState, action);
+        // In flag mode, toggle flag instead of reveal
+        if (flagMode) {
+            if (cell.state === 'revealed') return;
+            const action: BatasMineAction = { type: 'toggle_flag', position };
+            const result = batasMineEngine.applyAction(gameState, action);
+            if (!result.invalidReason) {
+                setGameState(result.state);
+            }
+            return;
+        }
+
+        const action: BatasMineAction = { type: 'reveal', position };
+        const result = batasMineEngine.applyAction(gameState, action);
         if (result.invalidReason) return;
 
-        // Start timer on first flip
+        // Start timer on first reveal
         if (!timer.startedAtMs) {
             timer.start();
         }
 
         setGameState(result.state);
 
-        // If we entered checking state (mismatch), auto-resolve after delay
-        if (result.state.isChecking) {
-            resolveTimerRef.current = setTimeout(() => {
-                setGameState(prev => {
-                    if (!prev || !prev.isChecking) return prev;
-                    const resolveResult = batasPairsEngine.applyAction(prev, { type: 'resolve_check' });
-                    return resolveResult.state;
-                });
-                resolveTimerRef.current = null;
-            }, MISMATCH_DELAY);
-        }
-
         // Check completion
-        if (batasPairsEngine.isTerminal(result.state)) {
+        if (batasMineEngine.isTerminal(result.state)) {
             timer.stop();
             const durationSec = (result.state.endedAtMs! - result.state.startedAtMs) / 1000;
+            const isWin = result.state.status === 'won';
 
-            const newStats = applyGameResult(stats, {
-                outcome: "win",
-                guessesUsed: result.state.totalFlips,
-                durationSec,
-            });
+            const newStats = applyGameResult(stats, isWin
+                ? { outcome: 'win', guessesUsed: result.state.cellsRevealed, durationSec }
+                : { outcome: 'lose', durationSec }
+            );
 
-            // BatasPairs-specific metrics
-            const durationMs = result.state.endedAtMs! - result.state.startedAtMs;
-            const score = calculateScore(result.state.mismatches, durationMs);
-            newStats.bestScore = newStats.bestScore == null ? score : Math.max(newStats.bestScore, score);
-            newStats.bestMismatches = newStats.bestMismatches == null
-                ? result.state.mismatches
-                : Math.min(newStats.bestMismatches, result.state.mismatches);
+            // BatasMine-specific: track best score on wins
+            if (isWin) {
+                const durationMs = result.state.endedAtMs! - result.state.startedAtMs;
+                const score = calculateScore(result.state.cellsRevealed, durationMs);
+                newStats.bestScore = newStats.bestScore == null ? score : Math.max(newStats.bestScore, score);
+            }
 
             setStats(newStats);
             saveLocalStats(GAME_ID, difficulty, newStats);
@@ -362,19 +409,29 @@ export default function BatasPairsGame() {
             if (sessionId) {
                 await endSession({
                     sessionId,
-                    outcome: "win",
-                    guessesUsed: result.state.totalFlips,
+                    outcome: isWin ? 'win' : 'lose',
+                    guessesUsed: result.state.cellsRevealed,
                     durationSec,
                     endedAtMs: result.state.endedAtMs!,
                 });
                 setSessionId(null);
             }
         }
-    }, [gameState, stats, difficulty, userId, sessionId, timer]);
+    }, [gameState, flagMode, stats, difficulty, userId, sessionId, timer]);
 
-    const renderModel = useMemo((): BatasPairsRenderModel | null => {
+    const handleCellFlag = useCallback((position: number) => {
+        if (!gameState || batasMineEngine.isTerminal(gameState)) return;
+
+        const action: BatasMineAction = { type: 'toggle_flag', position };
+        const result = batasMineEngine.applyAction(gameState, action);
+        if (!result.invalidReason) {
+            setGameState(result.state);
+        }
+    }, [gameState]);
+
+    const renderModel = useMemo((): BatasMineRenderModel | null => {
         if (!gameState) return null;
-        return batasPairsUIAdapter.toRenderModel(gameState) as BatasPairsRenderModel;
+        return batasMineUIAdapter.toRenderModel(gameState) as BatasMineRenderModel;
     }, [gameState]);
 
     // Trigger floating game over animation when game ends
@@ -392,9 +449,17 @@ export default function BatasPairsGame() {
         setShowGameOverOverlay(true);
     }, []);
 
+    // Determine cell size based on grid dimensions
+    const cellSize = useMemo(() => {
+        if (!params) return 'w-8 h-8';
+        if (params.cols <= 8) return 'w-9 h-9 sm:w-10 sm:h-10';
+        if (params.cols <= 12) return 'w-7 h-7 sm:w-8 sm:h-8';
+        return 'w-5 h-5 sm:w-6 sm:h-6';
+    }, [params]);
+
     if (!renderModel) {
         return (
-            <GameShell gameId="bataspairs" gameName="BatasPairs" onNewGame={initGame}>
+            <GameShell gameId="batasmine" gameName="BatasMine" onNewGame={initGame}>
                 <div className="flex items-center justify-center h-64">
                     <div className="animate-pulse text-[color:var(--fg)]">Loading...</div>
                 </div>
@@ -403,11 +468,12 @@ export default function BatasPairsGame() {
     }
 
     const { data } = renderModel;
+    const outcome = renderModel.status === 'won' ? 'win' : 'lose';
 
     return (
         <GameShell
             gameId={GAME_ID}
-            gameName="BatasPairs"
+            gameName="BatasMine"
             onNewGame={requestReset}
             onOpenLeaderboard={() => { setShowGameOverOverlay(false); setLeaderboardOpen(true); }}
             onOpenStats={() => { setShowGameOverOverlay(false); setStatsOpen(true); }}
@@ -415,47 +481,63 @@ export default function BatasPairsGame() {
             onDifficultyChange={requestDifficultyChange}
             timerText={timer.timerText}
             actionsSlot={
-                isInProgress ? (
+                <div className="flex items-center gap-1">
+                    {/* Flag mode toggle */}
                     <button
                         type="button"
-                        onClick={() => setConfirmResetOpen(true)}
-                        title="Reset"
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                        onClick={() => setFlagMode(f => !f)}
+                        title={flagMode ? t.batasmine.flagModeOn : t.batasmine.flagModeOff}
+                        className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border transition ${
+                            flagMode
+                                ? 'border-amber-500/50 bg-amber-500/20 text-amber-400'
+                                : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] hover:bg-[color:var(--surface2)]'
+                        }`}
                     >
-                        <RotateCcw size={16} />
+                        <Flag size={16} />
                     </button>
-                ) : null
+                    {isInProgress ? (
+                        <button
+                            type="button"
+                            onClick={() => setConfirmResetOpen(true)}
+                            title="Reset"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
+                        >
+                            <RotateCcw size={16} />
+                        </button>
+                    ) : null}
+                </div>
             }
         >
-            <div className="max-w-md mx-auto p-4 space-y-4 flex flex-col items-center">
+            <div className="max-w-lg mx-auto p-4 space-y-3 flex flex-col items-center">
                 {/* Status bar */}
                 {!renderModel.isTerminal && (
                     <div className="flex items-center gap-4 text-sm text-[color:var(--muted)]">
-                        <span>
-                            {data.matchesFound}/{data.numPairs} {t.bataspairs.pairsFound}
+                        <span className="flex items-center gap-1">
+                            💣 {data.remainingMines}
                         </span>
                         <span>•</span>
                         <span>
-                            {data.mismatches} {t.bataspairs.mismatches}
+                            {data.cellsRevealed}/{data.totalSafe} {t.batasmine.cellsRevealed}
                         </span>
                     </div>
                 )}
 
-                {/* Card Grid */}
+                {/* Mine Grid */}
                 <div
-                    className="grid gap-2 sm:gap-3 w-full"
+                    className="grid gap-0.5 sm:gap-1 w-fit"
                     style={{
                         gridTemplateColumns: `repeat(${data.cols}, 1fr)`,
-                        maxWidth: `${data.cols * 80}px`,
                     }}
                 >
-                    {data.cards.map((card) => (
-                        <MemoryCard
-                            key={card.position}
-                            icon={card.icon}
-                            status={card.status}
-                            onClick={() => handleCardClick(card.position)}
-                            disabled={data.isChecking || renderModel.isTerminal}
+                    {data.cells.map((cell) => (
+                        <MineCell
+                            key={cell.position}
+                            state={cell.state}
+                            adjacentMines={cell.adjacentMines}
+                            onClick={() => handleCellClick(cell.position)}
+                            onFlag={() => handleCellFlag(cell.position)}
+                            disabled={renderModel.isTerminal}
+                            cellSize={cellSize}
                         />
                     ))}
                 </div>
@@ -477,8 +559,8 @@ export default function BatasPairsGame() {
             {/* Floating Game Over Animation */}
             <FloatingGameOver
                 active={showFloatingText}
-                text={t.common.youWin}
-                outcome="win"
+                text={renderModel.status === 'won' ? t.common.youWin : t.common.youLose}
+                outcome={outcome as 'win' | 'lose'}
                 duration={1500}
                 onComplete={handleFloatingComplete}
             />
@@ -486,11 +568,13 @@ export default function BatasPairsGame() {
             {/* Game Result Overlay */}
             <GameResultOverlay
                 open={showGameOverOverlay}
-                outcome="win"
-                title={t.common.youWin}
-                subtitle={t.bataspairs.solvedIn
-                    .replace('{flips}', String(data.totalFlips))
-                    .replace('{mismatches}', String(data.mismatches))}
+                outcome={outcome as 'win' | 'lose'}
+                title={renderModel.status === 'won' ? t.common.youWin : t.common.gameOver}
+                subtitle={renderModel.status === 'won'
+                    ? t.batasmine.solvedIn
+                        .replace('{cells}', String(data.cellsRevealed))
+                        .replace('{time}', timer.timerText)
+                    : t.batasmine.hitMine}
                 onPlayAgain={initGame}
                 onOpenStats={() => { setShowGameOverOverlay(false); setStatsOpen(true); }}
             />

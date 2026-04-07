@@ -2,7 +2,7 @@
 
 import Modal from "./Modal";
 
-type GameId = "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors" | "bataspairs";
+type GameId = "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors" | "bataspairs" | "batasmine" | "batasflow";
 
 interface HowToPlayProps {
     gameId: GameId;
@@ -391,6 +391,90 @@ const GAME_INSTRUCTIONS: Record<GameId, {
             {
                 heading: "Tips",
                 content: "Every puzzle has a guaranteed 100% solution! Larger segments influence the mix more. Click a filled segment twice to clear it.",
+            },
+        ],
+    },
+    batasmine: {
+        title: "How to Play BatasMine",
+        sections: [
+            {
+                heading: "Objective",
+                content: "Reveal all safe cells on the grid without hitting any mines. Use logic and the numbers to deduce where mines are hidden.",
+            },
+            {
+                heading: "How to Play",
+                content: "Tap a cell to reveal it. Numbers show how many of the 8 surrounding cells contain mines. Empty cells (0 mines nearby) auto-expand. Right-click or long-press to flag suspected mines.",
+                examples: [
+                    {
+                        label: <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border-2 bg-zinc-700/50 border-zinc-600 text-sm font-bold text-blue-400">1</span>,
+                        description: "1 mine in adjacent cells"
+                    },
+                    {
+                        label: <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border-2 bg-zinc-700/50 border-zinc-600 text-sm font-bold text-red-400">3</span>,
+                        description: "3 mines in adjacent cells"
+                    },
+                    {
+                        label: <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border-2 bg-amber-500/10 border-amber-500/40 text-sm">🚩</span>,
+                        description: "Flagged cell (suspected mine)"
+                    },
+                ],
+            },
+            {
+                heading: "Difficulty Levels",
+                content: "",
+                examples: [
+                    { label: <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-xs font-bold">EASY</span>, description: "8×8 grid, 10 mines" },
+                    { label: <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 text-xs font-bold">MEDIUM</span>, description: "12×12 grid, 30 mines" },
+                    { label: <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-xs font-bold">HARD</span>, description: "16×16 grid, 60 mines" },
+                ],
+            },
+            {
+                heading: "Tips",
+                content: "The first click is always safe! Use the flag button or long-press to mark mines. Count carefully – the numbers are your best clue.",
+            },
+        ],
+    },
+    batasflow: {
+        title: "How to Play BatasFlow",
+        sections: [
+            {
+                heading: "Objective",
+                content: "Connect pairs of colored dots by drawing paths. Fill the entire grid to win!",
+            },
+            {
+                heading: "How to Play",
+                content: "Tap a colored dot to start drawing a path. Drag to adjacent cells to extend the path toward the matching dot. Release to finish. Paths cannot cross or overlap.",
+                examples: [
+                    {
+                        label: <div className="w-8 h-8 rounded-full bg-red-500 shadow-lg shadow-red-500/40" />,
+                        description: "Colored dot – tap to start a path"
+                    },
+                    {
+                        label: <div className="w-8 h-8 rounded-md bg-blue-500/80 animate-pulse" />,
+                        description: "Active path – currently drawing"
+                    },
+                    {
+                        label: <div className="w-8 h-8 rounded-md bg-green-500" />,
+                        description: "Completed path – flow connected"
+                    },
+                ],
+            },
+            {
+                heading: "Tap to Clear",
+                content: "Tap on any existing path cell to clear that flow and try a different route.",
+            },
+            {
+                heading: "Difficulty Levels",
+                content: "",
+                examples: [
+                    { label: <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-xs font-bold">EASY</span>, description: "6×6 grid, 5 flows" },
+                    { label: <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 text-xs font-bold">MEDIUM</span>, description: "8×8 grid, 7 flows" },
+                    { label: <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-xs font-bold">HARD</span>, description: "10×10 grid, 9 flows" },
+                ],
+            },
+            {
+                heading: "Tips",
+                content: "Start with flows whose dots are close together or at the edges. Every cell must be filled – no empty spaces allowed!",
             },
         ],
     },

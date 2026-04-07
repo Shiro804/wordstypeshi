@@ -13,6 +13,8 @@ import { mastermindDefinition } from '../mastermind/definition';
 import { wordSearchDefinition } from '../wordsearch/definition';
 import { batasBlastDefinition } from '../batasblast/definition';
 import { batasPairsDefinition } from '../bataspairs/definition';
+import { batasMineDefinition } from '../batasmine/definition';
+import { batasFlowDefinition } from '../batasflow/definition';
 
 /**
  * Registry of all available games.
@@ -23,6 +25,8 @@ export const GAMES: Record<string, GameDefinition> = {
   'wordsearch': wordSearchDefinition,
   'batasblast': batasBlastDefinition,
   'bataspairs': batasPairsDefinition,
+  'batasmine': batasMineDefinition,
+  'batasflow': batasFlowDefinition,
 };
 
 /**

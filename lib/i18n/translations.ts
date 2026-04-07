@@ -204,6 +204,29 @@ export const translations = {
       solvedIn: "Solved in {flips} flips with {mismatches} misses",
     },
 
+    // BatasMine
+    batasmine: {
+      name: "BatasMine",
+      description: "Reveal all safe cells",
+      cellsRevealed: "revealed",
+      minesRemaining: "mines left",
+      flagModeOn: "Flag mode (on)",
+      flagModeOff: "Flag mode (off)",
+      solvedIn: "Cleared {cells} cells in {time}",
+      hitMine: "You hit a mine!",
+    },
+
+    // BatasFlow
+    batasflow: {
+      name: "BatasFlow",
+      description: "Connect matching dots",
+      flowsConnected: "Flows connected",
+      flowsRemaining: "Flows remaining",
+      cellsFilled: "Cells filled",
+      allFlowsConnected: "All flows connected!",
+      solvedIn: "Solved in {moves} moves",
+    },
+
     // Leaderboard
     leaderboard: {
       title: "Leaderboard",
@@ -220,6 +243,7 @@ export const translations = {
       bestTime: "Best time",
       avgTime: "Avg time",
       highScore: "Highscore",
+      bestMismatches: "Fewest Misses",
     },
 
     // Modals
@@ -433,6 +457,29 @@ export const translations = {
       solvedIn: "Gelöst in {flips} Zügen mit {mismatches} Fehlversuchen",
     },
 
+    // BatasMine
+    batasmine: {
+      name: "BatasMine",
+      description: "Decke alle sicheren Felder auf",
+      cellsRevealed: "aufgedeckt",
+      minesRemaining: "Minen übrig",
+      flagModeOn: "Flaggen-Modus (an)",
+      flagModeOff: "Flaggen-Modus (aus)",
+      solvedIn: "{cells} Felder in {time} geräumt",
+      hitMine: "Du hast eine Mine getroffen!",
+    },
+
+    // BatasFlow
+    batasflow: {
+      name: "BatasFlow",
+      description: "Verbinde passende Punkte",
+      flowsConnected: "Flows verbunden",
+      flowsRemaining: "Flows übrig",
+      cellsFilled: "Zellen gefüllt",
+      allFlowsConnected: "Alle Flows verbunden!",
+      solvedIn: "Gelöst in {moves} Zügen",
+    },
+
     // Leaderboard
     leaderboard: {
       title: "Bestenliste",
@@ -449,6 +496,7 @@ export const translations = {
       bestTime: "Beste Zeit",
       avgTime: "Ø Zeit",
       highScore: "Highscore",
+      bestMismatches: "Wenigste Fehler",
     },
 
     // Modals

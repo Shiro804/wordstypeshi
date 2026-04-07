@@ -90,7 +90,7 @@ export default function FloatingGameOver({
             {/* Animated text */}
             <div
                 className={`
-                    text-5xl sm:text-6xl md:text-7xl font-black uppercase tracking-wider
+                    text-4xl sm:text-6xl md:text-7xl font-black uppercase tracking-wider text-center px-4
                     transition-all duration-300 ease-out
                     ${getAnimationClasses()}
                     ${isWin ? 'text-emerald-400' : 'text-rose-400'}

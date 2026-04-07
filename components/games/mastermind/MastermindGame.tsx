@@ -583,8 +583,8 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
             gameId={GAME_ID}
             gameName="Mastermind"
             onNewGame={requestReset}
-            onOpenLeaderboard={() => setLeaderboardOpen(true)}
-            onOpenStats={() => setStatsOpen(true)}
+            onOpenLeaderboard={() => { setShowGameOverOverlay(false); setLeaderboardOpen(true); }}
+            onOpenStats={() => { setShowGameOverOverlay(false); setStatsOpen(true); }}
             difficulty={difficulty}
             onDifficultyChange={requestDifficultyChange}
             timerText={timer.timerText}
@@ -707,7 +707,7 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
                     ? t.mastermind.solvedIn.replace('{n}', String(data.currentAttempt - 1))
                     : t.mastermind.secretCode + ':'}
                 onPlayAgain={initGame}
-                onOpenStats={() => setStatsOpen(true)}
+                onOpenStats={() => { setShowGameOverOverlay(false); setStatsOpen(true); }}
             >
                 {/* Secret code display */}
                 {data.secret && (

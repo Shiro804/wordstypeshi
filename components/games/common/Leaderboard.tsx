@@ -22,7 +22,8 @@ export type LeaderboardMetric =
   | "maxStreak"
   | "bestTimeSec"
   | "avgTimeSec"
-  | "highScore";
+  | "highScore"
+  | "bestMismatches";
 
 type Props = {
   open: boolean;
@@ -87,6 +88,7 @@ function rowToStats(r: StatsTableRow): Stats {
     avgTimeSec: r.avg_time_sec ?? null,
     lastTimesSec: Array.isArray(r.last_times_sec) ? (r.last_times_sec as number[]) : [],
     bestScore: null,
+    bestMismatches: null,
     updatedAt: r.updated_at ? Date.parse(r.updated_at) : Date.now(),
   };
 }
@@ -109,6 +111,8 @@ function metricLabel(m: LeaderboardMetric, t: ReturnType<typeof useLanguage>['t'
       return t.leaderboard.avgTime;
     case "highScore":
       return t.leaderboard.highScore;
+    case "bestMismatches":
+      return t.leaderboard.bestMismatches;
   }
 }
 
@@ -125,6 +129,10 @@ function getMetricsForGame(gameId?: string): LeaderboardMetric[] {
   if (gameId === 'batasblast') {
     // BatasBlast: score-based endless game
     return ['highScore', 'played'];
+  }
+  if (gameId === 'bataspairs') {
+    // BatasPairs: memory card game
+    return ['wins', 'played', 'winRate', 'highScore', 'bestMismatches', 'bestTimeSec', 'avgTimeSec'];
   }
   // Default: word/guess games (wordle, mastermind, wordsearch)
   return ['wins', 'played', 'winRate', 'maxStreak', 'bestTimeSec', 'avgTimeSec'];
@@ -202,6 +210,10 @@ export default function Leaderboard({ open, onClose, gameId }: Props) {
                 if (sA.bestScore == null) return 1;
                 if (sB.bestScore == null) return -1;
                 return sB.bestScore - sA.bestScore;
+              case "bestMismatches":
+                if (sA.bestMismatches == null) return 1;
+                if (sB.bestMismatches == null) return -1;
+                return sA.bestMismatches - sB.bestMismatches;
               case "winRate":
                 const rA = sA.played ? sA.wins / sA.played : 0;
                 const rB = sB.played ? sB.wins / sB.played : 0;
@@ -423,6 +435,9 @@ export default function Leaderboard({ open, onClose, gameId }: Props) {
                     break;
                   case "highScore":
                     val = s.bestScore != null ? s.bestScore.toLocaleString() : "–";
+                    break;
+                  case "bestMismatches":
+                    val = s.bestMismatches != null ? s.bestMismatches : "–";
                     break;
                 }
 

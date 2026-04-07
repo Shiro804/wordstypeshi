@@ -162,7 +162,7 @@ export default function Settings({
               placeholder={t.settings.pickUsername}
               autoCapitalize="none"
               autoCorrect="off"
-              className="mt-1 w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm text-[color:var(--fg)] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--border)]"
+              className="mt-1 w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-base sm:text-sm text-[color:var(--fg)] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--border)]"
             />
             <div className="mt-1 text-xs text-[color:var(--muted)]">
               {t.settings.usernameHint}

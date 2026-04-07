@@ -660,8 +660,8 @@ export default function BatasColorsGame({ initialMode }: BatasColorsGameProps) {
             gameId={GAME_ID}
             gameName="BatasColors"
             onNewGame={requestReset}
-            onOpenLeaderboard={() => setLeaderboardOpen(true)}
-            onOpenStats={() => setStatsOpen(true)}
+            onOpenLeaderboard={() => { setShowGameOverOverlay(false); setLeaderboardOpen(true); }}
+            onOpenStats={() => { setShowGameOverOverlay(false); setStatsOpen(true); }}
             difficulty={difficulty}
             onDifficultyChange={requestDifficultyChange}
             timerText={timer.timerText}
@@ -790,7 +790,7 @@ export default function BatasColorsGame({ initialMode }: BatasColorsGameProps) {
                     ? (t.batascolors?.perfect || 'Perfect match!')
                     : (t.batascolors?.targetColor || 'Target Color') + ':'}
                 onPlayAgain={initGame}
-                onOpenStats={() => setStatsOpen(true)}
+                onOpenStats={() => { setShowGameOverOverlay(false); setStatsOpen(true); }}
                 playAgainLabel={t.common.playAgain}
             >
                 {/* Target and solution display */}
