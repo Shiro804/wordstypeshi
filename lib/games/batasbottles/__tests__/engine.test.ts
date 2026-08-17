@@ -29,8 +29,6 @@ import {
 // needs a "small", "medium" or "large" puzzle keeps working.
 
 const easyParams: BatasBottlesParams = { level: 1 };     // Tutorial phase
-const mediumParams: BatasBottlesParams = { level: 250 }; // Medium phase
-const hardParams: BatasBottlesParams = { level: 700 };   // Hard phase
 
 /**
  * Default test-state bookkeeping for the new engine fields. Hand-crafted
@@ -815,7 +813,7 @@ describe('move limit and loss', () => {
       starThresholds: [1, 2, 3],
     };
 
-    let s = batasBottlesEngine.applyAction(state, { type: 'tap_bottle', bottleId: 1 }).state;
+    const s = batasBottlesEngine.applyAction(state, { type: 'tap_bottle', bottleId: 1 }).state;
     const res = batasBottlesEngine.applyAction(s, { type: 'tap_bottle', bottleId: 2 });
 
     expect(res.state.status).toBe('lost');
@@ -845,7 +843,7 @@ describe('move limit and loss', () => {
       moveLimit: 1,
       starThresholds: [1, 2, 3],
     };
-    let s = batasBottlesEngine.applyAction(state, { type: 'tap_bottle', bottleId: 1 }).state;
+    const s = batasBottlesEngine.applyAction(state, { type: 'tap_bottle', bottleId: 1 }).state;
     const res = batasBottlesEngine.applyAction(s, { type: 'tap_bottle', bottleId: 0 });
     expect(res.state.status).toBe('won');
   });

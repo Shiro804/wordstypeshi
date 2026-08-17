@@ -81,12 +81,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-title" content="BataGames" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="mobile-web-app-capable" content="yes" />
-
-        {/* Prefetch background HTML files to eliminate loading flash */}
-        <link rel="prefetch" href="/BatasWordle.html" />
-        <link rel="prefetch" href="/BatasMastermind.html" />
-        <link rel="prefetch" href="/BatasSearch.html" />
-        <link rel="prefetch" href="/BataGames.html" />
       </head>
       <body className="min-h-dvh bg-[color:var(--bg)] text-[color:var(--fg)]">
         <LanguageProvider>
