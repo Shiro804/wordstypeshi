@@ -49,6 +49,8 @@ export const translations = {
       moreGamesSoon: "More games coming soon...",
       continueAsGuest: "Continue as guest →",
       profile: "Profile",
+      account: "Account",
+      gameCount: "{n} games",
     },
 
     // Auth
@@ -349,6 +351,8 @@ export const translations = {
       moreGamesSoon: "Weitere Spiele kommen bald...",
       continueAsGuest: "Als Gast weiterspielen →",
       profile: "Profil",
+      account: "Konto",
+      gameCount: "{n} Spiele",
     },
 
     // Auth

@@ -4,10 +4,26 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Palette, Type, Search, LayoutGrid, Droplets, Brain, Bomb, Route, FlaskConical, LogIn, UserPlus, Settings, LogOut, User } from "lucide-react";
+import {
+  Palette,
+  Type,
+  Search,
+  LayoutGrid,
+  Droplets,
+  Brain,
+  Bomb,
+  Route,
+  FlaskConical,
+  LogIn,
+  UserPlus,
+  Settings,
+  LogOut,
+  User,
+} from "lucide-react";
 import { getMyProfile, type UserProfile } from "@/lib/auth/profile";
 import UsernameModal from "@/components/auth/UsernameModal";
 import ProfileSettingsModal from "@/components/hub/ProfileSettingsModal";
+import HubMascot from "@/components/hub/HubMascot";
 import LanguageSelector from "@/components/shared/LanguageSelector";
 import { useLanguage } from "@/lib/i18n";
 import {
@@ -18,7 +34,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// Game cards data - descriptions come from translations
 const GAMES = [
   {
     id: "wordle" as const,
@@ -31,14 +46,14 @@ const GAMES = [
     id: "mastermind" as const,
     icon: Palette,
     href: "/mastermind",
-    color: "from-purple-500 to-pink-600",
+    color: "from-fuchsia-500 to-pink-600",
     enabled: true,
   },
   {
     id: "wordsearch" as const,
     icon: Search,
     href: "/wordsearch",
-    color: "from-blue-500 to-cyan-600",
+    color: "from-sky-500 to-cyan-600",
     enabled: true,
   },
   {
@@ -82,17 +97,19 @@ const GAMES = [
     href: "/batasbottles",
     color: "from-sky-500 to-indigo-600",
     enabled: true,
+    badge: "1000",
   },
 ];
 
 const USERNAME_MODAL_DISMISSED_KEY = "batagames_username_modal_dismissed";
+const HEADER_CHIP =
+  "h-10 rounded-full bg-white/[0.04] border border-white/10 text-white/90 hover:bg-white/[0.08] hover:border-white/20 px-3";
 
-// Helper to get game info from translations
-const getGameInfo = (gameId: string, t: ReturnType<typeof useLanguage>['t']) => {
+const getGameInfo = (gameId: string, t: ReturnType<typeof useLanguage>["t"]) => {
   const gameTranslations = t[gameId as keyof typeof t] as { name: string; description: string };
   return {
     name: gameTranslations?.name ?? gameId,
-    description: gameTranslations?.description ?? '',
+    description: gameTranslations?.description ?? "",
   };
 };
 
@@ -103,6 +120,12 @@ export default function Page() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
+  const [activeGameId, setActiveGameId] = useState<string | null>(null);
+
+  const enabledGames = GAMES.filter((g) => g.enabled);
+  const activeGame = enabledGames.find((g) => g.id === activeGameId) ?? enabledGames[0];
+  const activeInfo = activeGame ? getGameInfo(activeGame.id, t) : { name: "", description: "" };
+
   const refreshProfile = async () => {
     const p = await getMyProfile();
     setProfile(p);
@@ -111,17 +134,14 @@ export default function Page() {
   useEffect(() => {
     const supabase = createClient();
 
-    // Check auth state
     supabase.auth.getUser().then(({ data }) => {
       const loggedIn = !!data.user;
       setIsLoggedIn(loggedIn);
 
       if (loggedIn) {
-        // Fetch profile to check username
         getMyProfile().then((p) => {
           setProfile(p);
 
-          // Show username modal if no username and not dismissed this session
           if (p && !p.username) {
             const dismissed = sessionStorage.getItem(USERNAME_MODAL_DISMISSED_KEY);
             if (!dismissed) {
@@ -152,218 +172,143 @@ export default function Page() {
   };
 
   return (
-    <div className="min-h-screen text-white relative" style={{ backgroundColor: '#09090b' }}>
-      {/* Language Selector - Top Left with safe area offset */}
-      <div
-        className="absolute left-4 z-20"
-        style={{ top: 'max(env(safe-area-inset-top, 0px) + 1rem, 1rem)' }}
+    <div className="hub-home relative isolate flex min-h-dvh flex-col text-white overflow-x-hidden">
+      <header
+        className="relative z-20 flex items-center justify-between px-4 sm:px-6"
+        style={{ paddingTop: "max(env(safe-area-inset-top, 0px) + 0.75rem, 0.75rem)" }}
       >
-        <LanguageSelector />
-      </div>
+        <LanguageSelector className={HEADER_CHIP} />
 
-      {/* User Menu - Top Right (for logged-in users) */}
-      {isLoggedIn === true && (
-        <div
-          className="absolute right-4 z-20"
-          style={{ top: 'max(env(safe-area-inset-top, 0px) + 1rem, 1rem)' }}
-        >
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-zinc-800/80 border border-zinc-700/50 text-white hover:bg-zinc-700/80 transition-all"
-              >
-                <User size={16} />
-                <span className="text-sm font-medium max-w-24 truncate">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={t.hub.account}
+              className={`inline-flex items-center gap-2 ${HEADER_CHIP} max-w-[10rem]`}
+            >
+              <User size={16} />
+              {isLoggedIn === true && (
+                <span className="text-sm font-medium truncate">
                   {profile?.username || t.hub.profile}
                 </span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-40">
-              <DropdownMenuItem onClick={() => setShowProfileSettings(true)}>
-                <Settings size={14} className="mr-2" />
-                {t.common.settings}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout} className="text-red-400">
-                <LogOut size={14} className="mr-2" />
-                {t.common.logout}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
+              )}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-44">
+            {isLoggedIn === true ? (
+              <>
+                <DropdownMenuItem onClick={() => setShowProfileSettings(true)}>
+                  <Settings size={14} className="mr-2" />
+                  {t.common.settings}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="text-red-400">
+                  <LogOut size={14} className="mr-2" />
+                  {t.common.logout}
+                </DropdownMenuItem>
+              </>
+            ) : (
+              <>
+                <DropdownMenuItem asChild>
+                  <Link href="/auth/login">
+                    <LogIn size={14} className="mr-2" />
+                    {t.common.login}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/auth/sign-up">
+                    <UserPlus size={14} className="mr-2" />
+                    {t.common.register}
+                  </Link>
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </header>
 
-      {/* Duck Area - Top third */}
-      <div className="h-[33vh] min-h-[200px] flex flex-col items-center justify-center pt-safe relative">
-        {/* Title */}
-        <h1
-          className="font-black text-[clamp(28px,5vw,48px)] text-white/90 text-center select-none mb-2"
-          style={{
-            fontFamily: 'ui-rounded, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif',
-            letterSpacing: '0.02em',
-          }}
-        >
-          BataGames
-        </h1>
+      <main className="relative z-10 flex flex-1 flex-col lg:grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.15fr)] lg:items-center lg:gap-8 xl:gap-16 px-4 sm:px-6 pb-6 lg:pb-10 lg:pt-2">
+        <section className="flex flex-col items-center text-center lg:items-start lg:text-left pt-1 pb-4 lg:py-0">
+          <HubMascot className="w-[4.75rem] sm:w-24 lg:w-[13.5rem] xl:w-60" />
+          <h1 className="hub-wordmark mt-1 lg:mt-4 text-[clamp(1.7rem,4vw,3.4rem)] font-semibold tracking-tight text-white">
+            BataGames
+          </h1>
+          <p className="mt-1 max-w-sm text-[13px] sm:text-sm text-white/45 leading-relaxed">
+            {t.hub.subtitle}
+          </p>
+          <p className="mt-3 text-[11px] uppercase tracking-[0.22em] text-[#ffd86b]/70">
+            {t.hub.gameCount.replace("{n}", String(enabledGames.length))}
+          </p>
+          {isLoggedIn === true && profile?.username && (
+            <p className="mt-2 text-sm text-white/40">
+              {t.auth.welcomeBack.replace("!", ", ")}
+              <span className="text-white/80 font-medium">{profile.username}</span>
+            </p>
+          )}
+        </section>
 
-        {/* Duck SVG */}
-        <svg
-          className="w-[clamp(100px,18vw,160px)] h-auto animate-duck-bob"
-          viewBox="0 0 320 320"
-          role="img"
-          aria-label="Cute duck mascot"
-          style={{ filter: 'drop-shadow(0 6px 0 rgba(0,0,0,0.15))' }}
-        >
-          <g>
-            {/* Sparkle */}
-            <g className="animate-duck-pop origin-center">
-              <path d="M252 62c6 10 6 22 0 32c-10 6-22 6-32 0c-6-10-6-22 0-32c10-6 22-6 32 0z" fill="rgba(255,255,255,0.75)" />
-            </g>
-            {/* Body */}
-            <ellipse cx="160" cy="192" rx="118" ry="88" fill="#FFD86B" />
-            {/* Belly */}
-            <ellipse cx="160" cy="210" rx="68" ry="52" fill="#FFF3C9" />
-            {/* Head */}
-            <circle cx="160" cy="120" r="72" fill="#FFD86B" />
-            {/* Wing */}
-            <g className="animate-duck-flap origin-[25%_55%]">
-              <ellipse cx="86" cy="198" rx="44" ry="34" fill="rgba(0,0,0,0.06)" />
-              <ellipse cx="92" cy="190" rx="48" ry="36" fill="#FFD86B" />
-              <ellipse cx="105" cy="194" rx="28" ry="22" fill="#FFF3C9" />
-            </g>
-            {/* Beak */}
-            <path d="M160 140 c26 0 44 10 44 24 c0 14-18 24-44 24 c-26 0-44-10-44-24 c0-14 18-24 44-24z" fill="#FF8B4A" />
-            {/* Cheeks */}
-            <circle cx="120" cy="158" r="10" fill="rgba(255,120,150,0.18)" />
-            <circle cx="200" cy="158" r="10" fill="rgba(255,120,150,0.18)" />
-            {/* Left Eye */}
-            <g className="animate-duck-blink origin-center">
-              <circle cx="136" cy="118" r="10" fill="#1E2430" />
-              <circle cx="132" cy="114" r="3.2" fill="rgba(255,255,255,0.9)" />
-            </g>
-            {/* Right Eye */}
-            <g className="animate-duck-blink origin-center">
-              <circle cx="184" cy="118" r="10" fill="#1E2430" />
-              <circle cx="180" cy="114" r="3.2" fill="rgba(255,255,255,0.9)" />
-            </g>
-          </g>
-        </svg>
-      </div>
+        <section className="flex flex-1 flex-col justify-center min-h-0">
+          <div
+            className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3"
+            onMouseLeave={() => setActiveGameId(null)}
+          >
+            {enabledGames.map((game, index) => {
+              const Icon = game.icon;
+              const info = getGameInfo(game.id, t);
+              const isActive = activeGame?.id === game.id;
 
-      {/* Main Content - Starts after duck */}
-      <main className="max-w-lg mx-auto px-4 pb-8 relative z-10">
-        {/* Auth buttons for non-logged-in users */}
-        {isLoggedIn === false && (
-          <div className="mb-6 flex justify-center gap-3">
-            <Link
-              href="/auth/login"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-800/80 border border-zinc-700/50 text-white hover:bg-zinc-700/80 transition-all"
-            >
-              <LogIn size={16} />
-              <span>{t.common.login}</span>
-            </Link>
-            <Link
-              href="/auth/sign-up"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 transition-all"
-            >
-              <UserPlus size={16} />
-              <span>{t.common.register}</span>
-            </Link>
+              return (
+                <Link
+                  key={game.id}
+                  href={game.href}
+                  onMouseEnter={() => setActiveGameId(game.id)}
+                  onFocus={() => setActiveGameId(game.id)}
+                  className={`hub-tile group relative flex flex-col items-center justify-center gap-2 rounded-[1.35rem] px-2 py-3 sm:py-4
+                    bg-white/[0.035] border border-white/[0.07]
+                    hover:bg-white/[0.07] hover:border-white/15
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffd86b]/70
+                    transition-colors duration-200
+                    ${isActive ? "border-white/20 bg-white/[0.06]" : ""}`}
+                  style={{ animationDelay: `${index * 40}ms` }}
+                >
+                  <div
+                    className={`relative grid size-11 sm:size-12 place-items-center rounded-2xl bg-gradient-to-br ${game.color} shadow-[0_8px_20px_-8px_rgba(0,0,0,0.65)] transition-transform duration-200 group-hover:-translate-y-0.5`}
+                  >
+                    <Icon className="size-5 sm:size-[1.35rem] text-white" strokeWidth={2.1} />
+                    {game.badge && (
+                      <span className="absolute -top-1.5 -right-1.5 rounded-full bg-[#ffd86b] px-1.5 py-px text-[9px] font-bold text-zinc-900 leading-4">
+                        {game.badge}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] sm:text-xs font-semibold tracking-wide text-white/80 group-hover:text-white text-center leading-tight line-clamp-1">
+                    {info.name.replace(/^Batas/, "")}
+                  </span>
+                </Link>
+              );
+            })}
           </div>
-        )}
 
-        {/* Welcome message for logged-in users */}
-        {isLoggedIn === true && profile?.username && (
-          <div className="mb-4 text-center">
-            <p className="text-sm text-zinc-400">
-              {t.auth.welcomeBack.replace('!', `, `)} <span className="text-white font-medium">{profile.username}</span>!
+          <div className="mt-4 min-h-[3.25rem] text-center lg:text-left">
+            <p className="text-sm font-medium text-white/85">{activeInfo.name}</p>
+            <p className="text-xs sm:text-sm text-white/40 leading-relaxed line-clamp-2">
+              {activeInfo.description || t.hub.selectGame}
             </p>
           </div>
-        )}
-
-        <div className="mb-4 text-center">
-          <p className="text-sm text-zinc-500">{t.hub.selectGame}</p>
-        </div>
-
-        {/* Game Grid */}
-        <div className="grid grid-cols-2 gap-3 md:gap-4">
-          {GAMES.filter(g => g.enabled).map((game) => {
-            const Icon = game.icon;
-            return (
-              <Link
-                key={game.id}
-                href={game.href}
-                className={`
-                  group relative overflow-hidden rounded-xl p-3 md:p-4
-                  backdrop-blur-md bg-zinc-900/60 border border-zinc-700/50
-                  hover:bg-zinc-800/70 hover:border-zinc-600/60
-                  hover:scale-[1.02] transition-all duration-300
-                  shadow-lg hover:shadow-2xl
-                `}
-              >
-                {/* Colored accent glow */}
-                <div className={`absolute -top-8 -right-8 w-24 h-24 rounded-full bg-gradient-to-br ${game.color} opacity-30 blur-2xl group-hover:opacity-50 transition-opacity`} />
-
-                {/* Content */}
-                <div className="relative z-10">
-                  <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
-                    <div className={`p-2 md:p-2.5 rounded-lg bg-gradient-to-br ${game.color}`}>
-                      <Icon className="w-5 h-5 md:w-6 md:h-6" />
-                    </div>
-                    <h3 className="text-base md:text-lg font-bold">{getGameInfo(game.id, t).name}</h3>
-                  </div>
-                  <p className="text-xs md:text-sm text-zinc-400 leading-snug line-clamp-2">
-                    {getGameInfo(game.id, t).description}
-                  </p>
-
-                  {game.id === 'batasbottles' && (
-                    <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-sky-300">
-                      <span className="px-1.5 py-0.5 rounded-full bg-sky-500/15 border border-sky-500/30">1000 Levels</span>
-                    </div>
-                  )}
-
-                  {/* Play indicator */}
-                  <div className="mt-3 md:mt-4 flex items-center gap-1.5 text-xs md:text-sm text-zinc-400 group-hover:text-white transition">
-                    <span className="font-medium">{t.common.play}</span>
-                    <span className="group-hover:translate-x-0.5 transition-transform">→</span>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-
-        </div>
-
-        {/* Info for anonymous users */}
-        {isLoggedIn === false && (
-          <div className="mt-8 p-4 rounded-xl bg-zinc-800/40 border border-zinc-700/30 text-center">
-            <p className="text-sm text-zinc-400">
-              <span className="text-emerald-400 font-medium">{t.common.hint}:</span> {t.hub.guestTip}
-            </p>
-          </div>
-        )}
-
-        {/* Coming Soon */}
-        <div className="mt-12 text-center">
-          <p className="text-zinc-500">{t.hub.moreGamesSoon}</p>
-        </div>
+        </section>
       </main>
 
-      {/* Username Modal */}
       <UsernameModal
         open={showUsernameModal}
         onClose={handleUsernameModalClose}
         onSave={handleUsernameSaved}
       />
 
-      {/* Profile Settings Modal */}
       <ProfileSettingsModal
         open={showProfileSettings}
         onClose={() => setShowProfileSettings(false)}
         onProfileUpdate={refreshProfile}
       />
-
     </div>
   );
 }
