@@ -581,9 +581,18 @@ button {
   --hub-ink: #070709;
   --hub-gold: #ffd86b;
   background:
-    radial-gradient(ellipse 70% 55% at 18% 58%, rgba(255, 216, 107, 0.11), transparent 62%),
+    radial-gradient(ellipse 70% 55% at 50% 28%, rgba(255, 216, 107, 0.10), transparent 62%),
     radial-gradient(ellipse 50% 40% at 88% 12%, rgba(255, 255, 255, 0.04), transparent 55%),
     var(--hub-ink);
+}
+
+@media (min-width: 1024px) {
+  .hub-home {
+    background:
+      radial-gradient(ellipse 42% 58% at 28% 52%, rgba(255, 216, 107, 0.11), transparent 64%),
+      radial-gradient(ellipse 40% 36% at 82% 18%, rgba(255, 255, 255, 0.035), transparent 55%),
+      var(--hub-ink);
+  }
 }
 
 .hub-home::before {

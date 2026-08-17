@@ -173,8 +173,9 @@ export default function Page() {
 
   return (
     <div className="hub-home relative isolate flex min-h-dvh flex-col text-white overflow-x-hidden">
+      <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-4 sm:px-6 lg:px-16 xl:px-20">
       <header
-        className="relative z-20 flex items-center justify-between px-4 sm:px-6"
+        className="relative z-20 flex items-center justify-between"
         style={{ paddingTop: "max(env(safe-area-inset-top, 0px) + 0.75rem, 0.75rem)" }}
       >
         <LanguageSelector className={HEADER_CHIP} />
@@ -227,8 +228,8 @@ export default function Page() {
         </DropdownMenu>
       </header>
 
-      <main className="relative z-10 flex flex-1 flex-col lg:grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.15fr)] lg:items-center lg:gap-8 xl:gap-16 px-4 sm:px-6 pb-6 lg:pb-10 lg:pt-2">
-        <section className="flex flex-col items-center text-center lg:items-start lg:text-left pt-1 pb-4 lg:py-0">
+      <main className="relative z-10 flex flex-1 flex-col lg:grid lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-center lg:gap-12 xl:gap-20 pb-6 lg:pb-12 lg:pt-2">
+        <section className="flex flex-col items-center text-center pt-1 pb-4 lg:py-0">
           <HubMascot className="w-[4.75rem] sm:w-24 lg:w-[13.5rem] xl:w-60" />
           <h1 className="hub-wordmark mt-1 lg:mt-4 text-[clamp(1.7rem,4vw,3.4rem)] font-semibold tracking-tight text-white">
             BataGames
@@ -297,6 +298,7 @@ export default function Page() {
           </div>
         </section>
       </main>
+      </div>
 
       <UsernameModal
         open={showUsernameModal}
