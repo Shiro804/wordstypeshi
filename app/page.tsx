@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Palette, Type, Search, LayoutGrid, Droplets, Brain, Bomb, Route, LogIn, UserPlus, Settings, LogOut, User } from "lucide-react";
+import { Palette, Type, Search, LayoutGrid, Droplets, Brain, Bomb, Route, FlaskConical, LogIn, UserPlus, Settings, LogOut, User } from "lucide-react";
 import { getMyProfile, type UserProfile } from "@/lib/auth/profile";
 import UsernameModal from "@/components/auth/UsernameModal";
 import ProfileSettingsModal from "@/components/hub/ProfileSettingsModal";
@@ -74,6 +74,13 @@ const GAMES = [
     icon: Route,
     href: "/batasflow",
     color: "from-teal-500 to-emerald-600",
+    enabled: true,
+  },
+  {
+    id: "batasbottles" as const,
+    icon: FlaskConical,
+    href: "/batasbottles",
+    color: "from-sky-500 to-indigo-600",
     enabled: true,
   },
 ];
@@ -309,6 +316,12 @@ export default function Page() {
                   <p className="text-xs md:text-sm text-zinc-400 leading-snug line-clamp-2">
                     {getGameInfo(game.id, t).description}
                   </p>
+
+                  {game.id === 'batasbottles' && (
+                    <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-sky-300">
+                      <span className="px-1.5 py-0.5 rounded-full bg-sky-500/15 border border-sky-500/30">1000 Levels</span>
+                    </div>
+                  )}
 
                   {/* Play indicator */}
                   <div className="mt-3 md:mt-4 flex items-center gap-1.5 text-xs md:text-sm text-zinc-400 group-hover:text-white transition">

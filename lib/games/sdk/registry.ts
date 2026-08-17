@@ -12,9 +12,11 @@ import type { GameDefinition } from './types';
 import { mastermindDefinition } from '../mastermind/definition';
 import { wordSearchDefinition } from '../wordsearch/definition';
 import { batasBlastDefinition } from '../batasblast/definition';
+import { batascolorsDefinition } from '../batascolors/definition';
 import { batasPairsDefinition } from '../bataspairs/definition';
 import { batasMineDefinition } from '../batasmine/definition';
 import { batasFlowDefinition } from '../batasflow/definition';
+import { batasBottlesDefinition } from '../batasbottles/definition';
 
 /**
  * Registry of all available games.
@@ -24,9 +26,11 @@ export const GAMES: Record<string, GameDefinition> = {
   'mastermind': mastermindDefinition,
   'wordsearch': wordSearchDefinition,
   'batasblast': batasBlastDefinition,
+  'batascolors': batascolorsDefinition,
   'bataspairs': batasPairsDefinition,
   'batasmine': batasMineDefinition,
   'batasflow': batasFlowDefinition,
+  'batasbottles': batasBottlesDefinition,
 };
 
 /**

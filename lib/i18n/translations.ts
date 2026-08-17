@@ -34,6 +34,7 @@ export const translations = {
       moves: "Moves",
       guesses: "Guesses",
       hint: "Hint",
+      undo: "Undo",
       leaderboard: "Leaderboard",
       statistics: "Statistics",
       language: "Language",
@@ -227,6 +228,50 @@ export const translations = {
       solvedIn: "Solved in {moves} moves",
     },
 
+    // BatasBottles
+    batasbottles: {
+      name: "BatasBottles",
+      description: "Pour liquids to fill the big bottle",
+      targetColor: "Target color",
+      layersFilled: "layers filled",
+      bigBottleFilled: "Big bottle filled!",
+      solvedIn: "Solved in {moves} pours",
+      tapToPour: "Tap a bottle, then tap another to pour",
+      levelLabel: "Level {n}",
+      filledOfTotal: "{filled} / {total} filled",
+      movesUsed: "{moves} moves",
+      outOfMoves: "Out of moves — try again!",
+    },
+
+    // Shared level system UI
+    levels: {
+      levelSelect: "Select level",
+      level: "Level",
+      locked: "Locked",
+      unlocked: "Unlocked",
+      complete: "Complete",
+      resume: "Continue",
+      phase: "Phase",
+      totalStars: "Total stars",
+      allLevelsComplete: "All levels complete!",
+      movesLeft: "Moves left",
+      noMoveLimit: "No move limit",
+      starsEarned: "Stars earned",
+      levelComplete: "Level complete!",
+      levelFailed: "Out of moves",
+      nextLevel: "Next level",
+      retry: "Retry",
+      backToLevels: "Back to levels",
+      newBest: "New best!",
+      bestMoves: "Best",
+      // Phase labels used by batasbottles (reusable generic labels)
+      phaseTutorial: "Tutorial",
+      phaseEasy: "Easy",
+      phaseMedium: "Medium",
+      phaseHard: "Hard",
+      phaseExpert: "Expert",
+    },
+
     // Leaderboard
     leaderboard: {
       title: "Leaderboard",
@@ -244,6 +289,8 @@ export const translations = {
       avgTime: "Avg time",
       highScore: "Highscore",
       bestMismatches: "Fewest Misses",
+      maxLevel: "Max level",
+      totalStars: "Total stars",
     },
 
     // Modals
@@ -287,6 +334,7 @@ export const translations = {
       moves: "Züge",
       guesses: "Versuche",
       hint: "Hinweis",
+      undo: "Rückgängig",
       leaderboard: "Bestenliste",
       statistics: "Statistiken",
       language: "Sprache",
@@ -480,6 +528,50 @@ export const translations = {
       solvedIn: "Gelöst in {moves} Zügen",
     },
 
+    // BatasBottles
+    batasbottles: {
+      name: "BatasBottles",
+      description: "Gieße Flüssigkeit in die große Flasche",
+      targetColor: "Zielfarbe",
+      layersFilled: "Schichten gefüllt",
+      bigBottleFilled: "Große Flasche gefüllt!",
+      solvedIn: "Gelöst in {moves} Güssen",
+      tapToPour: "Tippe eine Flasche, dann eine andere zum Umfüllen",
+      levelLabel: "Level {n}",
+      filledOfTotal: "{filled} / {total} gefüllt",
+      movesUsed: "{moves} Züge",
+      outOfMoves: "Züge aufgebraucht — versuch's nochmal!",
+    },
+
+    // Shared level system UI
+    levels: {
+      levelSelect: "Level wählen",
+      level: "Level",
+      locked: "Gesperrt",
+      unlocked: "Freigeschaltet",
+      complete: "Abgeschlossen",
+      resume: "Weiter",
+      phase: "Phase",
+      totalStars: "Sterne gesamt",
+      allLevelsComplete: "Alle Level abgeschlossen!",
+      movesLeft: "Züge übrig",
+      noMoveLimit: "Kein Zuglimit",
+      starsEarned: "Sterne erhalten",
+      levelComplete: "Level geschafft!",
+      levelFailed: "Keine Züge mehr",
+      nextLevel: "Nächstes Level",
+      retry: "Nochmal",
+      backToLevels: "Zur Levelauswahl",
+      newBest: "Neuer Rekord!",
+      bestMoves: "Beste",
+      // Phase labels used by batasbottles (reusable generic labels)
+      phaseTutorial: "Tutorial",
+      phaseEasy: "Einfach",
+      phaseMedium: "Mittel",
+      phaseHard: "Schwer",
+      phaseExpert: "Experte",
+    },
+
     // Leaderboard
     leaderboard: {
       title: "Bestenliste",
@@ -497,6 +589,8 @@ export const translations = {
       avgTime: "Ø Zeit",
       highScore: "Highscore",
       bestMismatches: "Wenigste Fehler",
+      maxLevel: "Max Level",
+      totalStars: "Sterne gesamt",
     },
 
     // Modals

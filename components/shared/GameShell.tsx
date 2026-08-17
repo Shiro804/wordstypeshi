@@ -312,6 +312,7 @@ export default function GameShell({
                         {gameId === 'bataspairs' && 'PAIRS'}
                         {gameId === 'batasmine' && 'MINE'}
                         {gameId === 'batasflow' && 'FLOW'}
+                        {gameId === 'batasbottles' && 'BOTTLES'}
                     </span>
                 </div>
 

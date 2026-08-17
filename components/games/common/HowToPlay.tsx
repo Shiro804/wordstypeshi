@@ -2,7 +2,7 @@
 
 import Modal from "./Modal";
 
-type GameId = "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors" | "bataspairs" | "batasmine" | "batasflow";
+type GameId = "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors" | "bataspairs" | "batasmine" | "batasflow" | "batasbottles";
 
 interface HowToPlayProps {
     gameId: GameId;
@@ -505,6 +505,70 @@ const GAME_INSTRUCTIONS: Record<GameId, {
             {
                 heading: "Tips",
                 content: "Try to remember card positions. Focus on a few cards at a time rather than randomly flipping. Build a mental map of what you've seen.",
+            },
+        ],
+    },
+    batasbottles: {
+        title: "How to Play BatasBottles",
+        sections: [
+            {
+                heading: "Objective",
+                content: "Pour liquid between bottles until the big central bottle is completely filled with one single color – the target color shown above the board.",
+            },
+            {
+                heading: "How to Play",
+                content: "Tap any small bottle to pick it up. Tap another bottle to pour the top color from your selection into it. A pour only works if the destination is empty or its top color matches the one you're pouring. The big bottle in the middle only accepts the target color.",
+                examples: [
+                    {
+                        label: (
+                            <div className="flex h-10 w-6 flex-col justify-end rounded-b-md border border-white/40 bg-white/5 overflow-hidden">
+                                <div className="h-1/3 bg-amber-500" />
+                                <div className="h-1/3 bg-rose-500" />
+                                <div className="h-1/3 bg-blue-500" />
+                            </div>
+                        ),
+                        description: "A bottle with three liquid layers – pours move the top layer first",
+                    },
+                    {
+                        label: (
+                            <div className="flex h-10 w-8 flex-col justify-end rounded-b-md border-2 border-blue-400 bg-blue-400/10 shadow-[0_0_10px_rgba(96,165,250,0.6)] overflow-hidden">
+                                <div className="h-1/2 bg-blue-500" />
+                            </div>
+                        ),
+                        description: "The big target bottle – only accepts the chosen target color",
+                    },
+                ],
+            },
+            {
+                heading: "Pouring Rules",
+                content: "Same color or empty: pour is allowed. Different color: pour is rejected. The pour transfers as many same-color layers from the top of the source as fit into the destination.",
+            },
+            {
+                heading: "Empty Space Matters",
+                content: "Two bottles always start completely empty so you have room to maneuver. Use them to peel away unwanted layers and uncover the target color buried below.",
+            },
+            {
+                heading: "Level Progression",
+                content: "BatasBottles features 1000 hand-tuned levels grouped into 5 phases that gradually ramp up the challenge.",
+                examples: [
+                    { label: <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-xs font-bold">1–50</span>, description: "Tutorial: 5–7 bottles, 3 colors, gentle introduction" },
+                    { label: <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 text-xs font-bold">51–200</span>, description: "Easy: 6–10 bottles, 4–5 colors, generous move limit" },
+                    { label: <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-xs font-bold">201–500</span>, description: "Medium: 10–14 bottles, 5–6 colors, moderate move limit" },
+                    { label: <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-xs font-bold">501–800</span>, description: "Hard: 14–18 bottles, 6–7 colors, tight move limit" },
+                    { label: <span className="px-2 py-0.5 rounded bg-violet-500/20 text-violet-300 text-xs font-bold">801–1000</span>, description: "Expert: 18–22 bottles, 7–8 colors, very tight" },
+                ],
+            },
+            {
+                heading: "Stars & Move Limit",
+                content: "Each level has a move limit (except early tutorials). Finish in fewer moves to earn more stars: ≤ threshold → 3 stars, then 2, then 1. Running out of moves ends the level.",
+            },
+            {
+                heading: "Tap Again to Cancel",
+                content: "Tap the selected bottle a second time to deselect it. Use the undo button if a pour was a mistake – your move count carries on so think before you tap.",
+            },
+            {
+                heading: "Scoring",
+                content: "Earn up to 3 stars per level by solving efficiently. Your total stars and highest reached level appear on the leaderboard. Every level is guaranteed solvable.",
             },
         ],
     },

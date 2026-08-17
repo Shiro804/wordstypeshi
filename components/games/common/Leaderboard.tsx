@@ -23,7 +23,9 @@ export type LeaderboardMetric =
   | "bestTimeSec"
   | "avgTimeSec"
   | "highScore"
-  | "bestMismatches";
+  | "bestMismatches"
+  | "maxLevel"
+  | "totalStars";
 
 type Props = {
   open: boolean;
@@ -113,6 +115,10 @@ function metricLabel(m: LeaderboardMetric, t: ReturnType<typeof useLanguage>['t'
       return t.leaderboard.highScore;
     case "bestMismatches":
       return t.leaderboard.bestMismatches;
+    case "maxLevel":
+      return t.leaderboard.maxLevel;
+    case "totalStars":
+      return t.leaderboard.totalStars;
   }
 }
 
@@ -134,12 +140,16 @@ function getMetricsForGame(gameId?: string): LeaderboardMetric[] {
     // BatasPairs: memory card game
     return ['wins', 'played', 'winRate', 'highScore', 'bestMismatches', 'bestTimeSec', 'avgTimeSec'];
   }
+  if (gameId === 'batasbottles') {
+    return ['maxLevel', 'totalStars', 'played', 'bestTimeSec'];
+  }
   // Default: word/guess games (wordle, mastermind, wordsearch)
   return ['wins', 'played', 'winRate', 'maxStreak', 'bestTimeSec', 'avgTimeSec'];
 }
 
 function getDefaultMetric(gameId?: string): LeaderboardMetric {
   if (gameId === 'batasblast') return 'highScore';
+  if (gameId === 'batasbottles') return 'maxLevel';
   return 'wins';
 }
 
@@ -147,6 +157,7 @@ function getDefaultMetric(gameId?: string): LeaderboardMetric {
 function hasDifficulty(gameId?: string): boolean {
   // BatasBlast doesn't have difficulty
   if (gameId === 'batasblast') return false;
+  if (gameId === 'batasbottles') return false;  // no difficulty — uses levels
   return true;
 }
 
@@ -170,6 +181,8 @@ export default function Leaderboard({ open, onClose, gameId }: Props) {
   useEffect(() => {
     if (!open) return;
 
+    const queryMode = gameId === 'batasbottles' ? 'level' : difficulty;
+
     const run = async () => {
       setLoading(true);
       setError(null);
@@ -186,7 +199,7 @@ export default function Leaderboard({ open, onClose, gameId }: Props) {
             .from("game_stats")
             .select("user_id, stats, updated_at")
             .eq("game_id", gameId)
-            .eq("mode", difficulty)
+            .eq("mode", queryMode)
             .limit(100);
 
           if (error) throw error;
@@ -206,6 +219,14 @@ export default function Leaderboard({ open, onClose, gameId }: Props) {
               case "losses": return sA.losses - sB.losses;
               case "played": return sB.played - sA.played;
               case "maxStreak": return sB.maxStreak - sA.maxStreak;
+              case "maxLevel": {
+                const aMax = sA.levelProgress?.maxLevelReached ?? 0;
+                const bMax = sB.levelProgress?.maxLevelReached ?? 0;
+                if (bMax !== aMax) return bMax - aMax;
+                return (sB.levelProgress?.totalStars ?? 0) - (sA.levelProgress?.totalStars ?? 0);
+              }
+              case "totalStars":
+                return (sB.levelProgress?.totalStars ?? 0) - (sA.levelProgress?.totalStars ?? 0);
               case "highScore":
                 if (sA.bestScore == null) return 1;
                 if (sB.bestScore == null) return -1;
@@ -438,6 +459,12 @@ export default function Leaderboard({ open, onClose, gameId }: Props) {
                     break;
                   case "bestMismatches":
                     val = s.bestMismatches != null ? s.bestMismatches : "–";
+                    break;
+                  case "maxLevel":
+                    val = s.levelProgress?.maxLevelReached ?? 0;
+                    break;
+                  case "totalStars":
+                    val = `${s.levelProgress?.totalStars ?? 0} ★`;
                     break;
                 }
 
