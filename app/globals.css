@@ -630,3 +630,28 @@ button {
     animation: none;
   }
 }
+
+.flimmer-skin {
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(255, 90, 100, 0.18), transparent 55%),
+    radial-gradient(ellipse 40% 30% at 90% 80%, rgba(255, 180, 80, 0.08), transparent 50%),
+    #12070a;
+}
+
+.flimmer-pulse {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 999px;
+  background: radial-gradient(circle at 40% 35%, #ffd0c8, #ff5a6a 55%, #7a1020);
+  box-shadow: 0 0 0 0 rgba(255, 90, 106, 0.45);
+  animation: flimmer-beat 1.35s ease-in-out infinite;
+}
+
+@keyframes flimmer-beat {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 90, 106, 0.4); }
+  40% { transform: scale(1.08); box-shadow: 0 0 0 16px rgba(255, 90, 106, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flimmer-pulse { animation: none; }
+}

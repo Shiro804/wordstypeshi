@@ -4,6 +4,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Manrope } from "next/font/google";
 import { LanguageProvider } from "@/lib/i18n";
+import AppProviders from "@/components/providers/AppProviders";
 
 const manrope = Manrope({
   subsets: ["latin"],
@@ -90,7 +91,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-dvh bg-[color:var(--bg)] text-[color:var(--fg)]">
         <LanguageProvider>
-          {children}
+          <AppProviders>
+            {children}
+          </AppProviders>
         </LanguageProvider>
         <Analytics />
         <SpeedInsights />

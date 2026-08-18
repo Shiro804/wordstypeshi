@@ -5,7 +5,7 @@ import Modal from "./Modal";
 import { useLanguage } from "@/lib/i18n";
 import type { TranslationKeys } from "@/lib/i18n/translations";
 
-type GameId = "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors" | "bataspairs" | "batasmine" | "batasflow" | "batasbottles";
+type GameId = "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors" | "bataspairs" | "batasmine" | "batasflow" | "batasbottles" | "batasflimmer";
 
 interface HowToPlayProps {
     gameId: GameId;
@@ -456,6 +456,24 @@ function getInstructions(gameId: GameId, t: TranslationKeys): { title: string; s
                     { heading: h.starsMoves, content: h.batasbottles.starsMoves },
                     { heading: h.tapAgain, content: h.batasbottles.tapAgain },
                     { heading: h.scoring, content: h.batasbottles.scoring },
+                ],
+            };
+        case "batasflimmer":
+            return {
+                title: h.batasflimmer.title,
+                sections: [
+                    { heading: h.objective, content: h.batasflimmer.objective },
+                    { heading: h.howTo, content: h.batasflimmer.howTo },
+                    {
+                        heading: h.difficulty,
+                        content: "",
+                        examples: [
+                            { label: <DiffBadge tone="easy">SOFT</DiffBadge>, description: h.batasflimmer.easy },
+                            { label: <DiffBadge tone="medium">WARM</DiffBadge>, description: h.batasflimmer.medium },
+                            { label: <DiffBadge tone="hard">HOT</DiffBadge>, description: h.batasflimmer.hard },
+                        ],
+                    },
+                    { heading: h.tips, content: h.batasflimmer.tips },
                 ],
             };
     }

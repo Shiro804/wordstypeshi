@@ -1,0 +1,135 @@
+{
+  "date": "2026-08-18",
+  "title": "BatasFlimmer couple-game concept research",
+  "status": "concept-only-awaiting-approve",
+  "recommendation": {
+    "gameId": "batasflimmer",
+    "name": "BatasFlimmer",
+    "oneLiner": "Catch the thought they are having about you, right now. The almost-miss is the hit."
+  },
+  "sources": [
+    {
+      "id": "carswell-impett-2021",
+      "title": "What fuels passion? An integrative review of competing theories of romantic passion",
+      "authors": "Carswell & Impett",
+      "year": 2021,
+      "url": "https://doi.org/10.1111/spc3.12629",
+      "used_for": "limerence vs intimacy-rate vs self-expansion vs triangular; up-regulation"
+    },
+    {
+      "id": "aron-2000",
+      "title": "Couples' shared participation in novel and arousing activities and experienced relationship quality",
+      "authors": "Aron, Norman, Aron, McKenna, Heyman",
+      "year": 2000,
+      "url": "https://www.researchgate.net/publication/12609069_Couples'_shared_participation_in_novel_and_arousing_activities_and_experienced_relationship_quality",
+      "used_for": "7-minute novel+arousing task lifts relationship quality"
+    },
+    {
+      "id": "muise-2019",
+      "title": "Broadening Your Horizons: Self-Expanding Activities Promote Desire and Satisfaction",
+      "authors": "Muise et al.",
+      "year": 2019,
+      "url": "https://oaks.kent.edu/hcri/broadening-your-horizons-self-expanding-activities-promote-desire-and-satisfaction-established",
+      "used_for": "self-expansion -> desire -> satisfaction"
+    },
+    {
+      "id": "aron-2022",
+      "title": "Self-expansion motivation and inclusion of others in self: An updated review",
+      "year": 2022,
+      "url": "https://journals.sagepub.com/doi/10.1177/02654075221110630"
+    },
+    {
+      "id": "emery-2025",
+      "title": "Self-Expansion Theory: Origins, Current Evidence, and Future Horizons",
+      "year": 2025,
+      "url": "https://compass.onlinelibrary.wiley.com/doi/10.1111/spc3.70082"
+    },
+    {
+      "id": "pgt-shared-gaming",
+      "title": "How Romantic Partners Build Sound Relationship Houses through Shared Gaming",
+      "url": "https://faculty.washington.edu/alexisr/PGT.pdf",
+      "used_for": "Gottman SRH + congruence of game design and couple needs"
+    },
+    {
+      "id": "couillard-2013",
+      "title": "Affection Games in Digital Play: A Content Analysis of Web Playable Games",
+      "year": 2013,
+      "url": "https://doi.org/10.26503/dl.v2013i1.645",
+      "used_for": "verbs flirt/hug/kiss; kiss-and-evade / almost"
+    },
+    {
+      "id": "couillard-2017",
+      "title": "Love, Lust, Courtship and Affection as Evolution in Digital Play",
+      "year": 2017,
+      "url": "https://doi.org/10.26503/dl.v2017i1.931",
+      "used_for": "contained vs facilitated vs communicated affection"
+    },
+    {
+      "id": "paired-city",
+      "title": "Exploring the Potential of a Digital Intervention to Enhance Couple Relationships (the Paired App)",
+      "url": "https://openaccess.city.ac.uk/id/eprint/35125/",
+      "used_for": "daily Q works as neutral third party; habit not spark"
+    },
+    {
+      "id": "witney-jftr",
+      "title": "More-than-relationship quality ... digital couple interventions",
+      "url": "https://doi.org/10.1111/jftr.12509"
+    },
+    {
+      "id": "wnrs-couples",
+      "title": "We're Not Really Strangers Couples Edition",
+      "url": "https://www.werenotreallystrangers.com/pages/couples-edition"
+    },
+    {
+      "id": "paired-support",
+      "title": "What is Paired?",
+      "url": "https://support.paired.com/en/articles/164632-what-is-paired"
+    },
+    {
+      "id": "lovely-couple",
+      "title": "Lovely Couple",
+      "url": "https://lovecouple.app/de/"
+    },
+    {
+      "id": "syncwithlove-wyr",
+      "title": "Would You Rather for Couples — Live Game, Instant Verdict",
+      "url": "https://syncwithlove.com/sync/would-you-rather",
+      "used_for": "simultaneous lock, no peek"
+    },
+    {
+      "id": "coupleq",
+      "title": "coupleQ",
+      "url": "https://github.com/gimnathperera/coupleQ"
+    },
+    {
+      "id": "wavelength-ks",
+      "title": "Wavelength Kickstarter",
+      "url": "https://www.kickstarter.com/projects/alxhague/wavelength",
+      "used_for": "bullseye as magic trick; empathy not trivia"
+    },
+    {
+      "id": "gamesradar-couples-2025",
+      "title": "Best couple games date night",
+      "url": "https://www.gamesradar.com/best-couple-games/"
+    },
+    {
+      "id": "steam-moon-escape",
+      "title": "Together: Moon Escape",
+      "url": "https://store.steampowered.com/app/3744430/Together_Moon_Escape/"
+    },
+    {
+      "id": "steam-bip-bop",
+      "title": "Bip and Bop",
+      "url": "https://store.steampowered.com/app/4048740/Bip_and_Bop/"
+    }
+  ],
+  "rejected": [
+    "Paired-style daily quiz",
+    "Truth or Dare / spicy card deck",
+    "It Takes Two lite platformer",
+    "Plain Wavelength clone",
+    "Fantasy Pictionary",
+    "Digital 36 questions",
+    "Would You Rather only"
+  ]
+}

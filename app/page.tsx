@@ -14,6 +14,7 @@ import {
   Bomb,
   Route,
   FlaskConical,
+  Heart,
   LogIn,
   UserPlus,
   Settings,
@@ -26,6 +27,7 @@ import ProfileSettingsModal from "@/components/hub/ProfileSettingsModal";
 import HubMascot from "@/components/hub/HubMascot";
 import LanguageSelector from "@/components/shared/LanguageSelector";
 import { useLanguage } from "@/lib/i18n";
+import { isFlimmerUsername } from "@/lib/games/batasflimmer/allowlist";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -99,6 +101,15 @@ const GAMES = [
     enabled: true,
     badge: "1000",
   },
+  {
+    id: "batasflimmer" as const,
+    icon: Heart,
+    href: "/batasflimmer",
+    color: "from-rose-400 to-amber-400",
+    enabled: true,
+    pairOnly: true,
+    badge: "2",
+  },
 ];
 
 const USERNAME_MODAL_DISMISSED_KEY = "batagames_username_modal_dismissed";
@@ -122,7 +133,9 @@ export default function Page() {
   const [showProfileSettings, setShowProfileSettings] = useState(false);
   const [activeGameId, setActiveGameId] = useState<string | null>(null);
 
-  const enabledGames = GAMES.filter((g) => g.enabled);
+  const enabledGames = GAMES.filter(
+    (g) => g.enabled && (!("pairOnly" in g && g.pairOnly) || isFlimmerUsername(profile?.username))
+  );
   const activeGame = enabledGames.find((g) => g.id === activeGameId) ?? enabledGames[0];
   const activeInfo = activeGame ? getGameInfo(activeGame.id, t) : { name: "", description: "" };
 
