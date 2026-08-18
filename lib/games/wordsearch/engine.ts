@@ -13,7 +13,7 @@ import type {
   BaseGameState,
   GameParams 
 } from '../sdk/types';
-import { createSeededRandom } from '../sdk';
+import { createSeededRandom, pickRandomSeeded } from '../sdk';
 import { 
   WORDSEARCH_MODES, 
   DIRECTIONS, 
@@ -104,8 +104,7 @@ function selectWords(
   dictionary: string[] = BASE_WORDS
 ): string[] {
   const eligible = dictionary.filter(w => w.length >= minLen && w.length <= maxLen);
-  const shuffled = [...eligible].sort(() => random() - 0.5);
-  return shuffled.slice(0, count);
+  return pickRandomSeeded(eligible, count, random);
 }
 
 // ============================================================================
@@ -235,40 +234,62 @@ function generatePuzzle(
 // Path Validation
 // ============================================================================
 
+function resolvePathDirection(
+  start: { r: number; c: number },
+  end: { r: number; c: number }
+): DirectionKey | null {
+  const rowDiff = Math.abs(end.r - start.r);
+  const colDiff = Math.abs(end.c - start.c);
+  if (rowDiff === 0 && colDiff === 0) return null;
+  if (rowDiff !== 0 && colDiff !== 0 && rowDiff !== colDiff) return null;
+
+  const dr = Math.sign(end.r - start.r);
+  const dc = Math.sign(end.c - start.c);
+  for (const key of Object.keys(DIRECTIONS) as DirectionKey[]) {
+    if (DIRECTIONS[key].dr === dr && DIRECTIONS[key].dc === dc) return key;
+  }
+  return null;
+}
+
+function isSelectionDirectionAllowed(
+  direction: DirectionKey,
+  difficulty: WordSearchParams['difficulty']
+): boolean {
+  const allowed = getDirectionsForDifficulty(difficulty);
+  if (allowed.includes(direction)) return true;
+  const { dr, dc } = DIRECTIONS[direction];
+  return allowed.some((key) => DIRECTIONS[key].dr === -dr && DIRECTIONS[key].dc === -dc);
+}
+
 /**
- * Check if a path is a valid straight line and extract the word
+ * Check if a path is a valid straight line in an allowed direction and extract the word
  */
 function extractPathWord(
   grid: string[][],
   start: { r: number; c: number },
-  end: { r: number; c: number }
+  end: { r: number; c: number },
+  difficulty: WordSearchParams['difficulty']
 ): { word: string; valid: boolean } {
-  const dr = Math.sign(end.r - start.r);
-  const dc = Math.sign(end.c - start.c);
-  
-  // Check for valid direction (straight line)
-  const rowDiff = Math.abs(end.r - start.r);
-  const colDiff = Math.abs(end.c - start.c);
-  
-  // Must be horizontal, vertical, or diagonal (equal deltas)
-  if (rowDiff !== 0 && colDiff !== 0 && rowDiff !== colDiff) {
+  const direction = resolvePathDirection(start, end);
+  if (!direction || !isSelectionDirectionAllowed(direction, difficulty)) {
     return { word: '', valid: false };
   }
-  
-  const steps = Math.max(rowDiff, colDiff);
+
+  const { dr, dc } = DIRECTIONS[direction];
+  const steps = Math.max(Math.abs(end.r - start.r), Math.abs(end.c - start.c));
   let word = '';
-  
+
   for (let i = 0; i <= steps; i++) {
     const r = start.r + i * dr;
     const c = start.c + i * dc;
-    
+
     if (r < 0 || r >= grid.length || c < 0 || c >= grid[0].length) {
       return { word: '', valid: false };
     }
-    
+
     word += grid[r][c];
   }
-  
+
   return { word, valid: true };
 }
 
@@ -316,19 +337,21 @@ function applyAction(
   
   if (action.type === 'select_path') {
     const { start, end } = action;
-    const { word, valid } = extractPathWord(state.grid, start, end);
-    
-    if (!valid) {
-      return {
-        state: { ...state, misselects: state.misselects + 1 },
-        events: [{ type: 'invalid_selection', payload: { start, end } }],
-      };
+
+    if (start.r === end.r && start.c === end.c) {
+      return { state, events: [] };
     }
-    
-    // Check if word matches any unfound word (forward or reverse)
+
+    const { word, valid } = extractPathWord(state.grid, start, end, state.config.difficulty);
+
+    if (!valid) {
+      return { state, events: [], invalidReason: 'Invalid path' };
+    }
+
+    // Reverse swipe of a placed word counts on every difficulty
     const wordReverse = word.split('').reverse().join('');
-    const matchedWord = state.words.find(w => 
-      !w.found && (w.text === word || (state.config.allowReverse && w.text === wordReverse))
+    const matchedWord = state.words.find(w =>
+      !w.found && (w.text === word || w.text === wordReverse)
     );
     
     if (!matchedWord) {

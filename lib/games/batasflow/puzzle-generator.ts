@@ -9,6 +9,7 @@
  */
 
 import { createSeededRandom } from '../sdk';
+import { FLOW_COLORS } from './ruleset';
 
 // ============================================================================
 // Types
@@ -36,17 +37,7 @@ export interface FlowPuzzle {
 // Constants
 // ============================================================================
 
-export const FLOW_COLORS = [
-  '#EF4444', // red
-  '#3B82F6', // blue
-  '#22C55E', // green
-  '#F59E0B', // amber
-  '#A855F7', // purple
-  '#EC4899', // pink
-  '#06B6D4', // cyan
-  '#F97316', // orange
-  '#84CC16', // lime
-] as const;
+export { FLOW_COLORS };
 
 const DIRECTIONS: [number, number][] = [
   [-1, 0], // up

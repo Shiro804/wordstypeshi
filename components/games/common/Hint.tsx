@@ -1,5 +1,6 @@
 "use client";
 
+import { forwardRef, useCallback, useImperativeHandle, useMemo } from "react";
 import type { Mark } from "@/lib/game";
 
 type Props = {
@@ -19,71 +20,69 @@ export type HintResult = {
   letter: string;
 };
 
+export type HintHandle = {
+  reveal: () => void;
+};
+
 /**
  * Intelligent Hint Component.
- * 
+ *
  * Reveals an UNKNOWN letter position from the answer.
  * - Finds positions that haven't been revealed as "correct" yet
  * - Picks one randomly and reveals the letter
  * - Truly helpful for solving the puzzle
  */
-export default function Hint({
-  answer,
-  answerLength,
-  revealedMarks,
-  disabled,
-  hintUsedThisGame,
-  remainingHints,
-  onHint,
-  onRequestHint
-}: Props) {
-  // Find which positions are already known (green/correct)
-  const knownPositions = new Set<number>();
-
-  for (const row of revealedMarks) {
-    for (let i = 0; i < answerLength; i++) {
-      if (row.marks[i] === "correct") {
-        knownPositions.add(i);
+const Hint = forwardRef<HintHandle, Props>(function Hint(
+  {
+    answer,
+    answerLength,
+    revealedMarks,
+    disabled,
+    hintUsedThisGame,
+    remainingHints,
+    onHint,
+    onRequestHint,
+  },
+  ref
+) {
+  const unknownPositions = useMemo(() => {
+    const known = new Set<number>();
+    for (const row of revealedMarks) {
+      for (let i = 0; i < answerLength; i++) {
+        if (row.marks[i] === "correct") {
+          known.add(i);
+        }
       }
     }
-  }
-
-  // Find unknown positions
-  const unknownPositions: number[] = [];
-  for (let i = 0; i < answerLength; i++) {
-    if (!knownPositions.has(i)) {
-      unknownPositions.push(i);
+    const next: number[] = [];
+    for (let i = 0; i < answerLength; i++) {
+      if (!known.has(i)) next.push(i);
     }
-  }
+    return next;
+  }, [answerLength, revealedMarks]);
 
   const noHintsLeft = remainingHints <= 0;
   const allPositionsKnown = unknownPositions.length === 0;
 
+  const revealHint = useCallback(() => {
+    if (unknownPositions.length === 0) return;
+    const randomIndex = Math.floor(Math.random() * unknownPositions.length);
+    const position = unknownPositions[randomIndex];
+    const letter = answer[position].toUpperCase();
+    onHint({ type: "reveal", index: position, letter });
+  }, [unknownPositions, answer, onHint]);
+
+  useImperativeHandle(ref, () => ({ reveal: revealHint }), [revealHint]);
+
   const handleClick = () => {
     if (noHintsLeft || allPositionsKnown) return;
 
-    // If hint already used this game, just reveal directly
-    // Otherwise, go through the warning flow
     if (hintUsedThisGame) {
       revealHint();
     } else {
       onRequestHint();
     }
   };
-
-  const revealHint = () => {
-    // Pick a random unknown position
-    const randomIndex = Math.floor(Math.random() * unknownPositions.length);
-    const position = unknownPositions[randomIndex];
-    const letter = answer[position].toUpperCase();
-
-    onHint({ type: "reveal", index: position, letter });
-  };
-
-  // Expose revealHint for parent to call after confirmation
-  if (typeof window !== "undefined") {
-    (window as unknown as { __revealHint?: () => void }).__revealHint = revealHint;
-  }
 
   const isDisabled = disabled || noHintsLeft || allPositionsKnown;
 
@@ -104,4 +103,6 @@ export default function Hint({
       <span className="text-[10px] text-[color:var(--muted)]">{remainingHints}</span>
     </button>
   );
-}
+});
+
+export default Hint;

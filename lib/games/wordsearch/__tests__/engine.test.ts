@@ -71,8 +71,8 @@ describe('wordSearchEngine', () => {
       
       const result = wordSearchEngine.applyAction(state, action);
       
-      // Should increment misselects since diagonal not in word list on easy mode
-      expect(result.state.misselects).toBeGreaterThanOrEqual(0);
+      expect(result.invalidReason).toBe('Invalid path');
+      expect(result.state.misselects).toBe(state.misselects);
     });
 
     it('accepts valid horizontal selection', () => {
@@ -102,8 +102,22 @@ describe('wordSearchEngine', () => {
       
       const result = wordSearchEngine.applyAction(state, action);
       
-      // Should count as misselect
-      expect(result.state.misselects).toBeGreaterThan(state.misselects);
+      expect(result.invalidReason).toBe('Invalid path');
+      expect(result.state.misselects).toBe(state.misselects);
+    });
+
+    it('ignores zero-length selection', () => {
+      const state = wordSearchEngine.init('test-seed', defaultParams);
+
+      const result = wordSearchEngine.applyAction(state, {
+        type: 'select_path',
+        start: { r: 0, c: 0 },
+        end: { r: 0, c: 0 },
+      });
+
+      expect(result.invalidReason).toBeUndefined();
+      expect(result.state.misselects).toBe(0);
+      expect(result.state.foundCount).toBe(0);
     });
   });
 
@@ -140,6 +154,29 @@ describe('wordSearchEngine', () => {
       
       const result = wordSearchEngine.applyAction(state, action);
       
+      expect(result.state.foundCount).toBe(1);
+      expect(result.events.some(e => e.type === 'word_found')).toBe(true);
+    });
+
+    it('accepts reverse selection of a placed word on easy', () => {
+      const easyParams = getModeParams('easy');
+      const state = wordSearchEngine.init('word-finding-test', easyParams);
+      const word = state.words[0];
+      const { startRow, startCol, direction } = word.placement;
+      const directions: Record<string, { dr: number; dc: number }> = {
+        RIGHT: { dr: 0, dc: 1 },
+        DOWN: { dr: 1, dc: 0 },
+      };
+      const dir = directions[direction];
+      const endRow = startRow + (word.text.length - 1) * dir.dr;
+      const endCol = startCol + (word.text.length - 1) * dir.dc;
+
+      const result = wordSearchEngine.applyAction(state, {
+        type: 'select_path',
+        start: { r: endRow, c: endCol },
+        end: { r: startRow, c: startCol },
+      });
+
       expect(result.state.foundCount).toBe(1);
       expect(result.events.some(e => e.type === 'word_found')).toBe(true);
     });

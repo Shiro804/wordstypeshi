@@ -2,12 +2,19 @@ import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata, Viewport } from "next";
-import { Manrope } from "next/font/google";
+import { Fraunces, Manrope } from "next/font/google";
 import { LanguageProvider } from "@/lib/i18n";
+import AppProviders from "@/components/providers/AppProviders";
 
 const manrope = Manrope({
   subsets: ["latin"],
   variable: "--font-sans",
+  display: "swap",
+});
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-display",
   display: "swap",
 });
 
@@ -73,7 +80,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="de" className={`${manrope.variable} dark`}>
+    <html lang="de" className={`${manrope.variable} ${fraunces.variable} dark`}>
       <head>
         {/* iOS home screen (Safari → Add to Home Screen) */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -84,7 +91,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-dvh bg-[color:var(--bg)] text-[color:var(--fg)]">
         <LanguageProvider>
-          {children}
+          <AppProviders>
+            {children}
+          </AppProviders>
         </LanguageProvider>
         <Analytics />
         <SpeedInsights />

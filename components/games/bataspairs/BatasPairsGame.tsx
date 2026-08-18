@@ -9,7 +9,6 @@ import {
     batasPairsEngine,
     getModeParams,
     type BatasPairsState,
-    type BatasPairsAction
 } from "@/lib/games/bataspairs/engine";
 import { calculateScore } from "@/lib/games/bataspairs/ruleset";
 import { batasPairsUIAdapter, type BatasPairsRenderModel } from "@/lib/games/bataspairs/ui-adapter";
@@ -19,9 +18,9 @@ import type { Difficulty } from "@/lib/difficulty";
 import { getCurrentUserId, upsertRemoteGameStats, syncGameStats, loadLocalStats, saveLocalStats } from "@/lib/sync/game-stats-sync";
 import { createOrReuseActiveSession, endSession } from "@/lib/sync/sessions-sync";
 import Leaderboard from "@/components/games/common/Leaderboard";
-import StatsModal from "@/components/shared/StatsModal";
-import { type Stats, applyGameResult } from "@/lib/storage/storage";
-import { useGameTimer } from "@/lib/hooks/useGameTimer";
+import StatsModal, { StatCard } from "@/components/shared/StatsModal";
+import { type Stats, applyGameResult, formatDuration } from "@/lib/storage/storage";
+import { playDurationSec, useGameTimer } from "@/lib/hooks/useGameTimer";
 import Modal from "../common/Modal";
 import { useLanguage } from "@/lib/i18n";
 
@@ -119,12 +118,33 @@ export default function BatasPairsGame() {
 
     // Mismatch resolution timer ref
     const resolveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const gameStateRef = useRef<BatasPairsState | null>(null);
+    const winRecordedRef = useRef(false);
 
     // Language
     const { t } = useLanguage();
 
     // Timer state
     const timer = useGameTimer();
+
+    const scheduleResolveCheck = useCallback(() => {
+        if (resolveTimerRef.current) {
+            clearTimeout(resolveTimerRef.current);
+        }
+        resolveTimerRef.current = setTimeout(() => {
+            setGameState(prev => {
+                if (!prev || !prev.isChecking) return prev;
+                const resolveResult = batasPairsEngine.applyAction(prev, { type: 'resolve_check' });
+                gameStateRef.current = resolveResult.state;
+                return resolveResult.state;
+            });
+            resolveTimerRef.current = null;
+        }, MISMATCH_DELAY);
+    }, []);
+
+    useEffect(() => {
+        gameStateRef.current = gameState;
+    }, [gameState]);
 
     // Derived
     const mode = DIFFICULTY_TO_MODE[difficulty];
@@ -160,7 +180,13 @@ export default function BatasPairsGame() {
                 active.config.cols === params.cols;
 
             if (paramsMatch && !batasPairsEngine.isTerminal(active)) {
+                winRecordedRef.current = false;
+                gameStateRef.current = active;
                 setGameState(active);
+
+                if (active.isChecking) {
+                    scheduleResolveCheck();
+                }
 
                 if (active.totalFlips > 0) {
                     timer.setStartedAt(active.startedAtMs);
@@ -182,8 +208,10 @@ export default function BatasPairsGame() {
                     setSessionId(session?.id ?? null);
                 }
             } else {
+                winRecordedRef.current = false;
                 const newSeed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
                 const state = batasPairsEngine.init(newSeed, params);
+                gameStateRef.current = state;
                 setGameState(state);
                 saveActiveGame(GAME_ID, state, userId);
                 timer.reset();
@@ -231,8 +259,10 @@ export default function BatasPairsGame() {
             resolveTimerRef.current = null;
         }
 
+        winRecordedRef.current = false;
         const newSeed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const state = batasPairsEngine.init(newSeed, params);
+        gameStateRef.current = state;
         setGameState(state);
         saveActiveGame(GAME_ID, state, userId);
         timer.reset();
@@ -252,7 +282,7 @@ export default function BatasPairsGame() {
     const forfeitCurrentGame = useCallback(async () => {
         if (!gameState) return;
         timer.stop();
-        const durationSec = Math.max(0, (Date.now() - gameState.startedAtMs) / 1000);
+        const durationSec = playDurationSec(timer);
         const newStats = applyGameResult(stats, { outcome: "lose", durationSec });
         setStats(newStats);
         saveLocalStats(GAME_ID, difficulty, newStats);
@@ -304,73 +334,64 @@ export default function BatasPairsGame() {
     }, [isInProgress, initGame]);
 
     const handleCardClick = useCallback(async (position: number) => {
-        if (!gameState || gameState.isChecking) return;
+        const current = gameStateRef.current;
+        if (!current || current.isChecking) return;
 
-        const action: BatasPairsAction = {
+        const result = batasPairsEngine.applyAction(current, {
             type: 'flip_card',
             position,
-        };
-
-        const result = batasPairsEngine.applyAction(gameState, action);
+        });
         if (result.invalidReason) return;
+
+        gameStateRef.current = result.state;
+        setGameState(result.state);
 
         // Start timer on first flip
         if (!timer.startedAtMs) {
             timer.start();
         }
 
-        setGameState(result.state);
-
-        // If we entered checking state (mismatch), auto-resolve after delay
         if (result.state.isChecking) {
-            resolveTimerRef.current = setTimeout(() => {
-                setGameState(prev => {
-                    if (!prev || !prev.isChecking) return prev;
-                    const resolveResult = batasPairsEngine.applyAction(prev, { type: 'resolve_check' });
-                    return resolveResult.state;
-                });
-                resolveTimerRef.current = null;
-            }, MISMATCH_DELAY);
+            scheduleResolveCheck();
         }
 
-        // Check completion
-        if (batasPairsEngine.isTerminal(result.state)) {
-            timer.stop();
-            const durationSec = (result.state.endedAtMs! - result.state.startedAtMs) / 1000;
+        if (!batasPairsEngine.isTerminal(result.state) || winRecordedRef.current) return;
+        winRecordedRef.current = true;
 
-            const newStats = applyGameResult(stats, {
+        timer.stop();
+        const durationSec = playDurationSec(timer);
+
+        const newStats = applyGameResult(stats, {
+            outcome: "win",
+            guessesUsed: result.state.totalFlips,
+            durationSec,
+        });
+
+        const durationMs = playDurationSec(timer) * 1000;
+        const score = calculateScore(result.state.mismatches, durationMs);
+        newStats.bestScore = newStats.bestScore == null ? score : Math.max(newStats.bestScore, score);
+        newStats.bestMismatches = newStats.bestMismatches == null
+            ? result.state.mismatches
+            : Math.min(newStats.bestMismatches, result.state.mismatches);
+
+        setStats(newStats);
+        saveLocalStats(GAME_ID, difficulty, newStats);
+
+        if (userId) {
+            upsertRemoteGameStats(userId, GAME_ID, difficulty, newStats);
+        }
+
+        if (sessionId) {
+            await endSession({
+                sessionId,
                 outcome: "win",
                 guessesUsed: result.state.totalFlips,
                 durationSec,
+                endedAtMs: result.state.endedAtMs!,
             });
-
-            // BatasPairs-specific metrics
-            const durationMs = result.state.endedAtMs! - result.state.startedAtMs;
-            const score = calculateScore(result.state.mismatches, durationMs);
-            newStats.bestScore = newStats.bestScore == null ? score : Math.max(newStats.bestScore, score);
-            newStats.bestMismatches = newStats.bestMismatches == null
-                ? result.state.mismatches
-                : Math.min(newStats.bestMismatches, result.state.mismatches);
-
-            setStats(newStats);
-            saveLocalStats(GAME_ID, difficulty, newStats);
-
-            if (userId) {
-                upsertRemoteGameStats(userId, GAME_ID, difficulty, newStats);
-            }
-
-            if (sessionId) {
-                await endSession({
-                    sessionId,
-                    outcome: "win",
-                    guessesUsed: result.state.totalFlips,
-                    durationSec,
-                    endedAtMs: result.state.endedAtMs!,
-                });
-                setSessionId(null);
-            }
+            setSessionId(null);
         }
-    }, [gameState, stats, difficulty, userId, sessionId, timer]);
+    }, [stats, difficulty, userId, sessionId, timer, scheduleResolveCheck]);
 
     const renderModel = useMemo((): BatasPairsRenderModel | null => {
         if (!gameState) return null;
@@ -463,14 +484,30 @@ export default function BatasPairsGame() {
 
             <StatsModal
                 open={statsOpen}
-                onClose={() => setStatsOpen(false)}
+                onClose={() => { setStatsOpen(false); if (renderModel.isTerminal) setShowGameOverOverlay(true); }}
                 stats={stats}
                 onLeaderboard={() => setLeaderboardOpen(true)}
-            />
+                showDistribution={false}
+            >
+                <div className="grid grid-cols-2 gap-3">
+                    <StatCard label={t.leaderboard.played} value={stats.played} />
+                    <StatCard label={t.leaderboard.winRate} value={`${Math.round(stats.played ? (stats.wins / stats.played) * 100 : 0)}%`} />
+                    <StatCard label={t.leaderboard.highScore} value={stats.bestScore == null ? "–" : stats.bestScore} />
+                    <StatCard label={t.leaderboard.bestMismatches} value={stats.bestMismatches == null ? "–" : stats.bestMismatches} />
+                    <StatCard
+                        label={t.leaderboard.bestTime}
+                        value={stats.bestTimeSec == null ? "–" : formatDuration(stats.bestTimeSec)}
+                    />
+                    <StatCard
+                        label={t.leaderboard.avgTime}
+                        value={stats.avgTimeSec == null ? "–" : formatDuration(stats.avgTimeSec)}
+                    />
+                </div>
+            </StatsModal>
 
             <Leaderboard
                 open={leaderboardOpen}
-                onClose={() => setLeaderboardOpen(false)}
+                onClose={() => { setLeaderboardOpen(false); if (renderModel.isTerminal) setShowGameOverOverlay(true); }}
                 gameId={GAME_ID}
             />
 

@@ -107,7 +107,9 @@ export function calculateAccuracy(mixed: RGB, target: RGB): number {
   const diff = Math.abs(mixed.r - target.r) + 
                Math.abs(mixed.g - target.g) + 
                Math.abs(mixed.b - target.b);
-  return Math.round((1 - diff / maxDiff) * 100);
+  if (diff === 0) return 100;
+  // Math.round((1 - 1/765)*100) === 100 for manhattan 1–3 — never treat a miss as 100
+  return Math.min(99, Math.round((1 - diff / maxDiff) * 100));
 }
 
 // ============================================================================
@@ -118,7 +120,7 @@ export function calculateAccuracy(mixed: RGB, target: RGB): number {
  * Generate random segment percentages that sum to 100.
  * Ensures no segment is less than 10% for visibility.
  */
-function generateSegmentPercentages(
+export function generateSegmentPercentages(
   numSegments: number, 
   random: () => number
 ): number[] {
@@ -137,10 +139,26 @@ function generateSegmentPercentages(
     Math.round(minPercentage + (p / total) * remaining)
   );
   
-  // Adjust last segment to ensure sum is exactly 100
+  // Adjust last segment to ensure sum is exactly 100 without dropping below 10%
+  const last = percentages.length - 1;
   const sum = percentages.reduce((a, b) => a + b, 0);
-  percentages[percentages.length - 1] += 100 - sum;
-  
+  percentages[last] += 100 - sum;
+  if (percentages[last] < minPercentage) {
+    let deficit = minPercentage - percentages[last];
+    percentages[last] = minPercentage;
+    const donors = percentages
+      .map((p, i) => ({ p, i }))
+      .filter((x) => x.i !== last)
+      .sort((a, b) => b.p - a.p);
+    for (const donor of donors) {
+      if (deficit <= 0) break;
+      const spare = percentages[donor.i] - minPercentage;
+      const take = Math.min(spare, deficit);
+      percentages[donor.i] -= take;
+      deficit -= take;
+    }
+  }
+
   return percentages;
 }
 
@@ -288,8 +306,11 @@ function applyAction(
   const newAttempts = [...state.attempts, attempt];
   const newAttemptCount = state.currentAttempt + 1;
   
-  // Check win/lose conditions
-  const won = accuracy === 100;
+  // Win only on exact RGB match (accuracy 100 is reserved for diff === 0)
+  const won =
+    mixedColor.r === state.targetColor.r &&
+    mixedColor.g === state.targetColor.g &&
+    mixedColor.b === state.targetColor.b;
   const lost = !won && newAttemptCount >= state.config.maxAttempts;
   
   const newStatus = won ? 'won' : lost ? 'lost' : 'playing';

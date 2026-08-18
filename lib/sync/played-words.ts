@@ -55,3 +55,27 @@ export async function trackPlayedWord(
 
   return true;
 }
+
+/**
+ * Clear all played words for a game/difficulty so the pool can restart.
+ */
+export async function clearPlayedWords(
+  userId: string,
+  difficulty: Difficulty,
+  gameId: string = "wordle"
+): Promise<boolean> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("played_words")
+    .delete()
+    .eq("user_id", userId)
+    .eq("game_id", gameId)
+    .eq("difficulty", difficulty);
+
+  if (error) {
+    console.error("Failed to clear played words", error);
+    return false;
+  }
+
+  return true;
+}

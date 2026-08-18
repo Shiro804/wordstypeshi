@@ -35,7 +35,7 @@ import { createOrReuseActiveSession, endSession } from "@/lib/sync/sessions-sync
 import Leaderboard from "@/components/games/common/Leaderboard";
 import StatsModal from "@/components/shared/StatsModal";
 import type { Stats } from "@/lib/storage/storage";
-import { useGameTimer } from "@/lib/hooks/useGameTimer";
+import { playDurationSec, useGameTimer } from "@/lib/hooks/useGameTimer";
 import Modal from "../common/Modal";
 import LevelSelectScreen from "@/components/games/common/LevelSelectScreen";
 import { useLanguage } from "@/lib/i18n";
@@ -49,6 +49,50 @@ const STATS_MODE = "level";
 
 /** Duration of the pour animation in milliseconds. */
 const POUR_ANIM_MS = 550;
+
+const SECTION_GAP_PX = 16;
+const GRID_GAP_PX = 8;
+const BASE_BIG_WIDTH = 108;
+const BASE_BIG_HEIGHT = 240;
+
+function baseSmallWidth(smallBottleCount: number): number {
+    if (smallBottleCount <= 6) return 64;
+    if (smallBottleCount <= 10) return 56;
+    if (smallBottleCount <= 14) return 48;
+    if (smallBottleCount <= 18) return 42;
+    return 36;
+}
+
+function smallCols(smallBottleCount: number): number {
+    if (smallBottleCount <= 6) return 1;
+    if (smallBottleCount <= 12) return 2;
+    return 3;
+}
+
+function estimateAvailWidth(): number {
+    if (typeof window === "undefined") return 400;
+    return Math.max(200, Math.min(672, window.innerWidth) - 32);
+}
+
+function fitBottleSizes(availWidth: number, smallBottleCount: number) {
+    const cols = smallCols(smallBottleCount);
+    const baseSmall = baseSmallWidth(smallBottleCount);
+    const gaps = 2 * SECTION_GAP_PX + 2 * Math.max(0, cols - 1) * GRID_GAP_PX;
+    const bottlesW = 2 * cols * baseSmall + BASE_BIG_WIDTH;
+    const scale =
+        availWidth > gaps
+            ? Math.min(1, (availWidth - gaps) / bottlesW)
+            : Math.min(1, availWidth / (bottlesW + gaps));
+    const smallWidth = Math.floor(baseSmall * scale);
+    const bigWidth = Math.floor(BASE_BIG_WIDTH * scale);
+    return {
+        cols,
+        smallWidth,
+        smallHeight: Math.floor(smallWidth * 1.9),
+        bigWidth,
+        bigHeight: Math.floor(bigWidth * (BASE_BIG_HEIGHT / BASE_BIG_WIDTH)),
+    };
+}
 
 // ============================================================================
 // Bottle visual
@@ -149,7 +193,7 @@ function BottleSVG({
                         const y = bodyY + bodyH - (i + 1) * layerH;
                         return (
                             <rect
-                                key={`${bottle.id}-${i}-${color}`}
+                                key={`${bottle.id}-${i}`}
                                 x={bodyX}
                                 y={y}
                                 width={innerW}
@@ -324,6 +368,7 @@ export default function BatasBottlesGame() {
 
     // ---------- UI state
     const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+    const [confirmIntent, setConfirmIntent] = useState<"reset" | "leave">("reset");
     const [leaderboardOpen, setLeaderboardOpen] = useState(false);
     const [statsOpen, setStatsOpen] = useState(false);
     const [stats, setStats] = useState<Stats>(() => loadLocalStats(GAME_ID, STATS_MODE));
@@ -343,7 +388,17 @@ export default function BatasBottlesGame() {
     const [shakeId, setShakeId] = useState<number | null>(null);
 
     const boardRef = useRef<HTMLDivElement>(null);
+    const boardMeasureRef = useRef<HTMLDivElement>(null);
     const bottleRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+    const overlayDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [availWidth, setAvailWidth] = useState(estimateAvailWidth);
+
+    const clearOverlayDelay = useCallback(() => {
+        if (overlayDelayRef.current != null) {
+            clearTimeout(overlayDelayRef.current);
+            overlayDelayRef.current = null;
+        }
+    }, []);
 
     // ---------- Derived
     const renderModel = useMemo((): BatasBottlesRenderModel | null => {
@@ -415,6 +470,19 @@ export default function BatasBottlesGame() {
         }
     }, [userId]);
 
+    useEffect(() => {
+        const el = boardMeasureRef.current;
+        if (!el) return;
+        const update = () => {
+            const w = el.clientWidth;
+            if (w > 0) setAvailWidth(w);
+        };
+        update();
+        const ro = new ResizeObserver(update);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [gameState]);
+
     // ---------- Game lifecycle
     const startLevel = useCallback(
         async (level: number) => {
@@ -424,6 +492,7 @@ export default function BatasBottlesGame() {
             setGameState(state);
             saveActiveGame(GAME_ID, state, userId);
             timer.reset();
+            clearOverlayDelay();
             setPourAnim(null);
             setShakeId(null);
             setOverlayOpen(false);
@@ -441,16 +510,13 @@ export default function BatasBottlesGame() {
                 setSessionId(session?.id ?? null);
             }
         },
-        [userId, timer]
+        [userId, timer, clearOverlayDelay]
     );
 
     const backToLevels = useCallback(async () => {
         timer.stop();
         if (sessionId && gameState) {
-            const durationSec = Math.max(
-                0,
-                (Date.now() - gameState.startedAtMs) / 1000
-            );
+            const durationSec = playDurationSec(timer);
             await endSession({
                 sessionId,
                 outcome: "forfeit",
@@ -462,18 +528,17 @@ export default function BatasBottlesGame() {
         }
         setGameState(null);
         saveActiveGame(GAME_ID, null, userId);
+        clearOverlayDelay();
         setOverlayOpen(false);
         setPourAnim(null);
         setShakeId(null);
-    }, [sessionId, gameState, userId, timer]);
+    }, [sessionId, gameState, userId, timer, clearOverlayDelay]);
 
     // ---------- Handle game end (win or loss)
     const handleGameEnd = useCallback(
         async (state: BatasBottlesState) => {
             timer.stop();
-            const durationSec = state.endedAtMs
-                ? (state.endedAtMs - state.startedAtMs) / 1000
-                : (Date.now() - state.startedAtMs) / 1000;
+            const durationSec = playDurationSec(timer);
 
             const baseStats = loadLocalStats(GAME_ID, STATS_MODE);
 
@@ -561,12 +626,6 @@ export default function BatasBottlesGame() {
                 return;
             }
 
-            setGameState(result.state);
-
-            if (!timer.startedAtMs && result.state.moveCount > 0) {
-                timer.start();
-            }
-
             const pourEvent = result.events.find(e => e.type === "poured");
             if (pourEvent) {
                 const payload = pourEvent.payload as {
@@ -578,11 +637,25 @@ export default function BatasBottlesGame() {
                 setTimeout(() => setPourAnim(null), POUR_ANIM_MS);
             }
 
+            setGameState(result.state);
+
+            if (!timer.startedAtMs && result.state.moveCount > 0) {
+                timer.start();
+            }
+
             if (batasBottlesEngine.isTerminal(result.state)) {
-                handleGameEnd(result.state);
+                if (pourEvent) {
+                    clearOverlayDelay();
+                    overlayDelayRef.current = setTimeout(() => {
+                        overlayDelayRef.current = null;
+                        handleGameEnd(result.state);
+                    }, POUR_ANIM_MS);
+                } else {
+                    handleGameEnd(result.state);
+                }
             }
         },
-        [gameState, timer, handleGameEnd]
+        [gameState, timer, handleGameEnd, clearOverlayDelay]
     );
 
     const handleBottleTap = useCallback(
@@ -605,10 +678,7 @@ export default function BatasBottlesGame() {
         const level = gameState.level;
         timer.stop();
         if (sessionId) {
-            const durationSec = Math.max(
-                0,
-                (Date.now() - gameState.startedAtMs) / 1000
-            );
+            const durationSec = playDurationSec(timer);
             await endSession({
                 sessionId,
                 outcome: "forfeit",
@@ -622,8 +692,18 @@ export default function BatasBottlesGame() {
         await startLevel(level);
     }, [gameState, sessionId, timer, startLevel]);
 
+    const confirmResetOrLeave = useCallback(async () => {
+        if (confirmIntent === "leave") {
+            setConfirmResetOpen(false);
+            await backToLevels();
+            return;
+        }
+        await forfeitCurrentGameAndReset();
+    }, [confirmIntent, backToLevels, forfeitCurrentGameAndReset]);
+
     const requestReset = useCallback(() => {
         if (isInProgress) {
+            setConfirmIntent("reset");
             setConfirmResetOpen(true);
             return;
         }
@@ -681,6 +761,11 @@ export default function BatasBottlesGame() {
                         phase: t.levels.phase,
                         resume: t.levels.resume,
                         levelNumber: t.levels.level,
+                        phaseTutorial: t.levels.phaseTutorial,
+                        phaseEasy: t.levels.phaseEasy,
+                        phaseMedium: t.levels.phaseMedium,
+                        phaseHard: t.levels.phaseHard,
+                        phaseExpert: t.levels.phaseExpert,
                     }}
                 />
                 <StatsModal
@@ -715,29 +800,11 @@ export default function BatasBottlesGame() {
     const currentLevel = data.level;
     const showHints = currentLevel <= 50;
 
-    // Bottle sizing — scale by live small-bottle count
-    const bigWidth = 108;
-    const bigHeight = 240;
     const smallBottleCount = data.bottles.length - 1;
-    const smallWidth =
-        smallBottleCount <= 6
-            ? 64
-            : smallBottleCount <= 10
-                ? 56
-                : smallBottleCount <= 14
-                    ? 48
-                    : smallBottleCount <= 18
-                        ? 42
-                        : 36;
-    const smallHeight = smallWidth * 1.9;
-    const cols =
-        smallBottleCount <= 6
-            ? 1
-            : smallBottleCount <= 12
-                ? 2
-                : smallBottleCount <= 18
-                    ? 3
-                    : 3;
+    const { cols, smallWidth, smallHeight, bigWidth, bigHeight } = fitBottleSizes(
+        availWidth,
+        smallBottleCount
+    );
 
     const atMaxLevel = currentLevel >= BATASBOTTLES_LEVEL_COUNT;
 
@@ -770,7 +837,10 @@ export default function BatasBottlesGame() {
                         </button>
                         <button
                             type="button"
-                            onClick={() => setConfirmResetOpen(true)}
+                            onClick={() => {
+                                setConfirmIntent("reset");
+                                setConfirmResetOpen(true);
+                            }}
                             title="Reset"
                             className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--fg)] transition hover:bg-[color:var(--surface2)]"
                         >
@@ -787,6 +857,7 @@ export default function BatasBottlesGame() {
                         type="button"
                         onClick={() => {
                             if (isInProgress) {
+                                setConfirmIntent("leave");
                                 setConfirmResetOpen(true);
                             } else {
                                 backToLevels();
@@ -843,13 +914,14 @@ export default function BatasBottlesGame() {
                 )}
 
                 {/* Game board */}
+                <div ref={boardMeasureRef} className="w-full min-w-0 self-stretch">
                 <div
                     ref={boardRef}
-                    className="relative flex items-center justify-center gap-4 w-full select-none"
+                    className="relative flex items-center justify-center gap-4 w-full min-w-0 select-none"
                 >
                     {/* Left small-bottle grid */}
                     <div
-                        className="grid gap-2"
+                        className="grid gap-2 shrink-0"
                         style={{
                             gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
                         }}
@@ -874,7 +946,7 @@ export default function BatasBottlesGame() {
                     </div>
 
                     {/* Center big bottle */}
-                    <div className="flex flex-col items-center">
+                    <div className="flex flex-col items-center shrink-0">
                         <BottleCell
                             bottle={data.target}
                             width={bigWidth}
@@ -893,7 +965,7 @@ export default function BatasBottlesGame() {
 
                     {/* Right small-bottle grid */}
                     <div
-                        className="grid gap-2"
+                        className="grid gap-2 shrink-0"
                         style={{
                             gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
                         }}
@@ -926,6 +998,7 @@ export default function BatasBottlesGame() {
                             color={pourAnim.color}
                         />
                     )}
+                </div>
                 </div>
 
                 {/* Palette legend */}
@@ -1001,7 +1074,7 @@ export default function BatasBottlesGame() {
                         </button>
                         <button
                             type="button"
-                            onClick={forfeitCurrentGameAndReset}
+                            onClick={confirmResetOrLeave}
                             className="rounded-xl border border-[color:var(--border)] bg-rose-500/20 px-3 py-2 text-sm font-semibold text-[color:var(--fg)] transition hover:bg-rose-500/30"
                         >
                             {t.modals.resetConfirm}

@@ -20,12 +20,6 @@ const modes: GameMode[] = [
     description: 'Endless score chasing. Play until no moves remain!',
     defaultParams: { mode: 'classic_endless' },
   },
-  {
-    modeId: 'daily_challenge',
-    displayName: 'Daily Challenge',
-    description: 'Same puzzle for everyone today. Compete for the best score!',
-    defaultParams: { mode: 'daily_challenge' },
-  },
 ];
 
 // ============================================================================

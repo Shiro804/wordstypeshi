@@ -1,6 +1,7 @@
 "use client";
 
 import { useLanguage } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -35,7 +36,7 @@ function FlagDE({ className = "w-5 h-4" }: { className?: string }) {
  * Compact language selector dropdown
  * Used in auth pages where the full Hub is not available
  */
-export default function LanguageSelector() {
+export default function LanguageSelector({ className }: { className?: string }) {
     const { language, setLanguage } = useLanguage();
 
     return (
@@ -43,7 +44,10 @@ export default function LanguageSelector() {
             <DropdownMenuTrigger asChild>
                 <button
                     type="button"
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-zinc-800/80 border border-zinc-700/50 text-white hover:bg-zinc-700/80 transition-all"
+                    className={cn(
+                        "flex items-center gap-2 px-3 py-2 rounded-xl bg-zinc-800/80 border border-zinc-700/50 text-white hover:bg-zinc-700/80 transition-all",
+                        className,
+                    )}
                 >
                     {language === 'de' ? <FlagDE /> : <FlagUK />}
                     <span className="text-sm font-medium">{language.toUpperCase()}</span>

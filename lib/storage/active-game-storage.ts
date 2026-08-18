@@ -42,6 +42,18 @@ function isWrappedFormat<T>(data: unknown): data is SavedGameWrapper<T> {
   return typeof data === 'object' && data !== null && 'v' in data && (data as SavedGameWrapper<T>).v === 2;
 }
 
+function reviveMapSet(_key: string, value: unknown): unknown {
+  if (value && typeof value === 'object') {
+    if ('__mapEntries' in value && Array.isArray((value as { __mapEntries: unknown }).__mapEntries)) {
+      return new Map((value as { __mapEntries: [unknown, unknown][] }).__mapEntries);
+    }
+    if ('__setValues' in value && Array.isArray((value as { __setValues: unknown }).__setValues)) {
+      return new Set((value as { __setValues: unknown[] }).__setValues);
+    }
+  }
+  return value;
+}
+
 /**
  * Load active game from storage.
  * Returns the game state with startedAtMs adjusted to preserve correct elapsed time.
@@ -106,19 +118,24 @@ export function loadActiveGame<T extends { startedAtMs: number }>(
 
     if (!raw) return null;
     
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw, reviveMapSet);
     
     // Handle new wrapped format with elapsed time tracking
     if (isWrappedFormat<T>(parsed)) {
       const { gameState, elapsedMs } = parsed;
+
+      // Finished games keep their original timestamps so duration stays endedAt - startedAt.
+      if (gameState && typeof gameState === "object" && "endedAtMs" in gameState && (gameState as { endedAtMs?: number | null }).endedAtMs) {
+        return gameState;
+      }
       
-      // Safety net: discard games that have been running for over 24 hours
+      // Safety net: discard in-progress games that have been running for over 24 hours
       if (elapsedMs > MAX_GAME_DURATION_MS) {
         console.log(`[active-game-storage] Discarding stale game (${Math.round(elapsedMs / 1000 / 60)}min elapsed)`);
         window.localStorage.removeItem(key);
         return null;
       }
-      
+
       // Reconstruct startedAtMs so that elapsed time is preserved correctly
       // newStartedAtMs = now - elapsedMs (so timer shows correct elapsed time)
       const adjustedState = {

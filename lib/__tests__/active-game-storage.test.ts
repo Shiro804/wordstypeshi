@@ -111,6 +111,29 @@ describe('active-game-storage', () => {
       expect(loaded!.foo).toBe('bar');
     });
 
+    it('roundtrips Map and Set via save/load', () => {
+      const now = Date.now();
+      const state = {
+        startedAtMs: now - 3000,
+        paths: new Map([[1, [{ row: 0, col: 0 }]]]),
+        completedFlows: new Set([2, 3]),
+      };
+      storage.saveActiveGame('flow-game', state, null);
+
+      const loaded = storage.loadActiveGame<{
+        startedAtMs: number;
+        paths: Map<number, { row: number; col: number }[]>;
+        completedFlows: Set<number>;
+      }>('flow-game', null);
+
+      expect(loaded).not.toBeNull();
+      expect(loaded!.paths).toBeInstanceOf(Map);
+      expect(loaded!.paths.get(1)).toEqual([{ row: 0, col: 0 }]);
+      expect(loaded!.completedFlows).toBeInstanceOf(Set);
+      expect(loaded!.completedFlows.has(2)).toBe(true);
+      expect(loaded!.completedFlows.has(3)).toBe(true);
+    });
+
     it('migrates anonymous game to user scope', () => {
       const wrapper = {
         gameState: { foo: 'bar', startedAtMs: Date.now() },

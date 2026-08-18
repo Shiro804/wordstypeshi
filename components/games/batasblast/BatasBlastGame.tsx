@@ -11,6 +11,7 @@ import {
     type BatasBlastAction,
     type BatasBlastParams,
     canPlacePiece,
+    ensureColorBoard,
     PIECE_BY_ID,
     BOARD,
 } from "@/lib/games/batasblast";
@@ -21,7 +22,7 @@ import { createOrReuseActiveSession, endSession } from "@/lib/sync/sessions-sync
 import Leaderboard from "@/components/games/common/Leaderboard";
 import StatsModal from "@/components/shared/StatsModal";
 import { type Stats, applyGameResult } from "@/lib/storage/storage";
-import { useGameTimer } from "@/lib/hooks/useGameTimer";
+import { playDurationSec, useGameTimer } from "@/lib/hooks/useGameTimer";
 import Modal from "../common/Modal";
 import type { CellOffset } from "@/lib/games/batasblast/ruleset";
 import { useLanguage } from "@/lib/i18n";
@@ -210,16 +211,20 @@ function GhostPiece({
     colorIndex,
     hoverOrigin,
     boardRef,
+    scale,
 }: {
     cells: CellOffset[];
     colorIndex: number;
     hoverOrigin: { r: number; c: number } | null;
     boardRef: React.RefObject<HTMLDivElement | null>;
+    scale: number;
 }) {
     if (!hoverOrigin || cells.length === 0 || !boardRef.current) return null;
 
     const rect = boardRef.current.getBoundingClientRect();
     const cellTotal = CELL_SIZE + CELL_GAP;
+    const cellSize = CELL_SIZE * scale;
+    const cellGap = CELL_GAP * scale;
 
     // Find the bounding box of the piece cells
     const minR = Math.min(...cells.map(c => c.dr));
@@ -231,11 +236,10 @@ function GhostPiece({
 
     const colors = BLOCK_COLORS[colorIndex % BLOCK_COLORS.length];
 
-    // Calculate absolute position based on board grid
-    // The origin cell (0,0 of piece) should align with hoverOrigin on board
+    // rect is CSS-scaled; padding and cell pitch are layout (unscaled) units
     const boardPadding = 12; // p-3 = 0.75rem = 12px
-    const left = rect.left + boardPadding + (hoverOrigin.c + minC) * cellTotal;
-    const top = rect.top + boardPadding + (hoverOrigin.r + minR) * cellTotal;
+    const left = rect.left + (boardPadding + (hoverOrigin.c + minC) * cellTotal) * scale;
+    const top = rect.top + (boardPadding + (hoverOrigin.r + minR) * cellTotal) * scale;
 
     return (
         <div
@@ -248,9 +252,9 @@ function GhostPiece({
             <div
                 style={{
                     display: 'grid',
-                    gridTemplateColumns: `repeat(${cols}, ${CELL_SIZE}px)`,
-                    gridTemplateRows: `repeat(${rows}, ${CELL_SIZE}px)`,
-                    gap: CELL_GAP,
+                    gridTemplateColumns: `repeat(${cols}, ${cellSize}px)`,
+                    gridTemplateRows: `repeat(${rows}, ${cellSize}px)`,
+                    gap: cellGap,
                 }}
             >
                 {Array.from({ length: rows * cols }).map((_, i) => {
@@ -269,7 +273,7 @@ function GhostPiece({
                                     : "bg-transparent"
                                 }
               `}
-                            style={{ width: CELL_SIZE, height: CELL_SIZE }}
+                            style={{ width: cellSize, height: cellSize }}
                         />
                     );
                 })}
@@ -566,6 +570,7 @@ export default function BatasBlastGame() {
     // Cells that are about to be cleared (for animation)
     const [blastingCells, setBlastingCells] = useState<Set<string>>(new Set());
     const [blastColor, setBlastColor] = useState<number>(0);
+    const [isAnimating, setIsAnimating] = useState(false);
 
     // Score Popups
     const [scorePopups, setScorePopups] = useState<Array<{ id: number; value: number }>>([]);
@@ -574,6 +579,32 @@ export default function BatasBlastGame() {
 
     // Refs
     const boardRef = useRef<HTMLDivElement>(null);
+    const scaleRef = useRef(scale);
+    scaleRef.current = scale;
+    const isAnimatingRef = useRef(false);
+    const timeoutsRef = useRef<number[]>([]);
+
+    const clearGameTimeouts = useCallback(() => {
+        for (const id of timeoutsRef.current) {
+            window.clearTimeout(id);
+        }
+        timeoutsRef.current = [];
+    }, []);
+
+    const scheduleGameTimeout = useCallback((fn: () => void, ms: number) => {
+        const id = window.setTimeout(() => {
+            timeoutsRef.current = timeoutsRef.current.filter((t) => t !== id);
+            fn();
+        }, ms);
+        timeoutsRef.current.push(id);
+    }, []);
+
+    useEffect(() => () => {
+        for (const id of timeoutsRef.current) {
+            window.clearTimeout(id);
+        }
+        timeoutsRef.current = [];
+    }, []);
 
     // Confirmation State
     const [confirmResetOpen, setConfirmResetOpen] = useState(false);
@@ -627,13 +658,9 @@ export default function BatasBlastGame() {
             const active = loadActiveGame<BatasBlastState>(GAME_ID, userId);
 
             if (active && !batasBlastEngine.isTerminal(active)) {
-                setGameState(active);
-                // Restore color board if present, else fallback to empty
-                if (active.colorBoard) {
-                    setColorBoard(active.colorBoard);
-                } else {
-                    setColorBoard(Array.from({ length: BOARD.rows }, () => Array(BOARD.cols).fill(-1)));
-                }
+                const restoredColors = ensureColorBoard(active.board, active.colorBoard);
+                setGameState({ ...active, colorBoard: restoredColors });
+                setColorBoard(restoredColors);
 
                 timer.setStartedAt(active.startedAtMs);
                 if (active.endedAtMs) {
@@ -732,7 +759,7 @@ export default function BatasBlastGame() {
 
     // Place piece helper
     const placePiece = useCallback((trayIndex: number, origin: { r: number; c: number }) => {
-        if (!gameState) return;
+        if (!gameState || isAnimatingRef.current) return;
 
         const trayPiece = gameState.tray[trayIndex];
         if (trayPiece.used) return;
@@ -773,9 +800,9 @@ export default function BatasBlastGame() {
             if (scoreGained > 0) {
                 const id = Date.now();
                 setScorePopups(prev => [...prev, { id, value: scoreGained }]);
-                setTimeout(() => {
+                scheduleGameTimeout(() => {
                     setScorePopups(prev => prev.filter(p => p.id !== id));
-                }, 1200); // Remove after animation
+                }, 1200);
             }
 
             const newLinesCleared = result.state.totalLinesCleared - prevLinesCleared;
@@ -794,8 +821,10 @@ export default function BatasBlastGame() {
                     }
                 }
 
-                // IMMEDIATELY show the placed piece by applying newColorBoard
-                // This ensures all tiles of the piece are visible before animation
+                // Commit engine immediately; only the blast visual is delayed
+                isAnimatingRef.current = true;
+                setIsAnimating(true);
+                setGameState(result.state);
                 setColorBoard(newColorBoard);
 
                 // Trigger blast animation on cleared cells only
@@ -803,20 +832,18 @@ export default function BatasBlastGame() {
                 setBlastColor(trayIndex);
                 setShowBlast(true);
 
-                // Add line popup (same pattern as score popup)
                 const lineId = Date.now() + 1;
                 setLinePopups(prev => [...prev, { id: lineId, value: newLinesCleared }]);
-                setTimeout(() => {
+                scheduleGameTimeout(() => {
                     setLinePopups(prev => prev.filter(p => p.id !== lineId));
                 }, 1600);
 
-                // Delay the final state update (after clear animation)
-                setTimeout(() => {
-                    // Apply final engine state (with cleared cells removed)
+                scheduleGameTimeout(() => {
                     setColorBoard(result.state.colorBoard);
                     setBlastingCells(new Set());
                     setShowBlast(false);
-                    setGameState(result.state);
+                    isAnimatingRef.current = false;
+                    setIsAnimating(false);
                 }, 400);
             } else {
                 // No lines cleared, update immediately
@@ -829,7 +856,7 @@ export default function BatasBlastGame() {
 
             if (batasBlastEngine.isTerminal(result.state)) {
                 timer.stop();
-                const durationSec = (result.state.endedAtMs! - result.state.startedAtMs) / 1000;
+                const durationSec = playDurationSec(timer);
 
                 const newStats = applyGameResult(stats, {
                     outcome: "lose",
@@ -870,7 +897,7 @@ export default function BatasBlastGame() {
                 }
             }
         }
-    }, [gameState, colorBoard, stats, userId, sessionId, timer, highscore]);
+    }, [gameState, colorBoard, stats, userId, sessionId, timer, highscore, scheduleGameTimeout]);
 
     // Pointer move handler for drag preview
     useEffect(() => {
@@ -911,10 +938,11 @@ export default function BatasBlastGame() {
                     const centerOffsetX = (pieceCols * cellTotal) / 2;
                     const centerOffsetY = (pieceRows * cellTotal) / 2;
 
-                    const x = clientX - rect.left - centerOffsetX;
-                    const y = clientY - rect.top - centerOffsetY;
+                    const s = scaleRef.current || 1;
+                    const x = (clientX - rect.left) / s - centerOffsetX;
+                    const y = (clientY - rect.top) / s - centerOffsetY;
 
-                    // Account for board padding (p-3 = 12px)
+                    // Account for board padding (p-3 = 12px); layout units (unscaled)
                     const boardPadding = 12;
                     const col = Math.floor((x - boardPadding + cellTotal / 2) / cellTotal) - minC;
                     const row = Math.floor((y - boardPadding + cellTotal / 2) / cellTotal) - minR;
@@ -954,6 +982,9 @@ export default function BatasBlastGame() {
     const initGame = useCallback(async () => {
         const newSeed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const state = batasBlastEngine.init(newSeed, params);
+        clearGameTimeouts();
+        isAnimatingRef.current = false;
+        setIsAnimating(false);
         setGameState(state);
         setSelectedTrayIndex(null);
         setDraggingTrayIndex(null);
@@ -963,6 +994,8 @@ export default function BatasBlastGame() {
         setLastClearedLines(0);
         setColorBoard(state.colorBoard); // Reset color board from state
         setBlastingCells(new Set());
+        setScorePopups([]);
+        setLinePopups([]);
         saveActiveGame(GAME_ID, state, userId);
         timer.reset();
 
@@ -976,12 +1009,17 @@ export default function BatasBlastGame() {
             });
             setSessionId(session?.id ?? null);
         }
-    }, [params, userId, timer]);
+    }, [params, userId, timer, clearGameTimeouts]);
 
     const forfeitCurrentGame = useCallback(async () => {
         if (!gameState) return;
+        clearGameTimeouts();
+        isAnimatingRef.current = false;
+        setIsAnimating(false);
+        setBlastingCells(new Set());
+        setShowBlast(false);
         timer.stop();
-        const durationSec = Math.max(0, (Date.now() - gameState.startedAtMs) / 1000);
+        const durationSec = playDurationSec(timer);
         const newStats = applyGameResult(stats, { outcome: "lose", durationSec });
         setStats(newStats);
         saveLocalStats(GAME_ID, 'medium', newStats);
@@ -1001,7 +1039,7 @@ export default function BatasBlastGame() {
         }
 
         saveActiveGame(GAME_ID, null, userId);
-    }, [gameState, stats, userId, sessionId, timer]);
+    }, [gameState, stats, userId, sessionId, timer, clearGameTimeouts]);
 
     const requestReset = useCallback(() => {
         if (isInProgress) {
@@ -1021,13 +1059,13 @@ export default function BatasBlastGame() {
 
     // Handle cell click (for tap-to-place mode)
     const handleCellClick = useCallback((r: number, c: number) => {
-        if (!gameState || selectedTrayIndex === null) return;
+        if (!gameState || selectedTrayIndex === null || isAnimatingRef.current) return;
         placePiece(selectedTrayIndex, { r, c });
     }, [gameState, selectedTrayIndex, placePiece]);
 
     // Handle drag start
     const handleDragStart = useCallback((trayIndex: number, e: React.PointerEvent) => {
-        if (!gameState) return;
+        if (!gameState || isAnimatingRef.current) return;
         const trayPiece = gameState.tray[trayIndex];
         if (trayPiece.used || !trayPiece) return;
 
@@ -1140,6 +1178,7 @@ export default function BatasBlastGame() {
                     colorIndex={draggingTrayIndex}
                     hoverOrigin={hoverOrigin}
                     boardRef={boardRef}
+                    scale={scale}
                 />
             )}
 
@@ -1196,10 +1235,8 @@ export default function BatasBlastGame() {
                                 const isBlasting = blastingCells.has(key);
                                 const wouldClear = wouldClearCells.has(key);
 
-                                // Use colorBoard as source of truth for filled state
-                                // This ensures tiles stay visible during row clear animation
                                 const storedColor = colorBoard[r]?.[c] ?? -1;
-                                const isFilled = storedColor >= 0;
+                                const isFilled = Boolean(filled) || storedColor >= 0;
 
                                 // Priority: wouldClear > blasting > preview > filled
                                 const cellColor = wouldClear
@@ -1209,7 +1246,7 @@ export default function BatasBlastGame() {
                                         : isPreview && !isFilled
                                             ? (activeTrayIndex ?? 0)
                                             : isFilled
-                                                ? storedColor
+                                                ? (storedColor >= 0 ? storedColor : 0)
                                                 : 0;
 
                                 return (
@@ -1248,10 +1285,10 @@ export default function BatasBlastGame() {
                         <TrayPieceDisplay
                             key={i}
                             piece={piece}
-                            selected={!renderModel.isTerminal && selectedTrayIndex === i}
-                            isDragging={!renderModel.isTerminal && draggingTrayIndex === i}
-                            onSelect={() => !renderModel.isTerminal && setSelectedTrayIndex(selectedTrayIndex === i ? null : i)}
-                            onDragStart={(e) => !renderModel.isTerminal && handleDragStart(i, e)}
+                            selected={!renderModel.isTerminal && !isAnimating && selectedTrayIndex === i}
+                            isDragging={!renderModel.isTerminal && !isAnimating && draggingTrayIndex === i}
+                            onSelect={() => !renderModel.isTerminal && !isAnimating && setSelectedTrayIndex(selectedTrayIndex === i ? null : i)}
+                            onDragStart={(e) => !renderModel.isTerminal && !isAnimating && handleDragStart(i, e)}
                             colorIndex={i}
                         />
                     ))}
@@ -1280,7 +1317,7 @@ export default function BatasBlastGame() {
 
             <StatsModal
                 open={statsOpen}
-                onClose={() => setStatsOpen(false)}
+                onClose={() => { setStatsOpen(false); if (renderModel.isTerminal) setShowGameOverOverlay(true); }}
                 stats={stats}
                 onLeaderboard={() => setLeaderboardOpen(true)}
                 showDistribution={false}
@@ -1310,7 +1347,7 @@ export default function BatasBlastGame() {
 
             <Leaderboard
                 open={leaderboardOpen}
-                onClose={() => setLeaderboardOpen(false)}
+                onClose={() => { setLeaderboardOpen(false); if (renderModel.isTerminal) setShowGameOverOverlay(true); }}
                 gameId={GAME_ID}
             />
 

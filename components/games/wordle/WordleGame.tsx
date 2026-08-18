@@ -14,7 +14,6 @@ import Modal from "@/components/games/common/Modal";
 import Leaderboard from "@/components/games/common/Leaderboard";
 import WordHistory from "@/components/games/common/WordHistory";
 import { applyTheme } from "@/lib/theme";
-import Hint, { type HintResult } from "@/components/games/common/Hint";
 import {
     applyGameResult,
     formatDuration,
@@ -24,14 +23,17 @@ import {
 } from "@/lib/storage/storage";
 import { getCurrentUserId, upsertRemoteGameStats, syncGameStats } from "@/lib/sync/game-stats-sync";
 import { createOrReuseActiveSession, endSession, fetchActiveSession, updateSessionAnswer } from "@/lib/sync/sessions-sync";
-import { fetchPlayedWords, trackPlayedWord } from "@/lib/sync/played-words";
+import { fetchPlayedWords, trackPlayedWord, clearPlayedWords } from "@/lib/sync/played-words";
+import Hint, { type HintHandle, type HintResult } from "@/components/games/common/Hint";
 import { consumeHint, getHintNoRemind, setHintNoRemind, getRemainingHints } from "@/lib/storage/hint-storage";
 import { fetchWordDefinition, translatePartOfSpeech, translateToGerman, type WordDefinition } from "@/lib/dictionary";
 import { saveWordDefinition } from "@/lib/word-definitions";
 import GameShell from "@/components/shared/GameShell";
 import GameResultOverlay from "@/components/games/common/GameResultOverlay";
 import StatsModal from "@/components/shared/StatsModal";
+import EnglishWordsHint from "@/components/games/common/EnglishWordsHint";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useLanguage } from "@/lib/i18n";
 
 const MAX_TRIES = 6;
 const GAME_ID = "wordle";
@@ -86,12 +88,14 @@ export default function WordleGame() {
     const [hintUsed, setHintUsed] = useState(false);
     const [hintWarningOpen, setHintWarningOpen] = useState(false);
     const [hintNoRemindChecked, setHintNoRemindChecked] = useState(false);
+    const hintRef = useRef<HintHandle>(null);
 
     const [wordDefinition, setWordDefinition] = useState<WordDefinition | null>(null);
     const [isWordDefinitionLoading, setIsWordDefinitionLoading] = useState(false);
     const [definitionPopupOpen, setDefinitionPopupOpen] = useState(false);
     const [showGameOverOverlay, setShowGameOverOverlay] = useState(false);
 
+    const { t } = useLanguage();
     const theme = "dark" as const;
 
     // timer
@@ -385,6 +389,7 @@ export default function WordleGame() {
         if (availableWords.length === 0) {
             showToast("You've played all words! Starting fresh...");
             setPlayedWords(new Set());
+            if (userId) void clearPlayedWords(userId, difficulty);
             a = pickRandom(solutions);
         } else {
             a = pickRandom(availableWords);
@@ -428,6 +433,7 @@ export default function WordleGame() {
         setStats(applyGameResult(stats, { outcome: "lose", durationSec: d }));
         if (userId) {
             void trackPlayedWord(userId, difficulty, answer);
+            setPlayedWords((prev) => new Set(prev).add(answer.toUpperCase()));
         }
         if (sessionId) {
             await endSession({
@@ -457,6 +463,7 @@ export default function WordleGame() {
 
     async function forfeitCurrentGameAndReset() {
         await forfeitCurrentGame();
+        setConfirmResetOpen(false);
         newGame();
     }
 
@@ -476,10 +483,15 @@ export default function WordleGame() {
     }
 
     async function applyDifficultyChange(d: Difficulty) {
-        await endAnyActiveSession();
-        setDifficulty(d);
+        setConfirmDifficultyOpen(false);
+        setPendingDifficulty(null);
+        if (!gameOver.done && committedCount > 0) {
+            await forfeitCurrentGame();
+        } else {
+            await endAnyActiveSession();
+        }
         saveActiveGame(GAME_ID, null, userId);
-        requestReset();
+        setDifficulty(d);
     }
 
     function requestDifficultyChange(d: Difficulty) {
@@ -572,14 +584,15 @@ export default function WordleGame() {
 
     function commitGuess() {
         if (gameOver.done) return;
-        if (current.length !== 5) {
+        const compact = current.replace(/\s/g, "").toUpperCase();
+        if (compact.length < 5) {
             bumpShake();
             return showToast("Not enough letters");
         }
-        const guess = current.toUpperCase();
+        const guess = compact;
         if (!allowed.includes(guess)) {
             bumpShake();
-            return;
+            return showToast(t.wordle.invalidWord);
         }
         const idx = rows.findIndex((r) => r.marks === null);
         if (idx === -1) return;
@@ -594,16 +607,19 @@ export default function WordleGame() {
         const won = marks.every((m) => m === "correct");
         const lost = !won && idx === MAX_TRIES - 1;
         if (won) {
-            if (difficulty === "easy" && hintUsed) {
-                setStats(applyGameResult(stats, { outcome: "lose", durationSec }));
-            } else {
-                setStats(applyGameResult(stats, { outcome: "win", guessesUsed: (idx + 1) as 1|2|3|4|5|6, durationSec }));
+            setStats(applyGameResult(stats, { outcome: "win", guessesUsed: (idx + 1) as 1|2|3|4|5|6, durationSec }));
+            if (userId) {
+                void trackPlayedWord(userId, difficulty, answer);
+                setPlayedWords((prev) => new Set(prev).add(answer.toUpperCase()));
             }
-            if (userId) void trackPlayedWord(userId, difficulty, answer);
+            if (sessionId) void endSession({ sessionId, outcome: "win", guessesUsed: idx + 1, durationSec, endedAtMs: Date.now() });
         } else if (lost) {
             showToast(`Answer: ${answer}`);
             setStats(applyGameResult(stats, { outcome: "lose", durationSec }));
-            if (userId) void trackPlayedWord(userId, difficulty, answer);
+            if (userId) {
+                void trackPlayedWord(userId, difficulty, answer);
+                setPlayedWords((prev) => new Set(prev).add(answer.toUpperCase()));
+            }
             if (sessionId) void endSession({ sessionId, outcome: "lose", guessesUsed: null, durationSec, endedAtMs: Date.now() });
         }
     }
@@ -667,8 +683,7 @@ export default function WordleGame() {
     }
 
     function triggerHintReveal() {
-        const revealFn = (window as unknown as { __revealHint?: () => void }).__revealHint;
-        if (revealFn) revealFn();
+        hintRef.current?.reveal();
     }
 
     function confirmHint() {
@@ -692,18 +707,22 @@ export default function WordleGame() {
             onOpenLeaderboard={() => { setShowGameOverOverlay(false); setLeaderboardOpen(true); }}
             fullHeight={true}
             hintSlot={
-                !gameOver.done && answer ? (
-                    <Hint
-                        answer={answer}
-                        disabled={hintUsed || committedCount === 0 || getRemainingHints(difficulty) <= 0}
-                        revealedMarks={committedRows}
-                        answerLength={5}
-                        hintUsedThisGame={hintUsed}
-                        remainingHints={getRemainingHints(difficulty)}
-                        onHint={onHint}
-                        onRequestHint={onRequestHint}
-                    />
-                ) : null
+                <>
+                    <EnglishWordsHint />
+                    {!gameOver.done && answer ? (
+                        <Hint
+                            ref={hintRef}
+                            answer={answer}
+                            disabled={hintUsed || committedCount === 0 || getRemainingHints(difficulty) <= 0}
+                            revealedMarks={committedRows}
+                            answerLength={5}
+                            hintUsedThisGame={hintUsed}
+                            remainingHints={getRemainingHints(difficulty)}
+                            onHint={onHint}
+                            onRequestHint={onRequestHint}
+                        />
+                    ) : null}
+                </>
             }
             actionsSlot={
                 committedCount > 0 && !gameOver.done ? (
@@ -725,7 +744,7 @@ export default function WordleGame() {
                 className="flex flex-col w-full h-full min-w-0 outline-none"
                 onKeyDown={(e) => {
                     const t = e.target as HTMLElement | null;
-                    if ((t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t?.isContentEditable) || leaderboardOpen || statsOpen) return;
+                    if ((t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t?.isContentEditable) || leaderboardOpen || statsOpen || wordHistoryOpen || confirmResetOpen || confirmDifficultyOpen || hintWarningOpen) return;
                     if (e.key === "Enter") onKey("ENTER");
                     else if (e.key === "Backspace") onKey("BACKSPACE");
                     else if (/^[A-Z]$/i.test(e.key)) onKey(e.key.toUpperCase());
@@ -811,7 +830,7 @@ export default function WordleGame() {
 
             <StatsModal
                 open={statsOpen}
-                onClose={() => setStatsOpen(false)}
+                onClose={() => { setStatsOpen(false); if (gameOver.done) setShowGameOverOverlay(true); }}
                 stats={stats}
                 onShare={share}
                 onLeaderboard={() => { setStatsOpen(false); setLeaderboardOpen(true); }}
@@ -819,7 +838,7 @@ export default function WordleGame() {
 
             <Leaderboard
                 open={leaderboardOpen}
-                onClose={() => setLeaderboardOpen(false)}
+                onClose={() => { setLeaderboardOpen(false); if (gameOver.done) setShowGameOverOverlay(true); }}
                 gameId={GAME_ID}
             />
 

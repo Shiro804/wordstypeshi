@@ -110,6 +110,33 @@ function cloneColorBoard(board: number[][]): number[][] {
     return board.map(row => [...row]);
 }
 
+function isOccupiedCell(cell: unknown): boolean {
+  return cell === true || (typeof cell === 'number' && cell > 0);
+}
+
+function colorBoardIsBlank(colorBoard: number[][]): boolean {
+  return colorBoard.every(row => row.every(c => c < 0));
+}
+
+/** Restore colors from occupancy when colorBoard is missing or all -1. */
+export function ensureColorBoard(
+  board: boolean[][],
+  colorBoard?: number[][] | null
+): number[][] {
+  const next = colorBoard ? cloneColorBoard(colorBoard) : createEmptyColorBoard();
+  const boardOccupied = board.some(row => row.some(cell => isOccupiedCell(cell)));
+  if ((!colorBoard || colorBoardIsBlank(next)) && boardOccupied) {
+    for (let r = 0; r < BOARD.rows; r++) {
+      for (let c = 0; c < BOARD.cols; c++) {
+        if (isOccupiedCell(board[r]?.[c])) {
+          next[r][c] = 0;
+        }
+      }
+    }
+  }
+  return next;
+}
+
 /** Check if a piece can be placed at origin */
 function canPlace(
   board: boolean[][],
@@ -324,9 +351,7 @@ function applyAction(
   
   // Clone state
   const newBoard = cloneBoard(state.board);
-  // Handle migration from old saves safely
-  const currentColorBoard = state.colorBoard || createEmptyColorBoard();
-  const newColorBoard = cloneColorBoard(currentColorBoard); 
+  const newColorBoard = ensureColorBoard(state.board, state.colorBoard); 
   const newTray = state.tray.map(p => ({ ...p }));
   
   // Get piece
