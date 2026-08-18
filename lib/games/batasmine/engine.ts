@@ -373,8 +373,9 @@ function applyAction(
   // Reveal action
   let currentGrid = state.grid;
   let minesPlaced = state.minesPlaced;
+  let flagsPlaced = state.flagsPlaced;
 
-  // Place mines on first reveal
+  // Place mines on first reveal (rebuilds every cell as hidden — recount flags)
   if (!minesPlaced) {
     currentGrid = placeMines(
       state.seed,
@@ -384,6 +385,7 @@ function applyAction(
       action.position
     );
     minesPlaced = true;
+    flagsPlaced = currentGrid.filter(c => c.state === 'flagged').length;
   }
 
   const cell = currentGrid[action.position];
@@ -407,6 +409,7 @@ function applyAction(
         ...state,
         grid: newGrid,
         minesPlaced,
+        flagsPlaced,
         status: 'lost',
         endedAtMs: Date.now(),
       },
@@ -456,6 +459,7 @@ function applyAction(
       cellsRevealed,
       totalSafe,
       minesPlaced,
+      flagsPlaced,
     },
     events,
   };

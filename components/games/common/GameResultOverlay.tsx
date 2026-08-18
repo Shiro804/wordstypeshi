@@ -1,6 +1,7 @@
 "use client";
 
 import { Trophy, X, RotateCcw, BarChart3 } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 
 interface GameResultOverlayProps {
     /** Whether the overlay is visible */
@@ -24,6 +25,8 @@ interface GameResultOverlayProps {
 /**
  * Global full-screen overlay for game win/lose states.
  * Prevents layout shifts by covering the entire game area.
+ * z-50: GameShell header must be z-[70] so menu/difficulty stay usable.
+ * Escape is not bound — it must not start a new game via onPlayAgain.
  */
 export default function GameResultOverlay({
     open,
@@ -33,8 +36,10 @@ export default function GameResultOverlay({
     children,
     onPlayAgain,
     onOpenStats,
-    playAgainLabel = "Nochmal spielen",
+    playAgainLabel,
 }: GameResultOverlayProps) {
+    const { t } = useLanguage();
+
     if (!open) return null;
 
     const isWin = outcome === 'win';
@@ -47,9 +52,13 @@ export default function GameResultOverlay({
         : 'from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 shadow-rose-500/20';
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-10">
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-10"
+            role="dialog"
+            aria-modal="true"
+        >
             {/* Backdrop - lighter to show context */}
-            <div className="absolute inset-0 bg-black/10" />
+            <div className="absolute inset-0 bg-black/50" />
 
             {/* Card - Premium Glassmorphism */}
             <div className={`relative z-10 w-full max-w-sm rounded-2xl border ${borderColor} bg-zinc-950/30 backdrop-blur-2xl p-6 shadow-2xl ring-1 ring-white/10`}>
@@ -82,18 +91,20 @@ export default function GameResultOverlay({
                 {/* Action buttons */}
                 <div className="flex gap-2">
                     <button
+                        type="button"
                         onClick={onPlayAgain}
                         className={`flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r ${buttonGradient} rounded-xl font-semibold text-sm text-white transition shadow-lg`}
                     >
                         <RotateCcw size={16} />
-                        {playAgainLabel}
+                        {playAgainLabel ?? t.common.playAgain}
                     </button>
                     <button
+                        type="button"
                         onClick={onOpenStats}
                         className="px-4 py-3 bg-[color:var(--surface)] hover:bg-[color:var(--surface2)] border border-[color:var(--border)] rounded-xl font-semibold text-sm text-[color:var(--fg)] transition flex items-center gap-2"
                     >
                         <BarChart3 size={16} />
-                        Stats
+                        {t.common.statistics}
                     </button>
                 </div>
             </div>

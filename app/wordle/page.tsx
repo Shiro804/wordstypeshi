@@ -2,12 +2,12 @@ import { Metadata } from 'next';
 import WordleGame from "@/components/games/wordle/WordleGame";
 
 export const metadata: Metadata = {
-    title: 'BatasWordle – Deutsches Wordle ohne Werbung',
-    description: 'Errate das 5-Buchstaben-Wort in 6 Versuchen. Täglich ein neues Rätsel – komplett auf Deutsch und 100% werbefrei! Teste dein Wortschatz-Wissen.',
-    keywords: ['Wordle deutsch', 'Wordle online', 'Wortspiel', '5 Buchstaben', 'Worträtsel', 'täglich'],
+    title: 'BatasWordle – Ad-free Wordle (English words)',
+    description: 'Guess the 5-letter English word in 6 tries. Ad-free Wordle — answers are English, not German.',
+    keywords: ['Wordle', 'Wordle online', 'word game', '5 letters', 'English Wordle', 'ad-free'],
     openGraph: {
-        title: 'BatasWordle – Deutsches Wordle ohne Werbung',
-        description: 'Errate das 5-Buchstaben-Wort in 6 Versuchen. Täglich ein neues Rätsel!',
+        title: 'BatasWordle – Ad-free Wordle (English words)',
+        description: 'Guess the 5-letter English word in 6 tries. Ad-free Wordle.',
         images: ['/og-wordle.png'],
         type: 'website',
     },

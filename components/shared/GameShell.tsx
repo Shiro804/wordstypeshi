@@ -224,13 +224,13 @@ export default function GameShell({
     const { preferences, updatePreferences } = useGamePreferences(gameId);
 
     const containerClasses = fullHeight
-        ? "relative h-[100dvh] w-full max-w-[100vw] overflow-y-auto overflow-x-hidden text-[color:var(--fg)]"
-        : "min-h-screen w-full overflow-x-hidden text-[color:var(--fg)]";
+        ? "relative h-[100dvh] w-full max-w-[100vw] overflow-y-auto text-[color:var(--fg)]"
+        : "min-h-screen w-full text-[color:var(--fg)]";
 
     // Always apply safe-area-inset-top for PWA mode on iOS (notch/Dynamic Island)
     const gridStyle = fullHeight
         ? { display: 'grid', gridTemplateRows: 'auto 1fr auto', paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }
-        : { paddingTop: 'env(safe-area-inset-top)' };
+        : { paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' };
 
     return (
         <div className={containerClasses} style={gridStyle}>
@@ -240,8 +240,8 @@ export default function GameShell({
                 style={{ backgroundColor: preferences.backgroundColor || '#09090b' }}
             />
 
-            {/* Header */}
-            <header className="relative z-10 flex items-center justify-between gap-1 border-b border-[color:var(--border)] bg-[color:var(--bg)]/90 px-2 py-1.5 backdrop-blur min-w-0">
+            {/* Header — z-[70] so menu/difficulty stay above GameResultOverlay (z-50) */}
+            <header className="relative z-[70] flex items-center justify-between gap-1 border-b border-[color:var(--border)] bg-[color:var(--bg)]/90 px-2 py-1.5 backdrop-blur min-w-0">
                 {/* Left: Back + Timer + Hint */}
                 <div className="flex items-center gap-1.5 min-w-0 shrink-0">
                     <Link
@@ -259,9 +259,9 @@ export default function GameShell({
                 </div>
 
                 {/* Center: BATAS 🦆 WORD layout */}
-                <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5">
+                <div className="pointer-events-none absolute inset-x-16 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 flex items-center justify-center gap-0.5 overflow-hidden">
                     {/* First part: BATAS */}
-                    <span className="text-[8px] font-black tracking-wider text-[color:var(--fg)] uppercase">BATAS</span>
+                    <span className="hidden min-[480px]:inline text-[8px] font-black tracking-wider text-[color:var(--fg)] uppercase">BATAS</span>
 
                     {/* Animated Mini Duck - uses smaller bob animation + smooth color transitions */}
                     <svg
@@ -303,7 +303,7 @@ export default function GameShell({
                     </svg>
 
                     {/* Second part: game-specific suffix */}
-                    <span className="text-[8px] font-black tracking-wider text-[color:var(--fg)] uppercase">
+                    <span className="hidden min-[480px]:inline text-[8px] font-black tracking-wider text-[color:var(--fg)] uppercase">
                         {gameId === 'wordle' && 'WORDLE'}
                         {gameId === 'mastermind' && 'MIND'}
                         {gameId === 'wordsearch' && 'SEARCH'}
@@ -338,7 +338,7 @@ export default function GameShell({
             </header>
 
             {/* Game Content */}
-            <main className={fullHeight ? "relative z-10 min-w-0 overflow-auto" : ""}>
+            <main className={fullHeight ? "relative z-10 min-w-0 overflow-auto" : "min-w-0 overflow-x-auto"}>
                 {children}
             </main>
 
@@ -357,7 +357,7 @@ export default function GameShell({
 
             {/* How to Play Modal (shared across all games) */}
             <HowToPlay
-                gameId={gameId as "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors" | "bataspairs" | "batasmine" | "batasflow"}
+                gameId={gameId as "wordle" | "mastermind" | "wordsearch" | "batasblast" | "batascolors" | "bataspairs" | "batasmine" | "batasflow" | "batasbottles"}
                 isOpen={howToPlayOpen}
                 onClose={() => setHowToPlayOpen(false)}
             />

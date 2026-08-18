@@ -37,6 +37,11 @@ export interface UseGameTimerReturn {
   setEndedAt: (ms: number | null) => void;
 }
 
+/** Visible play time: 0 until the timer actually started. */
+export function playDurationSec(timer: Pick<UseGameTimerReturn, "startedAtMs" | "elapsedSec">): number {
+  return timer.startedAtMs ? timer.elapsedSec : 0;
+}
+
 export function useGameTimer(options: UseGameTimerOptions = {}): UseGameTimerReturn {
   const { pauseOnHidden = true } = options;
 

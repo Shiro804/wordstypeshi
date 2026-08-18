@@ -119,16 +119,45 @@ export async function upsertRemoteGameStats(
   }
 }
 
+function mergeBestScore(local: number | null, remote: number | null): number | null {
+  if (local == null) return remote;
+  if (remote == null) return local;
+  return Math.max(local, remote);
+}
+
+function mergeBestMismatches(local: number | null, remote: number | null): number | null {
+  if (local == null) return remote;
+  if (remote == null) return local;
+  return Math.min(local, remote);
+}
+
+/**
+ * Prefer localStorage written during an in-flight fetch (e.g. a win)
+ * over the snapshot captured at effect start. Keep the snapshot when
+ * this module's key is empty so callers that store elsewhere stay intact.
+ */
+function resolveLocalAfterFetch(gameId: string, mode: string, snapshot: Stats): Stats {
+  const current = loadLocalStats(gameId, mode);
+  if (current.played > snapshot.played) return current;
+  if (current.played < snapshot.played) return snapshot;
+  if ((current.updatedAt ?? 0) > (snapshot.updatedAt ?? 0)) return current;
+  return snapshot;
+}
+
 /**
  * Merge strategy: take the maximum of cumulative stats.
  */
 export function mergeStats(local: Stats, remote: Stats): Stats {
   const remoteNewer = (remote.updatedAt ?? 0) > (local.updatedAt ?? 0);
   const remoteMoreGames = remote.played > local.played;
+  const bestScore = mergeBestScore(local.bestScore, remote.bestScore);
+  const bestMismatches = mergeBestMismatches(local.bestMismatches, remote.bestMismatches);
 
   if (remoteNewer && remoteMoreGames) {
     return {
       ...remote,
+      bestScore,
+      bestMismatches,
       levelProgress: mergeLevelProgress(local.levelProgress, remote.levelProgress),
     };
   }
@@ -157,14 +186,8 @@ export function mergeStats(local: Stats, remote: Stats): Stats {
       Math.min(local.bestTimeSec, remote.bestTimeSec),
     avgTimeSec: remoteNewer ? remote.avgTimeSec : local.avgTimeSec,
     lastTimesSec: remoteNewer ? remote.lastTimesSec : local.lastTimesSec,
-    bestScore:
-      local.bestScore == null ? remote.bestScore :
-      remote.bestScore == null ? local.bestScore :
-      Math.max(local.bestScore, remote.bestScore),
-    bestMismatches:
-      local.bestMismatches == null ? remote.bestMismatches :
-      remote.bestMismatches == null ? local.bestMismatches :
-      Math.min(local.bestMismatches, remote.bestMismatches),
+    bestScore,
+    bestMismatches,
     levelProgress: mergeLevelProgress(local.levelProgress, remote.levelProgress),
     updatedAt: Math.max(local.updatedAt ?? 0, remote.updatedAt ?? 0),
   };
@@ -180,13 +203,14 @@ export async function syncGameStats(
   localStats: Stats
 ): Promise<Stats> {
   const remote = await fetchRemoteGameStats(userId, gameId, mode);
+  const local = resolveLocalAfterFetch(gameId, mode, localStats);
 
   if (!remote) {
-    await upsertRemoteGameStats(userId, gameId, mode, localStats);
-    return localStats;
+    await upsertRemoteGameStats(userId, gameId, mode, local);
+    return local;
   }
 
-  const merged = mergeStats(localStats, remote);
+  const merged = mergeStats(local, remote);
 
   if (merged.played > remote.played || merged.updatedAt > (remote.updatedAt ?? 0)) {
     await upsertRemoteGameStats(userId, gameId, mode, merged);

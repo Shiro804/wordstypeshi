@@ -21,7 +21,7 @@ import { createOrReuseActiveSession, endSession } from "@/lib/sync/sessions-sync
 import Leaderboard from "@/components/games/common/Leaderboard";
 import StatsModal from "@/components/shared/StatsModal";
 import { type Stats, applyGameResult } from "@/lib/storage/storage";
-import { useGameTimer } from "@/lib/hooks/useGameTimer";
+import { playDurationSec, useGameTimer } from "@/lib/hooks/useGameTimer";
 import Modal from "../common/Modal";
 import { useLanguage } from "@/lib/i18n";
 
@@ -75,6 +75,27 @@ function getPathBorderRadius(
     const br = (!bottom && !right) ? r : s;
 
     return `${tl} ${tr} ${br} ${bl}`;
+}
+
+/** 4-connected cells from `from` (exclusive) to `to` (inclusive). */
+function interpolateOrthogonal(
+    from: { row: number; col: number },
+    to: { row: number; col: number },
+): { row: number; col: number }[] {
+    const cells: { row: number; col: number }[] = [];
+    let r = from.row;
+    let c = from.col;
+    while (r !== to.row || c !== to.col) {
+        const dr = to.row - r;
+        const dc = to.col - c;
+        if (dr !== 0 && (dc === 0 || Math.abs(dr) >= Math.abs(dc))) {
+            r += dr > 0 ? 1 : -1;
+        } else {
+            c += dc > 0 ? 1 : -1;
+        }
+        cells.push({ row: r, col: c });
+    }
+    return cells;
 }
 
 // ============================================================================
@@ -305,7 +326,7 @@ export default function BatasFlowGame() {
     const forfeitCurrentGame = useCallback(async () => {
         if (!gameState) return;
         timer.stop();
-        const durationSec = Math.max(0, (Date.now() - gameState.startedAtMs) / 1000);
+        const durationSec = playDurationSec(timer);
         const newStats = applyGameResult(stats, { outcome: "lose", durationSec });
         setStats(newStats);
         saveLocalStats(GAME_ID, difficulty, newStats);
@@ -362,8 +383,8 @@ export default function BatasFlowGame() {
 
     const handleGameEnd = useCallback(async (state: BatasFlowState) => {
         timer.stop();
-        const durationSec = (state.endedAtMs! - state.startedAtMs) / 1000;
-        const durationMs = state.endedAtMs! - state.startedAtMs;
+        const durationSec = playDurationSec(timer);
+        const durationMs = playDurationSec(timer) * 1000;
 
         const newStats = applyGameResult(stats, {
             outcome: "win",
@@ -393,45 +414,44 @@ export default function BatasFlowGame() {
         }
     }, [stats, difficulty, userId, sessionId, timer]);
 
+    const applyEngineResult = useCallback((prev: BatasFlowState, result: ReturnType<typeof batasFlowEngine.applyAction>): BatasFlowState => {
+        if (result.invalidReason) return prev;
+
+        if (!timer.startedAtMs && result.state.moveCount > 0) {
+            timer.start();
+        }
+
+        for (const event of result.events) {
+            if (event.type === 'path_finished') {
+                const pairId = (event.payload as { pairId: number }).pairId;
+                setCompletedFlashIds(s => {
+                    const next = new Set(s);
+                    next.add(pairId);
+                    return next;
+                });
+                setTimeout(() => {
+                    setCompletedFlashIds(s => {
+                        const next = new Set(s);
+                        next.delete(pairId);
+                        return next;
+                    });
+                }, 600);
+            }
+        }
+
+        if (batasFlowEngine.isTerminal(result.state)) {
+            handleGameEnd(result.state);
+        }
+
+        return result.state;
+    }, [timer, handleGameEnd]);
+
     const applyEngineAction = useCallback((action: BatasFlowAction) => {
         setGameState(prev => {
             if (!prev || batasFlowEngine.isTerminal(prev)) return prev;
-
-            const result = batasFlowEngine.applyAction(prev, action);
-            if (result.invalidReason) return prev;
-
-            // Start timer on first move
-            if (!timer.startedAtMs && result.state.moveCount > 0) {
-                timer.start();
-            }
-
-            // Check for flow completion event (for flash animation)
-            for (const event of result.events) {
-                if (event.type === 'path_finished') {
-                    const pairId = (event.payload as { pairId: number }).pairId;
-                    setCompletedFlashIds(s => {
-                        const next = new Set(s);
-                        next.add(pairId);
-                        return next;
-                    });
-                    setTimeout(() => {
-                        setCompletedFlashIds(s => {
-                            const next = new Set(s);
-                            next.delete(pairId);
-                            return next;
-                        });
-                    }, 600);
-                }
-            }
-
-            // Check terminal
-            if (batasFlowEngine.isTerminal(result.state)) {
-                handleGameEnd(result.state);
-            }
-
-            return result.state;
+            return applyEngineResult(prev, batasFlowEngine.applyAction(prev, action));
         });
-    }, [timer, handleGameEnd]);
+    }, [applyEngineResult]);
 
     // ========================================================================
     // Pointer / Touch Input Handling
@@ -468,64 +488,103 @@ export default function BatasFlowGame() {
         const dot = ensured.dots.find(d => d.row === pos.row && d.col === pos.col);
 
         if (dot) {
-            // Start a new path from this dot
+            // start_path rejects while currentPath is set — clear first, then restart
             isDrawingRef.current = true;
-            applyEngineAction({ type: 'start_path', row: pos.row, col: pos.col });
+            setGameState(prev => {
+                if (!prev || batasFlowEngine.isTerminal(prev)) return prev;
+                let state = ensureMapsForState(prev);
+                if (state.currentPath) {
+                    const clearResult = batasFlowEngine.applyAction(state, {
+                        type: 'clear_path',
+                        pairId: state.currentPath.pairId,
+                    });
+                    if (!clearResult.invalidReason) {
+                        state = applyEngineResult(state, clearResult);
+                    }
+                }
+                const startResult = batasFlowEngine.applyAction(state, {
+                    type: 'start_path',
+                    row: pos.row,
+                    col: pos.col,
+                });
+                if (startResult.invalidReason) return state;
+                return applyEngineResult(state, startResult);
+            });
         } else if (cellValue !== null) {
             // Tap on existing path cell → clear that flow
             applyEngineAction({ type: 'clear_path', pairId: cellValue });
         }
-    }, [gameState, getCellFromPoint, applyEngineAction]);
+    }, [gameState, getCellFromPoint, applyEngineAction, applyEngineResult]);
 
     const handlePointerMove = useCallback((e: React.PointerEvent) => {
-        if (!isDrawingRef.current || !gameState) return;
+        if (!isDrawingRef.current) return;
         e.preventDefault();
 
         const pos = getCellFromPoint(e.clientX, e.clientY);
         if (!pos) return;
 
-        const ensured = ensureMapsForState(gameState);
+        setGameState(prev => {
+            if (!prev || batasFlowEngine.isTerminal(prev)) return prev;
+            const ensured = ensureMapsForState(prev);
+            if (!ensured.currentPath) return prev;
 
-        // Only extend if we have an active path
-        if (!ensured.currentPath) return;
+            const lastCell = ensured.currentPath.cells[ensured.currentPath.cells.length - 1];
+            if (lastCell.row === pos.row && lastCell.col === pos.col) return prev;
 
-        const lastCell = ensured.currentPath.cells[ensured.currentPath.cells.length - 1];
-        if (lastCell.row === pos.row && lastCell.col === pos.col) return;
-
-        // Check adjacency
-        const dr = Math.abs(pos.row - lastCell.row);
-        const dc = Math.abs(pos.col - lastCell.col);
-        if ((dr === 1 && dc === 0) || (dr === 0 && dc === 1)) {
-            applyEngineAction({ type: 'extend_path', row: pos.row, col: pos.col });
-        }
-    }, [gameState, getCellFromPoint, applyEngineAction]);
+            const steps = interpolateOrthogonal(lastCell, pos);
+            let state = ensured;
+            for (const step of steps) {
+                const result = batasFlowEngine.applyAction(state, { type: 'extend_path', row: step.row, col: step.col });
+                if (result.invalidReason) break;
+                state = applyEngineResult(state, result);
+            }
+            return state;
+        });
+    }, [getCellFromPoint, applyEngineResult]);
 
     const handlePointerUp = useCallback((e: React.PointerEvent) => {
         if (!isDrawingRef.current) return;
         e.preventDefault();
         isDrawingRef.current = false;
 
-        if (!gameState) return;
+        setGameState(prev => {
+            if (!prev || batasFlowEngine.isTerminal(prev)) return prev;
+            const ensured = ensureMapsForState(prev);
+            if (!ensured.currentPath) return prev;
 
-        const ensured = ensureMapsForState(gameState);
-        if (ensured.currentPath) {
-            // Try to finish the path
             const result = batasFlowEngine.applyAction(ensured, { type: 'finish_path' });
-            if (result.invalidReason) {
-                // Path doesn't connect both dots — keep it as an incomplete path
-                // or clear it. In Flow games, incomplete paths stay visible.
-                // We'll just save what we have (the engine keeps currentPath).
-                // Actually, we need to commit the partial path or clear it.
-                // Standard Flow behavior: path stays but isn't committed as complete.
-                // The engine clears currentPath on finish only. We commit the partial path
-                // by clearing the currentPath and saving cells into paths map without marking complete.
-                // For simplicity: just clear the current path since it's incomplete.
-                applyEngineAction({ type: 'clear_path', pairId: ensured.currentPath.pairId });
-            } else {
-                applyEngineAction({ type: 'finish_path' });
+            if (result.invalidReason) return prev;
+            return applyEngineResult(prev, result);
+        });
+    }, [applyEngineResult]);
+
+    const handlePointerCancel = useCallback((e: React.PointerEvent) => {
+        if (!isDrawingRef.current) return;
+        e.preventDefault();
+        isDrawingRef.current = false;
+
+        setGameState(prev => {
+            if (!prev || batasFlowEngine.isTerminal(prev)) return prev;
+            const ensured = ensureMapsForState(prev);
+            if (!ensured.currentPath) return prev;
+
+            const finish = batasFlowEngine.applyAction(ensured, { type: 'finish_path' });
+            if (!finish.invalidReason) {
+                return applyEngineResult(prev, finish);
             }
-        }
-    }, [gameState, applyEngineAction]);
+
+            // Keep incomplete paths; length-1 only blocks start_path
+            if (ensured.currentPath.cells.length === 1) {
+                const clear = batasFlowEngine.applyAction(ensured, {
+                    type: 'clear_path',
+                    pairId: ensured.currentPath.pairId,
+                });
+                if (clear.invalidReason) return prev;
+                return applyEngineResult(prev, clear);
+            }
+            return prev;
+        });
+    }, [applyEngineResult]);
 
     // ========================================================================
     // Render Model
@@ -619,7 +678,7 @@ export default function BatasFlowGame() {
                     style={{
                         display: 'grid',
                         gridTemplateColumns: `repeat(${data.gridSize}, 1fr)`,
-                        gap: '2px',
+                        gap: '0px',
                         maxWidth: `${Math.max(data.gridSize * 48, 280)}px`,
                         padding: '2px',
                         backgroundColor: 'rgba(255,255,255,0.06)',
@@ -628,7 +687,7 @@ export default function BatasFlowGame() {
                     onPointerDown={handlePointerDown}
                     onPointerMove={handlePointerMove}
                     onPointerUp={handlePointerUp}
-                    onPointerCancel={() => { isDrawingRef.current = false; }}
+                    onPointerCancel={handlePointerCancel}
                 >
                     {data.grid.map((row, r) =>
                         row.map((cell, c) => {
@@ -677,14 +736,14 @@ export default function BatasFlowGame() {
 
             <StatsModal
                 open={statsOpen}
-                onClose={() => setStatsOpen(false)}
+                onClose={() => { setStatsOpen(false); if (renderModel.isTerminal) setShowGameOverOverlay(true); }}
                 stats={stats}
                 onLeaderboard={() => setLeaderboardOpen(true)}
             />
 
             <Leaderboard
                 open={leaderboardOpen}
-                onClose={() => setLeaderboardOpen(false)}
+                onClose={() => { setLeaderboardOpen(false); if (renderModel.isTerminal) setShowGameOverOverlay(true); }}
                 gameId={GAME_ID}
             />
 

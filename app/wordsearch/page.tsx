@@ -17,5 +17,5 @@ export const metadata: Metadata = {
 };
 
 export default function WordSearchPage() {
-    return <WordSearchGame initialDifficulty="medium" />;
+    return <WordSearchGame />;
 }

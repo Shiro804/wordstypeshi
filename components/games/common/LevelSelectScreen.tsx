@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Lock, Star, Play, Trophy } from "lucide-react";
 import type {
     LevelSystem,
@@ -30,6 +30,11 @@ interface LevelSelectScreenProps {
         phase?: string;
         resume?: string;
         levelNumber?: string;
+        phaseTutorial?: string;
+        phaseEasy?: string;
+        phaseMedium?: string;
+        phaseHard?: string;
+        phaseExpert?: string;
     };
 }
 
@@ -37,6 +42,14 @@ function getStars(progress: LevelProgress, level: number): StarCount {
     const raw = progress.stars?.[String(level)];
     if (raw == null) return 0;
     return raw as StarCount;
+}
+
+function hasLevelResult(progress: LevelProgress, level: number): boolean {
+    const key = String(level);
+    return (
+        Object.prototype.hasOwnProperty.call(progress.stars ?? {}, key) ||
+        Object.prototype.hasOwnProperty.call(progress.bestMoves ?? {}, key)
+    );
 }
 
 function phaseStarSum(progress: LevelProgress, phase: LevelPhase): number {
@@ -83,6 +96,21 @@ export default function LevelSelectScreen({
 
     const [selectedPhaseIndex, setSelectedPhaseIndex] =
         useState<number>(defaultPhaseIndex);
+
+    useEffect(() => {
+        setSelectedPhaseIndex(defaultPhaseIndex);
+    }, [defaultPhaseIndex]);
+
+    const phaseLabel = (label: string) => {
+        const mapped: Record<string, string | undefined> = {
+            Tutorial: t?.phaseTutorial,
+            Easy: t?.phaseEasy,
+            Medium: t?.phaseMedium,
+            Hard: t?.phaseHard,
+            Expert: t?.phaseExpert,
+        };
+        return mapped[label] ?? label;
+    };
 
     const selectedPhase: LevelPhase | undefined =
         levelSystem.phases[selectedPhaseIndex] ?? levelSystem.phases[0];
@@ -179,7 +207,7 @@ export default function LevelSelectScreen({
                                         : undefined
                                 }
                             >
-                                <span>{phase.label}</span>
+                                <span>{phaseLabel(phase.label)}</span>
                                 <span className="inline-flex items-center gap-1 text-xs text-[color:var(--muted)]">
                                     {phaseStars}/{phaseMax}
                                     <Star
@@ -200,7 +228,8 @@ export default function LevelSelectScreen({
                     const stars = getStars(progress, level);
                     const isLocked = level > maxReached + 1;
                     const isNext = level === maxReached + 1;
-                    const isCompleted = stars >= 1;
+                    const isCompleted =
+                        hasLevelResult(progress, level) || level <= maxReached;
                     const isThreeStar = stars === 3;
 
                     const baseClasses =
@@ -258,7 +287,11 @@ export default function LevelSelectScreen({
                                             <Star
                                                 key={slot}
                                                 size={10}
-                                                className="text-zinc-600"
+                                                className={
+                                                    isCompleted
+                                                        ? "text-emerald-400/70"
+                                                        : "text-zinc-600"
+                                                }
                                             />
                                         )
                                     )}

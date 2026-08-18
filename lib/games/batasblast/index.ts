@@ -2,7 +2,7 @@
  * BatasBlast - Module Exports
  */
 
-export { batasBlastEngine, type BatasBlastState, type BatasBlastAction, type BatasBlastParams, canPlacePiece, getValidPlacements } from './engine';
+export { batasBlastEngine, type BatasBlastState, type BatasBlastAction, type BatasBlastParams, canPlacePiece, getValidPlacements, ensureColorBoard } from './engine';
 export { batasBlastUIAdapter, type BatasBlastRenderModel, type TrayPieceRender } from './ui-adapter';
 export { batasBlastDefinition } from './definition';
 export { createPRNG, type PRNG, type PRNGState } from './prng';

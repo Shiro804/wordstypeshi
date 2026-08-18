@@ -23,7 +23,7 @@ import { createSeededRandom } from './prng';
 // Core types
 // ============================================================================
 
-/** How many stars a player has earned for a level. 0 = not completed. */
+/** How many stars a player has earned for a level. 0 = completed with 0 stars. */
 export type StarCount = 0 | 1 | 2 | 3;
 
 /**

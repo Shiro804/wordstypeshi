@@ -22,7 +22,7 @@ import { trackGuess } from "@/lib/sync/game-guesses-sync";
 import Leaderboard from "@/components/games/common/Leaderboard";
 import StatsModal from "@/components/shared/StatsModal";
 import { type Stats, applyGameResult } from "@/lib/storage/storage";
-import { useGameTimer } from "@/lib/hooks/useGameTimer";
+import { playDurationSec, useGameTimer } from "@/lib/hooks/useGameTimer";
 import Modal from "../common/Modal";
 import { useLanguage } from "@/lib/i18n";
 
@@ -195,9 +195,10 @@ function ColorPalette({
 interface AccuracyDisplayProps {
     accuracy: number;
     animate?: boolean;
+    labels: { perfect: string; almostThere: string; accuracy: string };
 }
 
-function AccuracyDisplay({ accuracy, animate = false }: AccuracyDisplayProps) {
+function AccuracyDisplay({ accuracy, animate = false, labels }: AccuracyDisplayProps) {
     const getColor = () => {
         if (accuracy === 100) return 'text-emerald-400';
         if (accuracy >= 90) return 'text-lime-400';
@@ -206,13 +207,16 @@ function AccuracyDisplay({ accuracy, animate = false }: AccuracyDisplayProps) {
         return 'text-rose-400';
     };
 
+    const caption =
+        accuracy === 100 ? labels.perfect : accuracy >= 90 ? labels.almostThere : labels.accuracy;
+
     return (
         <div className={`text-center ${animate ? 'animate-pulse' : ''}`}>
             <span className={`text-4xl font-black ${getColor()}`}>
                 {accuracy}%
             </span>
             <p className="text-sm text-[color:var(--muted)] mt-1">
-                {accuracy === 100 ? '🎯 Perfect!' : accuracy >= 90 ? '🔥 Close!' : 'Accuracy'}
+                {caption}
             </p>
         </div>
     );
@@ -235,7 +239,7 @@ function AttemptHistory({ attempts, palette }: AttemptHistoryProps) {
     if (attempts.length === 0) return null;
 
     return (
-        <div className="flex items-center justify-center gap-3 py-1 px-3 rounded-full bg-black/20 backdrop-blur-sm border border-white/5">
+        <div className="flex flex-wrap items-center justify-center gap-3 py-1 px-3 rounded-2xl bg-black/20 backdrop-blur-sm border border-white/5 max-w-full overflow-x-auto">
             {attempts.map((attempt, idx) => {
                 const ringColor = attempt.accuracy >= 90
                     ? 'ring-emerald-400'
@@ -290,6 +294,7 @@ export default function BatasColorsGame({ initialMode }: BatasColorsGameProps) {
     const [difficulty, setDifficulty] = useState<Difficulty>(() => loadDifficulty());
     const [gameState, setGameState] = useState<BatasColorsState | null>(null);
     const [selectedSegment, setSelectedSegment] = useState<number | null>(null);
+    const [selectedColor, setSelectedColor] = useState<number | null>(null);
     const [segmentColors, setSegmentColors] = useState<number[]>([]);
 
     // Confirmation State
@@ -420,6 +425,7 @@ export default function BatasColorsGame({ initialMode }: BatasColorsGameProps) {
         setGameState(state);
         setSegmentColors(Array(params.numSegments).fill(-1));
         setSelectedSegment(null);
+        setSelectedColor(null);
         setLastAccuracy(null);
         saveActiveGame(GAME_ID, state, userId);
         timer.reset();
@@ -440,7 +446,7 @@ export default function BatasColorsGame({ initialMode }: BatasColorsGameProps) {
     const forfeitCurrentGame = useCallback(async () => {
         if (!gameState) return;
         timer.stop();
-        const durationSec = Math.max(0, (Date.now() - gameState.startedAtMs) / 1000);
+        const durationSec = playDurationSec(timer);
         const newStats = applyGameResult(stats, { outcome: "lose", durationSec });
         setStats(newStats);
         saveLocalStats(GAME_ID, difficulty, newStats);
@@ -507,6 +513,7 @@ export default function BatasColorsGame({ initialMode }: BatasColorsGameProps) {
     }, [selectedSegment]);
 
     const handleColorSelect = useCallback((colorIndex: number) => {
+        setSelectedColor(colorIndex);
         if (selectedSegment === null) {
             // If no segment selected, select first empty one
             const firstEmpty = segmentColors.indexOf(-1);
@@ -587,7 +594,7 @@ export default function BatasColorsGame({ initialMode }: BatasColorsGameProps) {
             if (batascolorsEngine.isTerminal(result.state)) {
                 timer.stop();
                 const isWin = result.state.status === "won";
-                const durationSec = (result.state.endedAtMs! - result.state.startedAtMs) / 1000;
+                const durationSec = playDurationSec(timer);
 
                 // Update stats
                 const newStats = applyGameResult(stats, isWin
@@ -679,16 +686,30 @@ export default function BatasColorsGame({ initialMode }: BatasColorsGameProps) {
             }
         >
             <div className="max-w-md mx-auto p-4 space-y-6 flex flex-col items-center">
-                {/* Target Color Display */}
-                <div className="text-center">
-                    <p className="text-sm text-[color:var(--muted)] mb-2">{t.batascolors?.targetColor || 'Target Color'}</p>
-                    <div
-                        className="w-20 h-20 rounded-2xl mx-auto border-4 border-white/20 shadow-lg"
-                        style={{
-                            backgroundColor: data.targetColor,
-                            boxShadow: `0 8px 32px ${data.targetColor}40`,
-                        }}
-                    />
+                {/* Target + last mix */}
+                <div className="flex items-end justify-center gap-6">
+                    <div className="text-center">
+                        <p className="text-sm text-[color:var(--muted)] mb-2">{t.batascolors?.targetColor || 'Target Color'}</p>
+                        <div
+                            className="w-20 h-20 rounded-2xl mx-auto border-4 border-white/20 shadow-lg"
+                            style={{
+                                backgroundColor: data.targetColor,
+                                boxShadow: `0 8px 32px ${data.targetColor}40`,
+                            }}
+                        />
+                    </div>
+                    {data.mixedColor && (
+                        <div className="text-center">
+                            <p className="text-sm text-[color:var(--muted)] mb-2">{t.batascolors?.mix || 'Mix'}</p>
+                            <div
+                                className="w-20 h-20 rounded-2xl mx-auto border-4 border-white/20 shadow-lg"
+                                style={{
+                                    backgroundColor: data.mixedColor,
+                                    boxShadow: `0 8px 32px ${data.mixedColor}40`,
+                                }}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {/* Pie Chart */}
@@ -704,7 +725,15 @@ export default function BatasColorsGame({ initialMode }: BatasColorsGameProps) {
 
                 {/* Last Accuracy Display */}
                 {lastAccuracy !== null && !renderModel.isTerminal && (
-                    <AccuracyDisplay accuracy={lastAccuracy} animate />
+                    <AccuracyDisplay
+                        accuracy={lastAccuracy}
+                        animate
+                        labels={{
+                            perfect: t.batascolors?.perfect || 'Perfect match!',
+                            almostThere: t.batascolors?.almostThere || 'Almost there!',
+                            accuracy: t.batascolors?.accuracy || 'Accuracy',
+                        }}
+                    />
                 )}
 
                 {/* Attempts Counter */}
@@ -714,8 +743,8 @@ export default function BatasColorsGame({ initialMode }: BatasColorsGameProps) {
                     </div>
                 )}
 
-                {/* Previous Attempts History */}
-                {!renderModel.isTerminal && data.attempts.length > 0 && (
+                {/* Previous Attempts History — keep last mix visible when terminal */}
+                {data.attempts.length > 0 && (
                     <AttemptHistory
                         attempts={data.attempts}
                         palette={data.palette}
@@ -726,7 +755,7 @@ export default function BatasColorsGame({ initialMode }: BatasColorsGameProps) {
                 {!renderModel.isTerminal && (
                     <ColorPalette
                         colors={data.palette}
-                        selectedColor={null}
+                        selectedColor={selectedColor}
                         onColorSelect={handleColorSelect}
                     />
                 )}
@@ -761,14 +790,14 @@ export default function BatasColorsGame({ initialMode }: BatasColorsGameProps) {
 
             <StatsModal
                 open={statsOpen}
-                onClose={() => setStatsOpen(false)}
+                onClose={() => { setStatsOpen(false); if (renderModel.isTerminal) setShowGameOverOverlay(true); }}
                 stats={stats}
                 onLeaderboard={() => setLeaderboardOpen(true)}
             />
 
             <Leaderboard
                 open={leaderboardOpen}
-                onClose={() => setLeaderboardOpen(false)}
+                onClose={() => { setLeaderboardOpen(false); if (renderModel.isTerminal) setShowGameOverOverlay(true); }}
                 gameId={GAME_ID}
             />
 

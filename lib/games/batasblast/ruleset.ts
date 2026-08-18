@@ -10,7 +10,7 @@
 // Version
 // ============================================================================
 
-export const BATASBLAST_RULESET_VERSION = '1.0.0';
+export const BATASBLAST_RULESET_VERSION = '1.1.0';
 
 // ============================================================================
 // Types
@@ -395,12 +395,6 @@ export const BATASBLAST_MODES: Record<string, BatasBlastModeConfig> = {
     displayName: 'Classic',
     description: 'Endless score chasing. Play until no moves remain!',
     isDaily: false,
-  },
-  daily_challenge: {
-    id: 'daily_challenge',
-    displayName: 'Daily Challenge',
-    description: 'Same puzzle for everyone today. Compete for the best score!',
-    isDaily: true,
   },
 } as const;
 

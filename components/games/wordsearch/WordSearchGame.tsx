@@ -10,6 +10,7 @@ import { useLanguage } from "@/lib/i18n";
 import {
     wordSearchEngine,
     getModeParams,
+    BASE_WORDS,
     type WordSearchState,
     type SelectPathAction,
 } from "@/lib/games/wordsearch/engine";
@@ -30,6 +31,9 @@ import { loadWordLists, type Difficulty as WordListDifficulty } from "@/lib/word
 // ============================================================================
 
 const GAME_ID = "wordsearch";
+const GRID_GAP_PX = 4;
+const MIN_CELL_PX = 22;
+const MAX_CELL_PX = 40;
 
 // ============================================================================
 // Grid Cell Component
@@ -41,12 +45,13 @@ interface CellProps {
     col: number;
     isSelected: boolean;
     isFound: boolean;
+    size: number;
     onMouseDown: (r: number, c: number) => void;
     onMouseEnter: (r: number, c: number) => void;
     onTouchMove: (r: number, c: number) => void;
 }
 
-function Cell({ letter, row, col, isSelected, isFound, onMouseDown, onMouseEnter, onTouchMove }: CellProps) {
+function Cell({ letter, row, col, isSelected, isFound, size, onMouseDown, onMouseEnter, onTouchMove }: CellProps) {
     const handleTouchMove = useCallback((e: React.TouchEvent) => {
         e.preventDefault(); // Prevent scrolling
         const touch = e.touches[0];
@@ -60,9 +65,10 @@ function Cell({ letter, row, col, isSelected, isFound, onMouseDown, onMouseEnter
     return (
         <div
             data-cell={`${row},${col}`}
+            style={{ width: size, height: size, fontSize: Math.max(10, Math.round(size * 0.4)) }}
             className={`
-        w-9 h-9 sm:w-10 sm:h-10 lg:w-9 lg:h-9 flex items-center justify-center
-        text-sm sm:text-base lg:text-sm font-bold uppercase
+        flex items-center justify-center
+        font-bold uppercase
         rounded-md transition-all select-none cursor-pointer touch-none
         ${isFound
                     ? 'bg-emerald-500/30 text-emerald-300 border-2 border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]'
@@ -137,6 +143,7 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
     const [wordList, setWordList] = useState<string[]>([]);
     const [isLoadingWords, setIsLoadingWords] = useState(true);
     const [showGameOverOverlay, setShowGameOverOverlay] = useState(false);
+    const [cellPx, setCellPx] = useState(MAX_CELL_PX);
 
     // Use shared hooks
     const timer = useGameTimer({ pauseOnHidden: true });
@@ -151,6 +158,24 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
 
     // Get params for current difficulty
     const params = useMemo(() => getModeParams(difficulty), [difficulty]);
+
+    useEffect(() => {
+        const el = gridRef.current;
+        const cols = gameState?.config.cols;
+        if (!el || !cols) return;
+
+        const measure = () => {
+            const availableWidth = el.clientWidth;
+            const gaps = GRID_GAP_PX * Math.max(0, cols - 1);
+            const raw = Math.floor((availableWidth - gaps) / cols);
+            setCellPx(Math.min(MAX_CELL_PX, Math.max(MIN_CELL_PX, raw)));
+        };
+
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [gameState?.config.cols]);
 
     // Load word list based on difficulty (easy → easy.txt, medium/hard → medium.txt)
     useEffect(() => {
@@ -176,18 +201,20 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
 
     // Initialize game
     const initGame = useCallback(async () => {
-        // Wait for word list to be loaded
-        if (isLoadingWords || wordList.length === 0) return;
+        // Wait for word list to be loaded; empty fetch falls back to BASE_WORDS
+        if (isLoadingWords) return;
 
         const seed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
+        const sourceList = wordList.length > 0 ? wordList : BASE_WORDS;
+
         // Filter out already played words from dictionary
-        const availableWords = wordList.filter(w => !playedWords.has(w.toUpperCase()));
+        const availableWords = sourceList.filter(w => !playedWords.has(w.toUpperCase()));
 
         // If all words are exhausted, reset to full list
         const finalDictionary = availableWords.length >= params.wordCount
             ? availableWords
-            : wordList;
+            : sourceList;
 
         const paramsWithFilteredDict = { ...params, dictionary: finalDictionary };
 
@@ -265,8 +292,8 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
                 }
             }
 
-            // No active game or difficulty mismatch - init new game (only if words are loaded)
-            if (!isLoadingWords && wordList.length > 0) {
+            // No active game or difficulty mismatch - init once word fetch settles
+            if (!isLoadingWords) {
                 initGame();
                 hasInitialized.current = true;
             }
@@ -401,6 +428,12 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
 
         setIsSelecting(false);
 
+        if (selectionStart.r === selectionEnd.r && selectionStart.c === selectionEnd.c) {
+            setSelectionStart(null);
+            setSelectionEnd(null);
+            return;
+        }
+
         const action: SelectPathAction = {
             type: 'select_path',
             start: selectionStart,
@@ -529,7 +562,7 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
                 ) : null
             }
         >
-            <div className="max-w-2xl mx-auto p-4 space-y-6">
+            <div className="max-w-2xl mx-auto px-2 py-4 sm:p-4 space-y-6">
                 {/* Win Banner */}
                 {renderModel.isTerminal && renderModel.status === 'won' && (
                     <div className="rounded-xl p-6 text-center bg-emerald-500/10 border border-emerald-500/30">
@@ -570,7 +603,7 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
                 {/* Grid */}
                 <div
                     ref={gridRef}
-                    className="flex justify-center"
+                    className="w-full flex justify-center"
                     onMouseLeave={() => {
                         if (isSelecting) {
                             setSelectionStart(null);
@@ -580,9 +613,10 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
                     }}
                 >
                     <div
-                        className="grid gap-1"
+                        className="grid"
                         style={{
-                            gridTemplateColumns: `repeat(${data.cols}, minmax(0, 1fr))`,
+                            gridTemplateColumns: `repeat(${data.cols}, ${cellPx}px)`,
+                            gap: GRID_GAP_PX,
                         }}
                     >
                         {data.grid.map((row, r) =>
@@ -592,6 +626,7 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
                                     letter={letter}
                                     row={r}
                                     col={c}
+                                    size={cellPx}
                                     isSelected={selectedCells.has(`${r},${c}`)}
                                     isFound={foundCells.has(`${r},${c}`)}
                                     onMouseDown={handleMouseDown}
@@ -608,7 +643,7 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
             {/* Modals */}
             <StatsModal
                 open={statsOpen}
-                onClose={() => setStatsOpen(false)}
+                onClose={() => { setStatsOpen(false); if (renderModel?.isTerminal) setShowGameOverOverlay(true); }}
                 stats={stats}
                 onLeaderboard={() => setLeaderboardOpen(true)}
                 showDistribution={false}
@@ -616,7 +651,7 @@ export default function WordSearchGame({ initialDifficulty }: WordSearchGameProp
 
             <Leaderboard
                 open={leaderboardOpen}
-                onClose={() => setLeaderboardOpen(false)}
+                onClose={() => { setLeaderboardOpen(false); if (renderModel?.isTerminal) setShowGameOverOverlay(true); }}
                 gameId={GAME_ID}
             />
 

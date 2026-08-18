@@ -22,7 +22,7 @@ import { trackGuess } from "@/lib/sync/game-guesses-sync";
 import Leaderboard from "@/components/games/common/Leaderboard";
 import StatsModal from "@/components/shared/StatsModal";
 import { type Stats, applyGameResult } from "@/lib/storage/storage";
-import { useGameTimer } from "@/lib/hooks/useGameTimer";
+import { playDurationSec, useGameTimer } from "@/lib/hooks/useGameTimer";
 import Modal from "../common/Modal";
 import { useLanguage } from "@/lib/i18n";
 
@@ -121,7 +121,7 @@ function FeedbackPegs({ black, white, total }: { black: number; white: number; t
                     key={i}
                     className={`
             w-4 h-4 rounded-full
-            ${type === "black" ? "bg-zinc-900 border border-white/30" : ""}
+            ${type === "black" ? "bg-neutral-950 ring-2 ring-zinc-300" : ""}
             ${type === "white" ? "bg-white border border-zinc-400" : ""}
             ${type === "empty" ? "bg-[color:var(--surface)]" : ""}
 `}
@@ -153,8 +153,8 @@ function AttemptRow({
     const displayGuess = isActive ? currentInput : guess;
 
     return (
-        <div className="flex items-center gap-4 p-2 rounded-lg bg-[color:var(--surface)]">
-            <div className="flex gap-2">
+        <div className="flex items-center gap-2 sm:gap-4 p-2 rounded-lg bg-[color:var(--surface)] flex-wrap">
+            <div className="flex gap-1.5 sm:gap-2 flex-wrap">
                 {Array.from({ length: codeLength }).map((_, i) => {
                     const colorIndex = displayGuess[i];
                     const isEmpty = colorIndex === undefined || colorIndex === -1;
@@ -167,7 +167,7 @@ function AttemptRow({
                             empty={isEmpty}
                             onClick={isActive && onSlotClick ? () => onSlotClick(i) : undefined}
                             selected={isActive && selectedSlot === i}
-                            size="md"
+                            size={codeLength >= 5 ? "sm" : "md"}
                         />
                     );
                 })}
@@ -202,7 +202,7 @@ function ColorPicker({
                     key={i}
                     color={i}
                     colorHex={hex}
-                    size="lg"
+                    size={colors.length > 6 ? "md" : "lg"}
                     onClick={() => onColorSelect(i)}
                     selected={selectedColor === i}
                 />
@@ -392,7 +392,7 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
     const forfeitCurrentGame = useCallback(async () => {
         if (!gameState) return;
         timer.stop();
-        const durationSec = Math.max(0, (Date.now() - gameState.startedAtMs) / 1000);
+        const durationSec = playDurationSec(timer);
         const newStats = applyGameResult(stats, { outcome: "lose", durationSec });
         setStats(newStats);
         saveLocalStats(GAME_ID, difficulty, newStats);
@@ -430,9 +430,9 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
         applyDifficultyChange(d);
     }, [difficulty, isInProgress, applyDifficultyChange]);
 
-    const forfeitCurrentGameAndReset = useCallback(() => {
-        forfeitCurrentGame();
-        initGame();
+    const forfeitCurrentGameAndReset = useCallback(async () => {
+        await forfeitCurrentGame();
+        await initGame();
         setConfirmResetOpen(false);
     }, [forfeitCurrentGame, initGame]);
 
@@ -446,6 +446,7 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
     }, [isInProgress, initGame]);
 
     const handleColorSelect = useCallback((color: number) => {
+        setSelectedColor(color);
         setCurrentInput(prev => {
             const firstEmptyIndex = prev.indexOf(-1);
             if (firstEmptyIndex !== -1) {
@@ -514,7 +515,7 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
             if (mastermindEngine.isTerminal(result.state)) {
                 timer.stop();
                 const isWin = result.state.status === "won";
-                const durationSec = (result.state.endedAtMs! - result.state.startedAtMs) / 1000;
+                const durationSec = playDurationSec(timer);
 
                 // Update stats
                 const newStats = applyGameResult(stats, isWin
@@ -678,14 +679,15 @@ export default function MastermindGame({ initialMode }: MastermindGameProps) {
 
             <StatsModal
                 open={statsOpen}
-                onClose={() => setStatsOpen(false)}
+                onClose={() => { setStatsOpen(false); if (renderModel.isTerminal) setShowGameOverOverlay(true); }}
                 stats={stats}
                 onLeaderboard={() => setLeaderboardOpen(true)}
+                distributionMax={params.maxAttempts}
             />
 
             <Leaderboard
                 open={leaderboardOpen}
-                onClose={() => setLeaderboardOpen(false)}
+                onClose={() => { setLeaderboardOpen(false); if (renderModel.isTerminal) setShowGameOverOverlay(true); }}
                 gameId={GAME_ID}
             />
 

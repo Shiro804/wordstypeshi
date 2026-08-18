@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useState, useCallback, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { RotateCcw, Flag } from "lucide-react";
 import GameShell from "@/components/shared/GameShell";
 import GameResultOverlay from "@/components/games/common/GameResultOverlay";
@@ -21,7 +21,7 @@ import { createOrReuseActiveSession, endSession } from "@/lib/sync/sessions-sync
 import Leaderboard from "@/components/games/common/Leaderboard";
 import StatsModal from "@/components/shared/StatsModal";
 import { type Stats, applyGameResult } from "@/lib/storage/storage";
-import { useGameTimer } from "@/lib/hooks/useGameTimer";
+import { playDurationSec, useGameTimer } from "@/lib/hooks/useGameTimer";
 import Modal from "../common/Modal";
 import { useLanguage } from "@/lib/i18n";
 
@@ -53,6 +53,16 @@ const NUMBER_COLORS: Record<number, string> = {
 
 /** Long press duration for flagging (ms) */
 const LONG_PRESS_MS = 400;
+/** Cancel long-press / tap if the pointer moves this far */
+const MOVE_CANCEL_PX = 12;
+const MIN_CELL_PX = 24;
+const MAX_CELL_PX = 36;
+const GRID_GAP_PX = 2;
+
+function fitMineCellPx(availableWidth: number, cols: number): number {
+    const fitted = Math.floor((availableWidth - GRID_GAP_PX * (cols - 1)) / cols);
+    return Math.max(1, Math.min(MAX_CELL_PX, fitted));
+}
 
 // ============================================================================
 // Sub-components
@@ -64,38 +74,72 @@ function MineCell({
     onClick,
     onFlag,
     disabled,
-    cellSize,
+    cellPx,
 }: {
     state: 'hidden' | 'revealed' | 'flagged' | 'mine_exploded' | 'mine_revealed';
     adjacentMines: number;
     onClick: () => void;
     onFlag: () => void;
     disabled: boolean;
-    cellSize: string;
+    cellPx: number;
 }) {
     const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const didLongPress = useRef(false);
+    const flagHandledRef = useRef(false);
+    const cancelledRef = useRef(false);
+    const startPosRef = useRef<{ x: number; y: number } | null>(null);
 
-    const handlePointerDown = useCallback(() => {
-        if (disabled || state === 'revealed') return;
-        didLongPress.current = false;
-        longPressRef.current = setTimeout(() => {
-            didLongPress.current = true;
-            onFlag();
-        }, LONG_PRESS_MS);
-    }, [disabled, state, onFlag]);
-
-    const handlePointerUp = useCallback(() => {
+    const clearLongPress = useCallback(() => {
         if (longPressRef.current) {
             clearTimeout(longPressRef.current);
             longPressRef.current = null;
         }
     }, []);
 
+    const handlePointerDown = useCallback((e: React.PointerEvent) => {
+        if (disabled || state === 'revealed') return;
+        flagHandledRef.current = false;
+        cancelledRef.current = false;
+        startPosRef.current = { x: e.clientX, y: e.clientY };
+        longPressRef.current = setTimeout(() => {
+            flagHandledRef.current = true;
+            onFlag();
+        }, LONG_PRESS_MS);
+    }, [disabled, state, onFlag]);
+
+    const handlePointerMove = useCallback((e: React.PointerEvent) => {
+        if (!startPosRef.current || cancelledRef.current) return;
+        const dx = e.clientX - startPosRef.current.x;
+        const dy = e.clientY - startPosRef.current.y;
+        if (dx * dx + dy * dy > MOVE_CANCEL_PX * MOVE_CANCEL_PX) {
+            clearLongPress();
+            cancelledRef.current = true;
+        }
+    }, [clearLongPress]);
+
+    const handlePointerUp = useCallback(() => {
+        clearLongPress();
+        startPosRef.current = null;
+    }, [clearLongPress]);
+
+    const handlePointerCancel = useCallback(() => {
+        clearLongPress();
+        cancelledRef.current = true;
+        startPosRef.current = null;
+    }, [clearLongPress]);
+
     const handleClick = useCallback(() => {
-        if (didLongPress.current) return;
+        if (flagHandledRef.current || cancelledRef.current) return;
         onClick();
     }, [onClick]);
+
+    const handleContextMenu = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        if (disabled || state === 'revealed') return;
+        clearLongPress();
+        if (flagHandledRef.current) return;
+        flagHandledRef.current = true;
+        onFlag();
+    }, [disabled, state, onFlag, clearLongPress]);
 
     useEffect(() => {
         return () => {
@@ -114,25 +158,32 @@ function MineCell({
                         ? 'bg-amber-500/10 border-amber-500/40'
                         : 'bg-[color:var(--surface)] border-[color:var(--border)] hover:bg-[color:var(--surface2)] cursor-pointer active:scale-95';
 
+    const iconPx = Math.max(8, Math.round(cellPx * 0.45));
+
     return (
         <button
             type="button"
             onClick={handleClick}
             onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
-            onPointerLeave={handlePointerUp}
-            onContextMenu={(e) => {
-                e.preventDefault();
-                if (!disabled && state !== 'revealed') onFlag();
-            }}
+            onPointerLeave={handlePointerCancel}
+            onPointerCancel={handlePointerCancel}
+            onContextMenu={handleContextMenu}
             disabled={disabled && state !== 'hidden' && state !== 'flagged'}
             className={`
-                ${cellSize} rounded-md border transition-all duration-150
+                rounded-md border transition-all duration-150
                 flex items-center justify-center select-none
-                transform-gpu
+                transform-gpu shrink-0
                 ${bgClass}
                 ${disabled && (state === 'hidden' || state === 'flagged') ? 'opacity-60 cursor-not-allowed' : ''}
             `}
+            style={{
+                width: cellPx,
+                height: cellPx,
+                touchAction: 'manipulation',
+                WebkitTouchCallout: 'none',
+            }}
             aria-label={
                 state === 'revealed'
                     ? adjacentMines > 0 ? `${adjacentMines} adjacent mines` : 'Empty cell'
@@ -143,15 +194,18 @@ function MineCell({
             }
         >
             {state === 'revealed' && adjacentMines > 0 && (
-                <span className={`font-bold text-xs sm:text-sm ${NUMBER_COLORS[adjacentMines] || 'text-white'}`}>
+                <span
+                    className={`font-bold ${NUMBER_COLORS[adjacentMines] || 'text-white'}`}
+                    style={{ fontSize: Math.max(10, Math.round(cellPx * 0.42)) }}
+                >
                     {adjacentMines}
                 </span>
             )}
             {state === 'flagged' && (
-                <Flag size={12} className="text-amber-400" />
+                <Flag size={iconPx} className="text-amber-400" />
             )}
             {(state === 'mine_exploded' || state === 'mine_revealed') && (
-                <span className="text-xs sm:text-sm">💣</span>
+                <span style={{ fontSize: Math.max(10, Math.round(cellPx * 0.5)) }}>💣</span>
             )}
         </button>
     );
@@ -303,7 +357,7 @@ export default function BatasMineGame() {
     const forfeitCurrentGame = useCallback(async () => {
         if (!gameState) return;
         timer.stop();
-        const durationSec = Math.max(0, (Date.now() - gameState.startedAtMs) / 1000);
+        const durationSec = playDurationSec(timer);
         const newStats = applyGameResult(stats, { outcome: "lose", durationSec });
         setStats(newStats);
         saveLocalStats(GAME_ID, difficulty, newStats);
@@ -359,8 +413,8 @@ export default function BatasMineGame() {
 
         const cell = gameState.grid[position];
 
-        // In flag mode, toggle flag instead of reveal
-        if (flagMode) {
+        // Flag mode, or tap on a flagged cell: toggle flag (unflag on tap)
+        if (flagMode || cell.state === 'flagged') {
             if (cell.state === 'revealed') return;
             const action: BatasMineAction = { type: 'toggle_flag', position };
             const result = batasMineEngine.applyAction(gameState, action);
@@ -384,7 +438,7 @@ export default function BatasMineGame() {
         // Check completion
         if (batasMineEngine.isTerminal(result.state)) {
             timer.stop();
-            const durationSec = (result.state.endedAtMs! - result.state.startedAtMs) / 1000;
+            const durationSec = playDurationSec(timer);
             const isWin = result.state.status === 'won';
 
             const newStats = applyGameResult(stats, isWin
@@ -394,7 +448,7 @@ export default function BatasMineGame() {
 
             // BatasMine-specific: track best score on wins
             if (isWin) {
-                const durationMs = result.state.endedAtMs! - result.state.startedAtMs;
+                const durationMs = playDurationSec(timer) * 1000;
                 const score = calculateScore(result.state.cellsRevealed, durationMs);
                 newStats.bestScore = newStats.bestScore == null ? score : Math.max(newStats.bestScore, score);
             }
@@ -449,13 +503,25 @@ export default function BatasMineGame() {
         setShowGameOverOverlay(true);
     }, []);
 
-    // Determine cell size based on grid dimensions
-    const cellSize = useMemo(() => {
-        if (!params) return 'w-8 h-8';
-        if (params.cols <= 8) return 'w-9 h-9 sm:w-10 sm:h-10';
-        if (params.cols <= 12) return 'w-7 h-7 sm:w-8 sm:h-8';
-        return 'w-5 h-5 sm:w-6 sm:h-6';
-    }, [params]);
+    const gridWrapRef = useRef<HTMLDivElement>(null);
+    const [cellPx, setCellPx] = useState(() => {
+        if (typeof window === 'undefined') return MIN_CELL_PX;
+        return fitMineCellPx(Math.min(window.innerWidth, 512) - 32, params.cols);
+    });
+
+    useLayoutEffect(() => {
+        const el = gridWrapRef.current;
+        if (!el) return;
+
+        const update = () => {
+            setCellPx(fitMineCellPx(el.clientWidth, params.cols));
+        };
+
+        update();
+        const ro = new ResizeObserver(update);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [params.cols, renderModel]);
 
     if (!renderModel) {
         return (
@@ -508,7 +574,7 @@ export default function BatasMineGame() {
                 </div>
             }
         >
-            <div className="max-w-lg mx-auto p-4 space-y-3 flex flex-col items-center">
+            <div className="w-full max-w-lg mx-auto p-4 space-y-3 flex flex-col items-center min-w-0">
                 {/* Status bar */}
                 {!renderModel.isTerminal && (
                     <div className="flex items-center gap-4 text-sm text-[color:var(--muted)]">
@@ -522,37 +588,41 @@ export default function BatasMineGame() {
                     </div>
                 )}
 
-                {/* Mine Grid */}
-                <div
-                    className="grid gap-0.5 sm:gap-1 w-fit"
-                    style={{
-                        gridTemplateColumns: `repeat(${data.cols}, 1fr)`,
-                    }}
-                >
-                    {data.cells.map((cell) => (
-                        <MineCell
-                            key={cell.position}
-                            state={cell.state}
-                            adjacentMines={cell.adjacentMines}
-                            onClick={() => handleCellClick(cell.position)}
-                            onFlag={() => handleCellFlag(cell.position)}
-                            disabled={renderModel.isTerminal}
-                            cellSize={cellSize}
-                        />
-                    ))}
+                {/* Mine Grid — cells sized to wrap width; shrink below 24px only if needed */}
+                <div ref={gridWrapRef} className="w-full min-w-0">
+                    <div
+                        className="grid mx-auto"
+                        style={{
+                            gridTemplateColumns: `repeat(${data.cols}, ${cellPx}px)`,
+                            gap: GRID_GAP_PX,
+                            width: 'fit-content',
+                        }}
+                    >
+                        {data.cells.map((cell) => (
+                            <MineCell
+                                key={cell.position}
+                                state={cell.state}
+                                adjacentMines={cell.adjacentMines}
+                                onClick={() => handleCellClick(cell.position)}
+                                onFlag={() => handleCellFlag(cell.position)}
+                                disabled={renderModel.isTerminal}
+                                cellPx={cellPx}
+                            />
+                        ))}
+                    </div>
                 </div>
             </div>
 
             <StatsModal
                 open={statsOpen}
-                onClose={() => setStatsOpen(false)}
+                onClose={() => { setStatsOpen(false); if (renderModel.isTerminal) setShowGameOverOverlay(true); }}
                 stats={stats}
                 onLeaderboard={() => setLeaderboardOpen(true)}
             />
 
             <Leaderboard
                 open={leaderboardOpen}
-                onClose={() => setLeaderboardOpen(false)}
+                onClose={() => { setLeaderboardOpen(false); if (renderModel.isTerminal) setShowGameOverOverlay(true); }}
                 gameId={GAME_ID}
             />
 

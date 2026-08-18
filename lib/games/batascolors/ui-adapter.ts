@@ -26,6 +26,8 @@ export interface BatasColorsRenderModel extends RenderModel {
     targetColor: string;
     /** Target color (RGB) */
     targetColorRgb: RGB;
+    /** Last mixed color (hex), null before the first mix */
+    mixedColor: string | null;
     /** Color palette (hex strings) */
     palette: string[];
     /** Segment percentages */
@@ -75,6 +77,7 @@ function toRenderModel(state: BatasColorsState): BatasColorsRenderModel {
       remainingAttempts: state.config.maxAttempts - state.currentAttempt,
       targetColor: rgbToHex(state.targetColor),
       targetColorRgb: state.targetColor,
+      mixedColor: attempts.length > 0 ? attempts[attempts.length - 1].mixedColor : null,
       palette: state.palette.map(rgbToHex),
       segmentPercentages: state.segmentPercentages,
       // Only reveal solution when game is over
